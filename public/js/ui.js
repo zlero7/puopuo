@@ -73,7 +73,7 @@ function openMenu(id = 'main', focusId) {
 function showGame() {
   document.body.classList.add('ingame');
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
-  const rl = game.rule === 'fever' && game.mode !== 'solo' ? ' · 피버' : '';
+  const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
   $('bandTitle').textContent = (game.mode === 'replay' ? '리플레이' : game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : game.soloMode === 'efever' ? '엔드리스 피버' : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전') + rl;
   setHints('game'); fit();
 }

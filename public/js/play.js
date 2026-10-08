@@ -50,10 +50,10 @@ const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const
 game.launch = (from, to, n, x, y, kind, ch) => {
   const col = kind === 'offset' ? '#8fd0ff' : CH_COL[Math.max(0, (ch == null ? from.chain : ch) - 1) % CH_COL.length];
   const tx = to.ox + to.fw / 2, ty = to.oy - 32;
-  game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind === 'attack' ? 720 : 420, n, from, to, kind, col,
-    size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind === 'attack' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
+  game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind !== 'offset' ? 720 : 420, n, from, to, kind, col,
+    size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind !== 'offset' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
   ring(x, y, col, 8, 46, 320, 6); burst(x, y, col, 10, 0.25);
-  kind === 'attack' ? sfx.send() : sfx.rot();
+  kind !== 'offset' ? sfx.send() : sfx.rot();
 };
 function orbPos(o) {
   const k = Math.min(1, o.t / o.dur), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
@@ -61,9 +61,9 @@ function orbPos(o) {
   return [(1 - e) * (1 - e) * o.x0 + 2 * (1 - e) * e * mx + e * e * o.x1, (1 - e) * (1 - e) * o.y0 + 2 * (1 - e) * e * my + e * e * o.y1];
 }
 function impact(o) {
-  if (o.kind === 'attack') {
-    if (!o.to.remote) o.to.pending += o.n;          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
-    if (o.from !== o.to) o.to.lastHitBy = o.from;   // 3~4인: 나를 공격한 사람에게 반격
+  if (o.kind !== 'offset') {                         // 'bb'(빅뱅 데미지)는 연출만
+    if (o.kind === 'attack' && !o.to.remote) o.to.pending += o.n;          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+    if (o.kind === 'attack' && o.from !== o.to) o.to.lastHitBy = o.from;   // 3~4인: 나를 공격한 사람에게 반격
     o.to.trayBump = 1; o.to.hit = Math.min(1, 0.4 + o.n / 20);
     o.to.shake = Math.max(o.to.shake, 3 + Math.min(7, o.n / 3));
     ring(o.x1, o.y1, o.col, 6, 40 + Math.min(40, o.n * 2), 380, 7); ring(o.x1, o.y1, '#ffffff', 4, 28, 240, 3);
@@ -145,6 +145,7 @@ function update(dt) {
     }
   }
   if (active && game.mode === 'replay') replayTick();
+  if (active && game.rule === 'bigbang') bbTick(dt);
   for (const f of game.fields) f.update(dt, active);
   updateFx(dt);
   if (active && (game.net || game.rec)) {         // 상태(조각 위치·점수 등): 온라인 전송 + 녹화, 초당 20번
@@ -244,7 +245,7 @@ function render(t) {
   outlined(ctx, '다음', PX, OY + 13, 22, '#fff', TONES.yellow.d, 6);
   if (me.phase !== 'none' && !me.dead) {
     if (isT) {
-      for (let i = 0; i < 5; i++) drawMino(ctx, tPieceAt(me.idx + i), PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1);
+      for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }
     } else {
       const n1 = pairAt(me.idx), n2 = pairAt(me.idx + 1);
       drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
@@ -305,6 +306,7 @@ function render(t) {
     }
   }
   ctx.restore();
+  if (game.rule === 'bigbang') drawBigBang(ctx);
   drawFx(ctx);
   if (game.mode === 'replay') drawReplayHud(ctx);
   if (game.state === 'intro') drawIntro(t);

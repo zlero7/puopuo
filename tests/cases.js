@@ -31,4 +31,11 @@ module.exports = [
   { name: '타이니 뿌요 vs 뿌요', mode: 'vs', my: 'puyo', op: 'puyo', board: 'tiny', steps: 40000,
     probe: '[COLS, VIS, BOARDS[BOARD].drop]', expect: r => r.state === 'over' && r.extra[0] === 12 },
   { name: '타이니 뿌요 엔드리스 피버', mode: 'solo', my: 'puyo', op: 'puyo', solo: 'efever', board: 'tiny', steps: 40000, expect: r => r.state === 'over' && r.maxChain[0] >= 5 },
+  { name: '빅뱅 뿌요 vs 뿌요', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'bigbang', steps: 60000,
+    probe: '({ round: game.bb.round, hp: game.bb.hp })', expect: r => r.state === 'over' && r.extra.round >= 2 && r.extra.hp.some(h => h <= 0) },
+  { name: '빅뱅 테트리스 vs 뿌요', mode: 'vs', my: 'tetris', op: 'puyo', rule: 'bigbang', steps: 60000,
+    probe: '({ round: game.bb.round, hp: game.bb.hp, res: game.bb.resBy })', expect: r => r.state === 'over' && r.extra.round >= 2 },
+  { name: '빅뱅 4인', mode: 'vs', my: 'puyo', op: 'random', players: 4, rule: 'bigbang', steps: 80000,
+    probe: '({ round: game.bb.round, hp: game.bb.hp })', expect: r => r.state === 'over' },
+  { name: '빅뱅 리플레이', mode: 'vs', my: 'tetris', op: 'puyo', rule: 'bigbang', steps: 60000, replay: true, expect: r => r.same },
 ];

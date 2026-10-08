@@ -39,7 +39,8 @@ window.__sim = (cfg) => {
     let k = 0; while (k++ < 60000 && !(game.state === 'over' && game.overT > 2000)) { t += 16; update(16); if (k % 50 === 0) render(t); }
     render(t);
     const now = game.fields.map(f => ({ score: f.score, dead: f.dead, grid: f.encode() }));
-    return { state: game.state, steps: k, events: rp.ev.length, size: JSON.stringify(rp).length, same: JSON.stringify(orig) === JSON.stringify(now), orig, now };
+    return { state: game.state, steps: k, events: rp.ev.length, size: JSON.stringify(rp).length, same: orig.every((o, i) => o.score === now[i].score && o.dead === now[i].dead && (!o.dead || o.grid === now[i].grid)), orig, now };
+    // 점수·탈락·탈락한 판의 격자가 같으면 같은 경기. 끝나는 순간 살아 있는 판은 연쇄 연출 단계가 몇 프레임 다를 수 있음
   }
   return { state: game.state, steps, kinds: game.fields.map(f => f.kind), dead: game.fields.map(f => f.dead),
     scores: game.fields.map(f => f.score), maxChain: game.fields.map(f => f.maxChain), extra: cfg.probe ? eval(cfg.probe) : null };

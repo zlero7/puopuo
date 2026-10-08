@@ -245,7 +245,7 @@ class Field {
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }
     if (game.rule === 'fever' && !this.fv.on && (this.fv.gauge >= FEVER_GAUGE || (game.soloMode === 'efever' && !game.vs && !this.fv.lv))) { this.startFever(); return; }
-    if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } this.die(); return; }
+    if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } if (this.bbOn()) { this.bbFinish(0); return; } this.die(); return; }
     const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 };
     this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true;
@@ -263,6 +263,8 @@ class Field {
   }
   die() {
     if (this.dead) return;
+    // 원격 판(온라인 상대·리플레이)은 보던 연쇄·밀린 이벤트를 끝까지 보여준 뒤 탈락
+    if (this.remote && (this.phase === 'pop' || this.phase === 'settle' || this.queue.length)) { this.dieLater = true; return; }
     this.dead = true; this.phase = 'dead'; this.piece = null;
     if (!this.remote) emit(this, { t: 'dead' });
   }
@@ -289,6 +291,7 @@ class Field {
       } else if (ev.t === 'garb') this.placeGarbage(ev.c);
       else if (ev.t === 'fv') { this.fv.on = !!ev.on; this.decode(ev.g, true); this.piece = null; this.phase = 'settle'; this.settleT = 0; }
     }
+    if (this.phase === 'wait' && this.dieLater) { this.dieLater = false; this.die(); return; }
     if (this.phase === 'wait') this.applyNet();
   }
   applyNet() {
@@ -393,6 +396,7 @@ class Field {
 
   lock(off = 0, hard = false) {
     const p = this.piece, sx = p.x + DX[p.o], sy = p.y + DY[p.o];
+    this.lockAt = game.el;
     if (!this.remote) emit(this, { t: 'lock', n: this.idx, x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, h: hard ? 1 : 0, g: this.encode() });
     const m = this.mk(p.a, p.y, p.x, p.y - off), s = this.mk(p.b, sy, sx, sy - off);
     if (hard) for (const q of [m, s]) { q.vy = 0.05; q.vmax = 0.09; q.hard = true; }
@@ -527,7 +531,7 @@ class Field {
 
   // 연쇄 한 단계마다 바로 공격: 내 쪽에 쌓인 방해뿌요부터 상쇄하고 남은 만큼 상대에게 날림
   attack(units, x, y) {
-    if (!game.vs || units <= 0 || this.remote) return;
+    if (!game.vs || units <= 0 || this.remote || game.rule === 'bigbang') return;
     let n = units;
     if (!this.human) { this.atkCarry += units * this.ai.atk; n = Math.floor(this.atkCarry); this.atkCarry -= n; }
     if (n <= 0) return;
@@ -541,7 +545,7 @@ class Field {
   // 테트리스 상대: 연쇄 단계 점수(+이월)가 210·630·1050·1710·3500·7000·14000점에 닿으면 1~7줄.
   // 내 예고 방해뿌요는 평소처럼 상쇄하고, 상쇄량이 예고를 넘어선 단계부터 줄 공격이 쌓여 연쇄가 끝날 때 한 번에 감
   attackT(step, units, x, y) {
-    if (!game.vs || this.remote) return;
+    if (!game.vs || this.remote || game.rule === 'bigbang') return;
     this.lineCarry += step;
     let lines = 0;
     const mf = targetPt() / 70;
@@ -568,7 +572,7 @@ class Field {
     }
     if (this.chain > 0) {
       if (this.chain >= 2) this.chains2++;
-      if (this.isEmpty() && !this.fv.on) {     // 피버 씨앗판은 다 터뜨려도 전멸 보너스 없음
+      if (this.isEmpty() && !this.fv.on && game.rule !== 'bigbang') {     // 피버·빅뱅 씨앗판은 다 터뜨려도 전멸 보너스 없음
         this.allClears++;
         this.texts.push({ txt: '전멸!', x: FW / 2, y: FH / 2, age: 0, dur: 1600, col: '#ffd93d', size: 44 }); sfx.clear();
         if (game.vs) this.acBonus = true;
@@ -577,6 +581,10 @@ class Field {
     }
     this.chain = 0;
     if (this.remote) { this.spawn(); return; }
+    if (this.bbOn()) {                        // 빅뱅: 연쇄가 나면 이번 라운드 끝, 아니면 계속 놓기
+      if (ch > 0) { this.bbFinish(ch / this.bbN, this.lockAt); return; }   // 끝낸 시각은 트리거를 놓은 때(연쇄 연출 시간은 빼고)
+      this.spawn(); return;
+    }
     if (this.fv.on) {                         // 피버 중: 연쇄가 끝나면 다음 씨앗판, 시간이 다 되면 원래 판으로. 방해뿌요는 피버가 끝난 뒤에
       if (ch > 0) {
         const [, max] = feverLv();
@@ -592,6 +600,20 @@ class Field {
     if (this.pending > 0 && !this.noGarb) { this.dropGarbage(); return; }
     this.spawn();
   }
+
+  /* ---------- 빅뱅(bigbang.js) ---------- */
+  bbOn() { return game.rule === 'bigbang' && !this.remote && this.bbN > 0; }
+  bbLoad(s) {
+    if (!s) { this.bbN = 0; this.phase = 'bbwait'; bbReport(this, 0, game.el); return; }
+    this.bbN = s.n; this.chain = 0;
+    const g = s.g.map(row => row.join('')).join('');
+    this.decode(g, true);
+    this.forcePair = [s.trig.c, 1 + rnd(4)];
+    emit(this, { t: 'fv', g, on: 0 });
+    this.piece = null; this.phase = 'settle'; this.settleT = 0;
+  }
+  bbFinish(p, at = game.el) { this.bbN = 0; this.piece = null; this.phase = 'bbwait'; bbReport(this, p, at); }
+  bbTimeUp() { if (this.phase === 'pop' || this.phase === 'settle') { this.bbN = this.bbN || 1; return; } this.bbFinish(0); }   // 연쇄 중이면 끝날 때 결과
 
   /* ---------- 피버 ---------- */
   feverHit() {                               // 상쇄하면 연쇄 한 번에 게이지 한 칸
@@ -667,7 +689,7 @@ class Field {
       if (py < 1 || sy < 1) continue;
       s[py][x] = p.a; s[sy][sx] = p.b;
       const res = simResolve(s); let sc = 0; const atk = Math.floor(res.score / 70);
-      if (this.fv.on) sc += res.chain * 3000;     // 피버 중: 씨앗판은 터뜨리는 게 우선
+      if (this.fv.on || this.bbOn()) sc += res.chain * 3000;     // 피버·빅뱅: 씨앗판은 터뜨리는 게 우선
       else if (res.chain > 0) {
         if (res.chain >= 4) sc += 2000 + res.chain * 400;
         else if (res.chain === 3) sc += 900;
@@ -679,7 +701,7 @@ class Field {
       for (let c = 0; c < COLS; c++) sc -= h[c] * h[c] * 0.9;
       if (h[SP] >= VIS - 1) sc -= 4000; else if (h[SP] >= VIS - 3) sc -= 250;
       sc += connectScore(s);
-      if (!danger && this.ai.pot > 0 && !this.fv.on) { const pot = potential(s); sc += this.ai.pot * 150 * pot * pot; }
+      if (!danger && this.ai.pot > 0 && !this.fv.on && !this.bbOn()) { const pot = potential(s); sc += this.ai.pot * 150 * pot * pot; }
       sc += Math.random() * this.ai.noise;
       cands.push({ x, o });
       if (sc > bestS) { bestS = sc; best = { x, o }; }

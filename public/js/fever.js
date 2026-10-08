@@ -10,7 +10,7 @@
    - 피버 중 연쇄는 별도 점수표(FEVER_POWER)를 써서 긴 연쇄의 공격력이 통상보다 완만함 */
 const FEVER_GAUGE = 7, FEVER_TIME = 15000;
 const FEVER_POWER = [0, 0, 6, 10, 16, 24, 32, 42, 52, 64, 76, 90, 104, 118, 132, 148, 164, 180, 196, 212];
-const RULES = { tsu: { ko: '통상' }, fever: { ko: '피버' } };
+const RULES = { tsu: { ko: '통상' }, fever: { ko: '피버' }, bigbang: { ko: '빅뱅' } };
 const feverLv = () => ({ classic: [4, 11], wide: [5, 13], tiny: [6, 15] }[BOARD] || [5, 13]);   // [시작 연쇄, 최대 연쇄]
 
 /* ---------- 연쇄 씨앗판 만들기 ----------

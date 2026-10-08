@@ -43,6 +43,7 @@ function applyRemote(f, d) {
       break;
     }
     case 'off': game.launch(f, f, d.n, f.ox + d.x, f.oy + d.y, 'offset', d.ch); break;
+    case 'bb': bbReport(f, d.p, d.at, d.r); break;
     case 'dead':
       if (f.kind === 'tetris') {                                   // 남은 이벤트를 바로 적용해서 마지막으로 놓은 블록까지 보이게
         if (f.phase === 'clear') f.dropRows(f.clearRows);
@@ -110,6 +111,8 @@ function startReplay(rp) {
   game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; return f; });
   if (vs) for (const f of game.fields) f.opp = pickTarget(f);
   game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
+  game.seed = rp.seed; game.bb = null;
+  if (game.rule === 'bigbang' && vs) bbInit();
   game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 1600; game.introGo = false; overlay.classList.add('hidden'); bgmPlay('game'); sfx.ready();
   showGame();

@@ -41,7 +41,7 @@ const P2T = [210, 630, 1050, 1710, 3500, 7000, 14000];
 // 마진 타임: 대전 시작 96초 후부터 16초마다 공격력이 오름(뿌요: 목표 점수 감소 / 테트리스: 보내는 줄 배율)
 const MARGIN_START = 96000, MARGIN_STEP = 16000, TSU_TP = [70, 52, 35, 26, 17, 13, 8, 6, 4, 3, 2, 1];
 function marginLv() {
-  if (!game.vs || game.state === 'intro') return 0;
+  if (!game.vs || game.state === 'intro' || game.rule === 'bigbang') return 0;
   const el = game.el || 0;
   return el < MARGIN_START ? 0 : Math.min(TSU_TP.length - 1, 1 + Math.floor((el - MARGIN_START) / MARGIN_STEP));
 }
@@ -190,10 +190,11 @@ class TField {
   }
   vsPuyo() { return this.opp && this.opp.kind === 'puyo'; }
 
-  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } this.spawnType(tPieceAt(this.idx++)); }
+  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } this.spawnType(this.forceQ ? this.forceQ.shift() : tPieceAt(this.idx++)); }
+  peekK(i) { return this.forceQ ? this.forceQ[i] : tPieceAt(this.idx + i); }   // 다음 조각(빅뱅 퍼즐이면 정해진 순서)
   spawnType(k) {
     const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 };
-    if (!this.valid(p)) { this.die(); return; }
+    if (!this.valid(p)) { if (this.bbOn()) { this.bbFinish(); return; } this.die(); return; }
     if (this.valid({ ...p, y: 1 })) p.y = 1;
     this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.lowest = p.y; this.lastRot = false; this.soft = false;
     if (!this.human) this.planAI();
@@ -204,7 +205,7 @@ class TField {
     if (!this.remote) emit(this, { t: 'dead' });
   }
   hold() {
-    if (this.phase !== 'drop' || !this.canHold) return;
+    if (this.phase !== 'drop' || !this.canHold || this.forceQ) return;
     const k = this.cur.k;
     if (this.holdK) { const nk = this.holdK; this.holdK = k; this.spawnType(nk); }
     else { this.holdK = k; this.spawnType(tPieceAt(this.idx++)); }
@@ -294,7 +295,7 @@ class TField {
       this.ren++; this.maxChain = Math.max(this.maxChain, this.ren);
       const amt = this.attackAmount(rows.length, ts, pc);
       this.scoreClear(rows.length, ts, pc);
-      this.pops += rows.length; this.lines += rows.length;
+      this.pops += rows.length; this.lines += rows.length; this.bbCleared = (this.bbCleared || 0) + rows.length;
       if (!game.vs && game.soloMode !== 'sprint' && game.soloMode !== 'ultra') this.level = Math.min(15, 1 + Math.floor(this.lines / 10));
       if (!game.vs && ((game.soloMode === 'sprint' && this.lines >= 40) || (game.soloMode === 'marathon' && this.lines >= 150))) this.finishAfterClear = true;
       if (rows.length === 4) this.chains2++; if (ts) this.doubles++; if (pc) this.allClears++;
@@ -346,7 +347,7 @@ class TField {
   }
   // 공격 전달: 내 쪽 예고를 먼저 상쇄 → 테트리스 상대면 바로 줄로, 뿌요 상대면 게이지에 모음
   deliver(amount, x, y) {
-    if (!game.vs || this.remote || amount <= 0) return;
+    if (!game.vs || this.remote || amount <= 0 || game.rule === 'bigbang') return;
     amount = Math.floor(amount * tMarginMul());
     let n = amount;
     if (!this.human) { this.atkCarry += amount * this.ai.atk; n = Math.floor(this.atkCarry); this.atkCarry -= n; }
@@ -390,6 +391,7 @@ class TField {
   }
   finish() { this.done = true; this.doneAt = game.el; this.phase = 'done'; this.cur = null; }
   afterLock() {
+    if (this.bbOn() && !this.forceQ.length) { this.bbFinish(); return; }   // 빅뱅: 조각을 다 썼으면 라운드 끝
     this.insertGarbage();
     if (this.dead) return;
     this.phase = 'are'; this.areT = 60;
@@ -408,6 +410,18 @@ class TField {
     this.shake = Math.max(this.shake, 3 + n); sfx.garb();
     if (!this.remote) emit(this, { t: 'tgarb', g: this.encode() });
   }
+  /* ---------- 빅뱅(bigbang.js) ---------- */
+  bbOn() { return game.rule === 'bigbang' && !this.remote && !!this.forceQ; }
+  bbLoad(p) {
+    if (!p) { this.forceQ = null; this.phase = 'bbwait'; bbReport(this, 0, game.el); return; }
+    this.decode(p.g); this.forceQ = p.seq.slice(); this.bbRows = p.rows; this.bbCleared = 0;
+    this.cur = null; this.canHold = false; this.shake = 4;
+    emit(this, { t: 'tgarb', g: this.encode() });
+    this.phase = 'are'; this.areT = 400;
+  }
+  bbFinish() { const p = this.bbRows ? this.bbCleared / this.bbRows : 0; this.forceQ = null; this.cur = null; this.phase = 'bbwait'; bbReport(this, p, game.el); }
+  bbTimeUp() { if (this.phase === 'clear') return; if (this.forceQ) this.bbFinish(); else bbReport(this, 0, game.el); }
+
   // 줄 지우기 결과만 바로 반영(연출 없이)
   dropRows(rows) {
     if (!rows || !rows.length) return;
@@ -455,8 +469,8 @@ class TField {
   heights(g) { const h = []; for (let c = 0; c < TW; c++) { let r = 0; while (r < TH && !g[r][c]) r++; h.push(TH - r); } return h; }
   planAI() {
     const ai = this.ai, g = this.grid, b2b = this.b2b;
-    const opts = [{ k: this.cur.k, hold: false, start: this.cur, rot: this.lastRot ? this.lastKick + 1 : 0, next: tPieceAt(this.idx) }];
-    if (ai.holdUse && this.canHold) {
+    const opts = [{ k: this.cur.k, hold: false, start: this.cur, rot: this.lastRot ? this.lastKick + 1 : 0, next: this.peekK(0) }];
+    if (ai.holdUse && this.canHold && !this.forceQ) {
       const hk = this.holdK || tPieceAt(this.idx);
       if (hk !== this.cur.k) opts.push({ k: hk, hold: true, start: tSpawnOf(g, hk), rot: 0, next: this.holdK ? tPieceAt(this.idx) : tPieceAt(this.idx + 1) });
     }
@@ -470,6 +484,7 @@ class TField {
     if (ai.look) {                                     // 위쪽 후보만 다음 조각까지 내다봄
       cands.sort((a, b) => b.s - a.s);
       for (const c of cands.slice(0, 8)) {
+        if (!c.next) continue;
         const nb = (c.pl.spin === 2 && c.lines) || c.lines === 4 ? true : c.lines ? false : b2b;
         let best = -Infinity;
         for (const pl of tReach(c.g2, tSpawnOf(c.g2, c.next))) best = Math.max(best, this.evalPlace(c.g2, pl, nb).s);
