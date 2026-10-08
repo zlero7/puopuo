@@ -41,8 +41,8 @@ const P2T = [210, 630, 1050, 1710, 3500, 7000, 14000];
 // 마진 타임: 대전 시작 96초 후부터 16초마다 공격력이 오름(뿌요: 목표 점수 감소 / 테트리스: 보내는 줄 배율)
 const MARGIN_START = 96000, MARGIN_STEP = 16000, TSU_TP = [70, 52, 35, 26, 17, 13, 8, 6, 4, 3, 2, 1];
 function marginLv() {
-  if (!game.vs || !game.t0 || game.state === 'intro') return 0;
-  const el = performance.now() - game.t0;
+  if (!game.vs || game.state === 'intro' || game.rule === 'bigbang' || game.rule === 'party') return 0;
+  const el = game.el || 0;
   return el < MARGIN_START ? 0 : Math.min(TSU_TP.length - 1, 1 + Math.floor((el - MARGIN_START) / MARGIN_STEP));
 }
 const targetPt = () => TSU_TP[marginLv()];
@@ -75,6 +75,90 @@ function drawMino(c, k, cx, cy, s, alpha = 1) {
   for (const [x, y] of cells) drawBlock(c, cx + (x - Math.min(...xs) - w / 2) * s, cy + (y - Math.min(...ys) - h / 2) * s, s, TCOL[k], alpha);
 }
 
+// 판(grid) 위에서 조각 p가 들어갈 수 있는지
+function tValidOn(g, p) {
+  for (const [x, y] of TROT[p.k][p.r]) { const X = p.x + x, Y = p.y + y; if (X < 0 || X >= TW || Y < 0 || Y >= TH || g[Y][X]) return false; }
+  return true;
+}
+// SRS 회전(월킥 포함). 성공하면 { p, kick: 몇 번째 킥인지 }
+function rotateOn(g, cur, dir) {
+  if (cur.k === 'O') return null;
+  const from = cur.r, to = (from + dir + 4) % 4, kicks = (cur.k === 'I' ? K_I : K_JLSTZ)[`${from}>${to}`];
+  for (let i = 0; i < kicks.length; i++) {
+    const p = { ...cur, r: to, x: cur.x + kicks[i][0], y: cur.y - kicks[i][1] };
+    if (tValidOn(g, p)) return { p, kick: i };
+  }
+  return null;
+}
+// T스핀 판정(0 없음 · 1 미니 · 2 정식): 3코너 규칙, 앞쪽 두 칸이 모두 막혔거나 5번째 킥이면 정식
+function tspinOf(g, p, lastRot, lastKick) {
+  if (p.k !== 'T' || !lastRot) return 0;
+  const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && g[y][x]);
+  const C = [[p.x, p.y], [p.x + 2, p.y], [p.x + 2, p.y + 2], [p.x, p.y + 2]];   // 왼위 오위 오아래 왼아래
+  const filled = C.map(([x, y]) => occ(x, y));
+  if (filled.filter(Boolean).length < 3) return 0;
+  const front = [[0, 1], [1, 2], [2, 3], [3, 0]][p.r];
+  return (filled[front[0]] && filled[front[1]]) || lastKick === 4 ? 2 : 1;
+}
+const tSpawnOf = (g, k) => { const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 }; if (tValidOn(g, { ...p, y: 1 })) p.y = 1; return p; };
+
+// 놓을 수 있는 모든 자리 찾기: 이동(L·R)·회전(C·W)·한 칸 내리기(D)를 BFS로 돌려 땅에 닿는 상태를 모음.
+// 회전으로 끝난 상태는 따로 세서 T스핀처럼 '밀어 넣는' 자리까지 찾는다. 결과: [{ p, spin, path }]
+function tReach(g, start, startRot = 0) {
+  const T = start.k === 'T';
+  const key = (x, y, r, rk) => (((y + 4) * 16 + x + 4) * 4 + r) * 6 + rk;
+  const nodes = [{ x: start.x, y: start.y, r: start.r, rk: T ? startRot : 0, prev: -1, mv: '' }];
+  const seen = new Set([key(start.x, start.y, start.r, nodes[0].rk)]), out = new Map();
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i], p = { k: start.k, x: n.x, y: n.y, r: n.r };
+    const push = (q, rk, mv) => {
+      const kk = key(q.x, q.y, q.r, rk); if (seen.has(kk)) return;
+      seen.add(kk); nodes.push({ x: q.x, y: q.y, r: q.r, rk, prev: i, mv });
+    };
+    const down = { ...p, y: p.y + 1 };
+    if (tValidOn(g, down)) push(down, 0, 'D');
+    else {                                     // 땅에 닿음: 여기서 놓을 수 있음
+      const spin = tspinOf(g, p, n.rk > 0, n.rk - 1);
+      const ok = `${p.x},${p.y},${p.r},${spin}`;
+      if (!out.has(ok)) {
+        const path = []; for (let j = i; j > 0; j = nodes[j].prev) path.push(nodes[j].mv);
+        out.set(ok, { p, spin, path: path.reverse() });
+      }
+    }
+    for (const d of [-1, 1]) { const q = { ...p, x: p.x + d }; if (tValidOn(g, q)) push(q, 0, d < 0 ? 'L' : 'R'); }
+    for (const d of [1, -1]) { const q = rotateOn(g, p, d); if (q) push(q.p, T ? q.kick + 1 : 0, d > 0 ? 'C' : 'W'); }
+  }
+  return [...out.values()];
+}
+// 판에 조각을 놓고 줄을 지운 결과
+function tPlace(g, p) {
+  const h = g.map(r => r.slice());
+  for (const [x, y] of TROT[p.k][p.r]) h[p.y + y][p.x + x] = 3;
+  const kept = h.filter(r => !r.every(Boolean)), lines = TH - kept.length;
+  while (kept.length < TH) kept.unshift(Array(TW).fill(0));
+  return { g: kept, lines, pc: lines > 0 && kept.every(r => r.every(v => !v)) };
+}
+// T스핀 더블 자리 찾기: 아래 두 모서리가 막히고 위 한쪽이 지붕(덮개)으로 막힌 T 모양 빈칸.
+// fill: 돌려 넣었을 때 지워질 두 줄이 얼마나 찼는지(0~2, 2면 T스핀 더블 확정) · clears: 실제로 지워질 줄 수
+function tSlots(g, h) {
+  const out = [];
+  const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && g[y][x]);
+  for (let x = 1; x < TW - 1; x++) for (let y = 1; y < TH - 1; y++) {
+    if (occ(x - 1, y) || occ(x, y) || occ(x + 1, y) || occ(x, y + 1)) continue;   // T가 아래로 향한 모양이 비어야 함
+    if (!occ(x - 1, y + 1) || !occ(x + 1, y + 1)) continue;                       // 아래 두 모서리
+    const tl = occ(x - 1, y - 1), tr = occ(x + 1, y - 1);
+    if (tl === tr) continue;                                                       // 위는 한쪽만 지붕
+    if (occ(x, y - 1)) continue;                                                   // T가 들어올 입구
+    const open = tl ? x + 1 : x - 1;                                               // 지붕 반대쪽은 위가 뚫려 있어야 들어옴
+    if (h[open] > TH - y) continue;
+    let a = 0, b = 0;
+    for (let c = 0; c < TW; c++) { if (c < x - 1 || c > x + 1) a += g[y][c] ? 1 : 0; if (c !== x) b += g[y + 1][c] ? 1 : 0; }
+    const clears = (a === TW - 3 ? 1 : 0) + (b === TW - 1 ? 1 : 0);
+    out.push({ x, y, clears, fill: a / (TW - 3) + b / (TW - 1), cells: [[x - 1, y], [x, y], [x + 1, y], [x, y + 1]] });
+  }
+  return out;
+}
+
 class TField {
   constructor(ox, oy, human, name) {
     this.kind = 'tetris'; this.ox = ox; this.oy = oy; this.human = human; this.name = name; this.opp = null;
@@ -100,16 +184,22 @@ class TField {
   encode() { return this.grid.map(r => r.join('')).join(''); }
   decode(g) { for (let r = 0; r < TH; r++) for (let c = 0; c < TW; c++) this.grid[r][c] = +g[r * TW + c] || 0; }
   fallIv() {
+    if (effOn(this, 'speed')) return this.baseFallIv() / 3;               // 파티: 속도 업
+    return this.baseFallIv();
+  }
+  baseFallIv() {
     if (!game.vs) return Math.max(20, Math.pow(0.8 - (this.level - 1) * 0.007, this.level - 1) * 1000);   // 가이드라인 낙하 속도
-    const el = (performance.now() - (game.t0 || 0)) / 30000;
+    const el = (game.el || 0) / 30000;
     return Math.max(80, 1000 * Math.pow(0.85, Math.floor(el)));
   }
   vsPuyo() { return this.opp && this.opp.kind === 'puyo'; }
 
-  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } this.spawnType(tPieceAt(this.idx++)); }
+  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } if (swapDue(this)) { swapField(this); return; } this.spawnType(this.forceQ ? this.forceQ.shift() : tPieceAt(this.idx++)); }
+  peekK(i) { return this.forceQ ? this.forceQ[i] : tPieceAt(this.idx + i); }   // 다음 조각(빅뱅 퍼즐이면 정해진 순서)
   spawnType(k) {
     const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 };
-    if (!this.valid(p)) { this.die(); return; }
+    if (!this.valid(p)) { if (this.bbOn()) { this.bbFinish(); return; } if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
+    const item = nextItem(this); if (item) p.it = { i: rnd(4), k: item };      // 파티: 조각의 한 칸에 ★아이템
     if (this.valid({ ...p, y: 1 })) p.y = 1;
     this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.lowest = p.y; this.lastRot = false; this.soft = false;
     if (!this.human) this.planAI();
@@ -117,10 +207,10 @@ class TField {
   die() {
     if (this.dead) return;
     this.dead = true; this.phase = 'dead'; this.cur = null;
-    if (game.net && !this.remote) gsend({ t: 'dead' });
+    if (!this.remote) emit(this, { t: 'dead' });
   }
   hold() {
-    if (this.phase !== 'drop' || !this.canHold) return;
+    if (this.phase !== 'drop' || !this.canHold || this.forceQ) return;
     const k = this.cur.k;
     if (this.holdK) { const nk = this.holdK; this.holdK = k; this.spawnType(nk); }
     else { this.holdK = k; this.spawnType(tPieceAt(this.idx++)); }
@@ -136,12 +226,9 @@ class TField {
   }
   rotate(dir) {
     if (this.phase !== 'drop' || this.cur.k === 'O') return false;
-    const from = this.cur.r, to = (from + dir + 4) % 4, kicks = (this.cur.k === 'I' ? K_I : K_JLSTZ)[`${from}>${to}`];
-    for (let i = 0; i < kicks.length; i++) {
-      const p = { ...this.cur, r: to, x: this.cur.x + kicks[i][0], y: this.cur.y - kicks[i][1] };
-      if (this.valid(p)) { this.cur = p; this.lastRot = true; this.lastKick = i; this.lockReset(); if (this.human) sfx.rot(); return true; }
-    }
-    return false;
+    const q = rotateOn(this.grid, this.cur, dir);
+    if (!q) return false;
+    this.cur = q.p; this.lastRot = true; this.lastKick = q.kick; this.lockReset(); if (this.human) sfx.rot(); return true;
   }
   hardDrop() {
     if (this.phase !== 'drop') return;
@@ -161,7 +248,7 @@ class TField {
       if (this.phase === 'wait' && this.queue.length) this.applyEvent(this.queue.shift());
       return;
     }
-    if (!game.vs && game.soloMode === 'ultra' && performance.now() - game.t0 >= 180000 && !this.done) { this.finish(); return; }
+    if (!game.vs && game.soloMode === 'ultra' && game.el >= 180000 && !this.done) { this.finish(); return; }
     if (this.phase === 'drop') this.updateDrop(dt);
     else if (this.phase === 'clear') this.updateClear(dt);
     else if (this.phase === 'are') { this.areT -= dt; if (this.areT <= 0) this.spawn(); }
@@ -180,7 +267,7 @@ class TField {
     if (this.human) {
       const inp = game.inp[this.pi || 0];
       this.soft = inp.down;
-      const dir = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
+      const dir = ((inp.left ? -1 : 0) + (inp.right ? 1 : 0)) * (effOn(this, 'rev') ? -1 : 1);   // 파티: 조작 반전
       if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }
       else if (dir) { this.das += dt; if (this.das > 167) { this.rep += dt; while (this.rep >= 33) { this.rep -= 33; if (!this.moveX(dir)) { this.rep = 0; break; } } } }
     } else { this.aiAct(dt); if (this.phase !== 'drop') return; }
@@ -198,30 +285,30 @@ class TField {
   }
 
   // T스핀 판정: 3코너 규칙, 앞쪽 두 칸이 모두 막혔거나 5번째 킥이면 정식, 아니면 미니
-  tspinType() {
-    const p = this.cur; if (p.k !== 'T' || !this.lastRot) return 0;
-    const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && this.grid[y][x]);
-    const C = [[p.x, p.y], [p.x + 2, p.y], [p.x + 2, p.y + 2], [p.x, p.y + 2]];   // 왼위 오위 오아래 왼아래
-    const filled = C.map(([x, y]) => occ(x, y));
-    if (filled.filter(Boolean).length < 3) return 0;
-    const front = [[0, 1], [1, 2], [2, 3], [3, 0]][p.r];
-    return (filled[front[0]] && filled[front[1]]) || this.lastKick === 4 ? 2 : 1;
-  }
+  tspinType() { return tspinOf(this.grid, this.cur, this.lastRot, this.lastKick); }
   lock(hard) {
     const p = this.cur, ts = this.tspinType(), cells = this.cells(p);
-    if (cells.every(([, y]) => y < TH - TVIS)) { for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); this.die(); return; }
+    if (cells.every(([, y]) => y < TH - TVIS)) {
+      if (game.rule === 'party') { this.cur = null; partyReset(this); return; }
+      for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [] }); this.die(); return;
+    }
     for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k);
+    if (p.it) (this.items = this.items || []).push({ x: cells[p.it.i][0], y: cells[p.it.i][1], k: p.it.k });
     this.cur = null; this.canHold = true;
     const rows = []; for (let r = 0; r < TH; r++) if (this.grid[r].every(v => v)) rows.push(r);
     const filledAfter = this.grid.reduce((a, row, r) => a + (rows.includes(r) ? 0 : row.filter(Boolean).length), 0);
     const pc = rows.length > 0 && filledAfter === 0;
-    if (game.net && !this.remote) gsend({ t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
+    if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
     this.shake = Math.max(this.shake, hard ? 2.5 : 0);
+    if (rows.length && this.items && this.items.length) {   // 파티: 지운 줄에 있던 ★아이템 발동(줄이 다 지워진 뒤)
+      this.itemQ = (this.itemQ || []).concat(this.items.filter(t => rows.includes(t.y)).map(t => t.k));
+      this.items = this.items.filter(t => !rows.includes(t.y));          // 남은 아이템은 줄이 실제로 지워질 때 내려감
+    }
     if (rows.length) {
       this.ren++; this.maxChain = Math.max(this.maxChain, this.ren);
       const amt = this.attackAmount(rows.length, ts, pc);
       this.scoreClear(rows.length, ts, pc);
-      this.pops += rows.length; this.lines += rows.length;
+      this.pops += rows.length; this.lines += rows.length; this.bbCleared = (this.bbCleared || 0) + rows.length;
       if (!game.vs && game.soloMode !== 'sprint' && game.soloMode !== 'ultra') this.level = Math.min(15, 1 + Math.floor(this.lines / 10));
       if (!game.vs && ((game.soloMode === 'sprint' && this.lines >= 40) || (game.soloMode === 'marathon' && this.lines >= 150))) this.finishAfterClear = true;
       if (rows.length === 4) this.chains2++; if (ts) this.doubles++; if (pc) this.allClears++;
@@ -247,6 +334,8 @@ class TField {
     return { labs, b2b: !!b2b, ren: lines ? (pre ? this.ren + 1 : this.ren) : 0, pc };
   }
   showLockFx(fx) {
+    const big = fx.labs.length + (fx.pc ? 2 : 0) + (fx.b2b ? 1 : 0) + (fx.ren >= 3 ? 1 : 0);
+    if (big) cutIn(this, Math.min(4, big + (fx.ren >= 5 ? 1 : 0)));
     let y = FH * 0.42;
     const push = (txt, col, size) => { this.texts.push({ txt, x: SW / 2, y, age: 0, dur: 1300, col, size }); y += size + 6; };
     if (fx.pc) push('퍼펙트 클리어!', '#ffd93d', 34);
@@ -258,7 +347,7 @@ class TField {
     let s = ts === 2 ? [400, 800, 1200, 1600][lines] : [0, 100, 300, 500, 800][lines] + (ts === 1 ? 100 : 0);
     if (this.b2bWas && (lines === 4 || ts)) s *= 1.5;
     s += 50 * Math.max(0, this.ren - 1); if (pc) s += [0, 800, 1000, 1800, 2000][lines];
-    this.score += Math.round(s * (game.vs ? 1 : this.level));
+    this.score += Math.round(s * (game.vs ? 1 : this.level) * (effOn(this, 'dbl') ? 2 : 1));
   }
   attackAmount(lines, ts, pc) {
     const vsP = this.vsPuyo();
@@ -273,26 +362,28 @@ class TField {
   }
   // 공격 전달: 내 쪽 예고를 먼저 상쇄 → 테트리스 상대면 바로 줄로, 뿌요 상대면 게이지에 모음
   deliver(amount, x, y) {
-    if (!game.vs || this.remote || amount <= 0) return;
+    if (!game.vs || this.remote || amount <= 0 || game.rule === 'bigbang') return;
     amount = Math.floor(amount * tMarginMul());
     let n = amount;
     if (!this.human) { this.atkCarry += amount * this.ai.atk; n = Math.floor(this.atkCarry); this.atkCarry -= n; }
     if (n <= 0) return;
     this.sent += n;
     const c = Math.min(this.pending, n), rx = x - this.ox, ry = y - this.oy;
-    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); if (game.net) gsend({ t: 'off', n: c, x: rx, y: ry, ch: this.ren }); }
+    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.ren }); }
     if (n <= 0) return;
+    if (n > 0) this.opp = pickTarget(this, this.gauge > 0 ? 'puyo' : null);     // 게이지를 모으는 중이면 뿌요 상대 유지
     if (this.vsPuyo()) { this.gauge = Math.min(60, this.gauge + n); sfx.gauge(); }
-    else { game.launch(this, this.opp, n, x, y, 'attack'); if (game.net) gsend({ t: 'atk', n, x: rx, y: ry, ch: this.ren }); }
+    else { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.ren }); }
   }
   releaseGauge() {
     if (!this.gauge) return;
     let g = this.gauge; this.gauge = 0;
     const c = Math.min(g, this.pending); g -= c; this.pending -= c;
     if (g <= 0) return;
-    const n = T2P[Math.min(g, 60)], x = this.ox + TGX / 2, y = this.oy + FH / 2;
+    this.opp = pickTarget(this, 'puyo');
+    const n = this.vsPuyo() ? T2P[Math.min(g, 60)] : g, x = this.ox + TGX / 2, y = this.oy + FH / 2;   // 뿌요 상대가 다 떨어졌으면 줄 그대로
     game.launch(this, this.opp, n, x, y, 'attack', Math.min(8, Math.ceil(g / 3)));
-    if (game.net) gsend({ t: 'atk', n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
+    emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
   }
   updateClear(dt) {
     this.clearT += dt;
@@ -308,13 +399,16 @@ class TField {
     }
     this.grid = this.grid.filter((_, r) => !rows.includes(r));
     while (this.grid.length < TH) this.grid.unshift(Array(TW).fill(0));
+    if (this.items) this.items = this.items.map(t => ({ ...t, y: t.y + rows.filter(r => r > t.y).length }));
     this.clearRows = []; this.flash = Math.min(0.4, 0.1 + rows.length * 0.07); this.shake = Math.max(this.shake, rows.length * 1.2);
     if (this.remote) { this.phase = 'wait'; return; }
     if (this.finishAfterClear) { this.finish(); return; }
     this.afterLock();
   }
-  finish() { this.done = true; this.doneAt = performance.now(); this.phase = 'done'; this.cur = null; }
+  finish() { this.done = true; this.doneAt = game.el; this.phase = 'done'; this.cur = null; }
   afterLock() {
+    if (this.itemQ && this.itemQ.length) { const ks = this.itemQ; this.itemQ = []; for (const k of ks) useItem(this, k); }
+    if (this.bbOn() && !this.forceQ.length) { this.bbFinish(); return; }   // 빅뱅: 조각을 다 썼으면 라운드 끝
     this.insertGarbage();
     if (this.dead) return;
     this.phase = 'are'; this.areT = 60;
@@ -322,7 +416,7 @@ class TField {
   insertGarbage() {
     const n = Math.min(7, this.pending); if (n <= 0) return;
     this.pending -= n;
-    for (let r = 0; r < n; r++) if (this.grid[r].some(Boolean)) { this.die(); return; }
+    for (let r = 0; r < n; r++) if (this.grid[r].some(Boolean)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (Math.random() < 0.9) this.holeCol = rnd(TW);
     const rows = [];
     for (let i = 0; i < n; i++) {
@@ -330,11 +424,44 @@ class TField {
       rows.push(Array.from({ length: TW }, (_, c) => c === this.holeCol ? 0 : 8));
     }
     this.grid = this.grid.slice(n).concat(rows);
+    if (this.items) this.items = this.items.map(t => ({ ...t, y: t.y - n })).filter(t => t.y >= 0);
     this.shake = Math.max(this.shake, 3 + n); sfx.garb();
-    if (game.net && !this.remote) gsend({ t: 'tgarb', g: this.encode() });
+    if (!this.remote) emit(this, { t: 'tgarb', g: this.encode() });
+  }
+  /* ---------- 파티(party.js) ---------- */
+  cleanRows(n) {
+    this.grid = Array.from({ length: n }, () => Array(TW).fill(0)).concat(this.grid.slice(0, TH - n));
+    if (this.items) this.items = this.items.filter(t => t.y < TH - n).map(t => ({ ...t, y: t.y + n }));
+    this.shake = 5; emit(this, { t: 'tgarb', g: this.encode() });
+  }
+  clearBoard() {
+    this.grid = Array.from({ length: TH }, () => Array(TW).fill(0)); this.items = [];
+    emit(this, { t: 'tgarb', g: this.encode() });
+    this.cur = null; this.phase = 'are'; this.areT = 300;
+  }
+
+  /* ---------- 빅뱅(bigbang.js) ---------- */
+  bbOn() { return game.rule === 'bigbang' && !this.remote && !!this.forceQ; }
+  bbLoad(p) {
+    if (!p) { this.forceQ = null; this.phase = 'bbwait'; bbReport(this, 0, game.el); return; }
+    this.decode(p.g); this.forceQ = p.seq.slice(); this.bbRows = p.rows; this.bbCleared = 0;
+    this.cur = null; this.canHold = false; this.shake = 4;
+    emit(this, { t: 'tgarb', g: this.encode() });
+    this.phase = 'are'; this.areT = 400;
+  }
+  bbFinish() { const p = this.bbRows ? this.bbCleared / this.bbRows : 0; this.forceQ = null; this.cur = null; this.phase = 'bbwait'; bbReport(this, p, game.el); }
+  bbTimeUp() { if (this.phase === 'clear') return; if (this.forceQ) this.bbFinish(); else bbReport(this, 0, game.el); }
+
+  // 줄 지우기 결과만 바로 반영(연출 없이)
+  dropRows(rows) {
+    if (!rows || !rows.length) return;
+    this.grid = this.grid.filter((_, r) => !rows.includes(r));
+    while (this.grid.length < TH) this.grid.unshift(Array(TW).fill(0));
+    this.clearRows = []; this.phase = 'wait';
   }
   // 온라인: 상대 테트리스 화면 재현
   applyEvent(ev) {
+    if (ev.t === 'sw') { swapField(this); return; }
     if (ev.t === 'tlock') {
       this.decode(ev.g);
       if (ev.fx) this.showLockFx(ev.fx);
@@ -342,49 +469,91 @@ class TField {
     } else if (ev.t === 'tgarb') { this.decode(ev.g); this.shake = Math.max(this.shake, 4); }
   }
 
-  /* ---------- CPU: 놓을 수 있는 모든 자리를 평가(높이·구멍·울퉁불퉁함·지운 줄) ---------- */
-  evalPlace(p) {
-    const g = this.grid.map(r => r.slice());
-    for (const [x, y] of this.cells(p)) g[y][x] = 1;
-    const kept = g.filter(r => !r.every(Boolean)), lines = TH - kept.length;
-    while (kept.length < TH) kept.unshift(Array(TW).fill(0));
+  /* ---------- CPU ----------
+     놓을 수 있는 모든 자리(T스핀 포함, tReach)를 높이·구멍·울퉁불퉁함·지운 줄·T스핀으로 평가.
+     ai.tspin: T스핀 의지(0이면 예전처럼 쌓기만) · ai.look: 다음 조각까지 내다보기 */
+  evalPlace(g, pl, b2b) {
+    const ai = this.ai, w = ai.tspin || 0;
+    const { g: kept, lines, pc } = tPlace(g, pl.p);
     const h = []; let holes = 0;
-    for (let c = 0; c < TW; c++) {
-      let r = 0; while (r < TH && !kept[r][c]) r++;
-      h.push(TH - r);
-      for (let y = r + 1; y < TH; y++) if (!kept[y][c]) holes++;
-    }
+    for (let c = 0; c < TW; c++) { let r = 0; while (r < TH && !kept[r][c]) r++; h.push(TH - r); }
+    let slot = null;                                     // 가장 잘 채워진 T스핀 자리 하나만 봄(그 아래 빈칸은 구멍으로 안 셈)
+    if (w) for (const sl of tSlots(kept, h)) if (!slot || sl.fill > slot.fill) slot = sl;
+    const slotCells = new Set(slot ? slot.cells.map(([x, y]) => y * TW + x) : []);
+    for (let c = 0; c < TW; c++) for (let y = TH - h[c] + 1; y < TH; y++) if (!kept[y][c] && !slotCells.has(y * TW + c)) holes++;
     const agg = h.reduce((a, b) => a + b, 0), maxH = Math.max(...h);
     let bump = 0; for (let c = 0; c < TW - 1; c++) bump += Math.abs(h[c] - h[c + 1]);
-    let s = -0.51 * agg + 0.76 * lines - 0.36 * holes * 2 - 0.18 * bump;
+    let s = -0.51 * agg + 0.76 * lines - 0.72 * holes - 0.18 * bump;
     if (maxH > 13) s -= (maxH - 13) * 3;
-    if (lines === 4) s += 4; else if (lines > 0 && maxH < 9 && this.ai.hard) s -= 0.5;
-    return s;
-  }
-  planAI() {
-    const opts = [{ k: this.cur.k, hold: false }];
-    if (this.ai.holdUse && this.canHold) { const hk = this.holdK || tPieceAt(this.idx); if (hk !== this.cur.k) opts.push({ k: hk, hold: true }); }
-    let best = null, bs = -Infinity; const cands = [];
-    for (const o of opts) for (let r = 0; r < (o.k === 'O' ? 1 : 4); r++) for (let x = -2; x < TW; x++) {
-      const p = { k: o.k, x, y: 1, r };
-      if (!this.valid(p)) { p.y = 0; if (!this.valid(p)) continue; }
-      while (this.valid({ ...p, y: p.y + 1 })) p.y++;
-      const sc = this.evalPlace(p) + (Math.random() - 0.5) * this.ai.noise;
-      cands.push({ hold: o.hold, r, x });
-      if (sc > bs) { bs = sc; best = { hold: o.hold, r, x }; }
+    const calm = maxH < 12 ? 1 : 0.3;                    // 위험할 때는 T스핀보다 살아남기
+    if (pc) s += 12;
+    if (lines === 4) s += 4;
+    else if (pl.spin === 2 && lines) s += w * calm * [0, -1.5, 9, 12][lines] + (b2b ? w * 1.5 : 0);
+    else if (lines > 0) {
+      if (maxH < 9 && ai.hard) s -= 0.5;
+      if (b2b && w) s -= w * calm * 1.5;                  // 백투백 끊기
     }
-    if (cands.length && Math.random() < this.ai.miss) best = cands[rnd(cands.length)];
-    this.tgt = best; this.stuck = 0;
+    if (pl.p.k === 'T' && !pl.spin && w && tSlots(g, this.heights(g)).some(sl => sl.clears === 2)) s -= w * 3;   // 자리가 있는데 T를 그냥 씀
+    if (slot) s += w * calm * (1 + slot.fill * slot.fill) * 1.2;
+    return { s, g: kept, lines };
+  }
+  heights(g) { const h = []; for (let c = 0; c < TW; c++) { let r = 0; while (r < TH && !g[r][c]) r++; h.push(TH - r); } return h; }
+  planAI() {
+    const ai = this.ai, g = this.grid, b2b = this.b2b;
+    const opts = [{ k: this.cur.k, hold: false, start: this.cur, rot: this.lastRot ? this.lastKick + 1 : 0, next: this.peekK(0) }];
+    if (ai.holdUse && this.canHold && !this.forceQ) {
+      const hk = this.holdK || tPieceAt(this.idx);
+      if (hk !== this.cur.k) opts.push({ k: hk, hold: true, start: tSpawnOf(g, hk), rot: 0, next: this.holdK ? tPieceAt(this.idx) : tPieceAt(this.idx + 1) });
+    }
+    const cands = [];
+    for (const o of opts) for (const pl of tReach(g, o.start, o.rot)) {
+      const e = this.evalPlace(g, pl, b2b);
+      const keepT = ai.tspin && (o.hold ? this.cur.k : this.holdK) === 'T' ? ai.tspin * 1.5 : 0;   // T를 홀드에 아껴 두기
+      cands.push({ hold: o.hold, pl, s: e.s + keepT, g2: e.g, lines: e.lines, next: o.next });
+    }
+    if (!cands.length) { this.tgt = null; return; }
+    if (ai.look) {                                     // 위쪽 후보만 다음 조각까지 내다봄
+      cands.sort((a, b) => b.s - a.s);
+      for (const c of cands.slice(0, 8)) {
+        if (!c.next) continue;
+        const nb = (c.pl.spin === 2 && c.lines) || c.lines === 4 ? true : c.lines ? false : b2b;
+        let best = -Infinity;
+        for (const pl of tReach(c.g2, tSpawnOf(c.g2, c.next))) best = Math.max(best, this.evalPlace(c.g2, pl, nb).s);
+        c.s = c.s * 0.6 + (best > -Infinity ? best : -50) * 0.4 + 0.001;
+      }
+    }
+    let best = null, bs = -Infinity;
+    for (const c of cands) { const sc = c.s + (Math.random() - 0.5) * ai.noise; if (sc > bs) { bs = sc; best = c; } }
+    if (Math.random() < ai.miss) best = cands[rnd(cands.length)];
+    this.tgt = { hold: best.hold, p: best.pl.p, spin: best.pl.spin }; this.stuck = 0;
+  }
+  // 지금 위치에서 목표 자리까지의 입력 순서(중력으로 밀렸으면 다시 찾음)
+  pathTo(t) {
+    const st = tReach(this.grid, this.cur, this.lastRot ? this.lastKick + 1 : 0);
+    const m = st.find(o => o.p.x === t.p.x && o.p.y === t.p.y && o.p.r === t.p.r && o.spin === t.spin)
+      || (!t.spin && st.find(o => o.p.x === t.p.x && o.p.y === t.p.y && o.p.r === t.p.r));
+    return m ? m.path : null;
   }
   aiAct(dt) {
     this.aiT -= dt; if (this.aiT > 0 || !this.tgt) return;
-    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6);
-    const t = this.tgt, p = this.cur;
-    if (t.hold && this.canHold) { const keep = { ...t, hold: false }; this.hold(); this.tgt = keep; return; }
+    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6) * (effOn(this, 'rev') ? 1.8 : 1);
+    const t = this.tgt;
+    if (t.hold && this.canHold) { const keep = { ...t, hold: false }; this.hold(); if (this.phase === 'drop') this.tgt = keep; return; }
     if (this.stuck > 4) { this.hardDrop(); return; }
-    if (p.r !== t.r) { const d = (t.r - p.r + 4) % 4; if (!this.rotate(d === 3 ? -1 : 1)) this.stuck++; return; }
-    if (p.x !== t.x) { if (!this.moveX(p.x < t.x ? 1 : -1)) this.stuck++; return; }
-    if (this.ai.hard) this.hardDrop(); else this.soft = true;
+    const path = this.pathTo(t);
+    if (!path) { this.stuck++; this.planAI(); return; }
+    if (path.every(m => m === 'D')) {                  // 남은 건 내리기뿐: 하드드롭(쉬움은 소프트드롭)
+      if (this.ai.hard || !path.length) this.hardDrop(); else this.soft = true;
+      return;
+    }
+    const m = path[0];
+    if (m === 'L' || m === 'R') { if (!this.moveX(m === 'L' ? -1 : 1)) this.stuck++; }
+    else if (m === 'C' || m === 'W') { if (!this.rotate(m === 'C' ? 1 : -1)) this.stuck++; }
+    else {                                             // 연속된 내리기는 한 번에(소프트드롭)
+      let n = 0; while (path[n] === 'D') n++;
+      for (let i = 0; i < n && this.valid({ ...this.cur, y: this.cur.y + 1 }); i++) { this.cur.y++; this.lastRot = false; }
+      if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; }
+    }
   }
 
   /* ---------- 그리기 ---------- */
@@ -433,6 +602,7 @@ class TField {
       const v = this.grid[r][q]; if (!v) continue;
       drawBlock(c, TGX + q * TC, sY(r), TC, TCOL[TKEYS[v]]);
     }
+    for (const t of this.items || []) if (t.y >= TH - TVIS && this.grid[t.y][t.x]) drawStar(c, TGX + (t.x + 0.5) * TC, sY(t.y) + TC / 2, TC * 0.4, ITEMS[t.k].col);
     if (this.phase === 'clear') {
       const k = this.clearT / 260;
       for (const r of this.clearRows) {
@@ -448,6 +618,7 @@ class TField {
         c.globalAlpha = 0.12; c.fillStyle = TCOL[p.k]; c.fill(); c.restore();
       }
       for (const [x, y] of this.cells(p)) if (y >= TH - TVIS - 1) drawBlock(c, TGX + x * TC, sY(y), TC, TCOL[p.k]);
+      if (p.it) { const [x, y] = this.cells(p)[p.it.i]; drawStar(c, TGX + (x + 0.5) * TC, sY(y) + TC / 2, TC * 0.4, ITEMS[p.it.k].col); }
     }
     for (const q of this.particles) { c.globalAlpha = clamp(q.life / q.max, 0, 1); c.fillStyle = q.col; c.beginPath(); c.arc(q.x, q.y, q.r, 0, Math.PI * 2); c.fill(); }
     c.globalAlpha = 1;
@@ -464,7 +635,7 @@ class TField {
       const bt = this.won ? TONES.yellow : game.vs ? TONES.blue : TONES.green;
       c.save(); c.translate(SW / 2, FH / 2); c.rotate(-0.06);
       slab(c, -GW / 2 - 20, -42, GW + 40, 84, bt, 6);
-      outlined(c, this.won ? '승리!' : game.vs ? '패배' : '게임 오버', 0, 2, 50, '#fff', bt.d, 9);
+      outlined(c, endLabel(this), 0, 2, 50, '#fff', bt.d, 9);
       c.restore();
     }
     c.restore(); c.restore();

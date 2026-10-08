@@ -45,17 +45,37 @@ let cur = 'main';
 function setHints(kind) {
   $('hints').innerHTML = kind === 'menu'
     ? '<span><kbd>Esc</kbd> 뒤로</span><span><kbd>Enter</kbd> 결정</span>'
+    : game.mode === 'replay' ? '<span><kbd>← →</kbd> 배속</span><span><kbd>Esc</kbd> 일시정지</span>'
     : game.mode === 'local' ? '<span>1P <kbd>WASD</kbd> <kbd>Q E</kbd> 회전 <kbd>R</kbd> 홀드</span><span>2P <kbd>방향키</kbd> <kbd>. /</kbd> 회전 <kbd>,</kbd> 홀드</span><span><kbd>Esc</kbd> 일시정지</span>'
     : (() => { const b = { ...DEF_KEYS, ...(stats.keys || {}) }, n = a => keyName(b[a][0]).replace('방향키 ', '');
       return `<span><kbd>${n('left')} ${n('right')}</kbd> 이동</span><span><kbd>${n('ccw')} ${n('cw')}</kbd> 회전</span><span><kbd>${n('hard')}</kbd> 하드드롭</span>` +
         `<span><kbd>${n('hold')}</kbd> 홀드</span>` + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
+}
+// 캐릭터 고르기 화면(카드 8장)
+function renderChars(focusId) {
+  const sec = $('sc-chars'), mine = stats.char || 'lumi';
+  if (!sec.children.length) {
+    sec.innerHTML = CHARS.map(ch => `<button class="tile charcard" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}">` +
+      `<span class="in"></span><canvas data-char="${ch.id}"></canvas><span class="mine">내 캐릭터</span><span class="tt">${esc(ch.name)}</span></button>`).join('');
+    sec.querySelectorAll('.tile').forEach(t => {
+      t.addEventListener('click', () => act(t.dataset.act));
+      t.addEventListener('mouseenter', () => t.focus({ preventScroll: true }));
+      t.addEventListener('focus', () => { $('mDesc').textContent = t.dataset.desc; });
+    });
+  }
+  sec.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.id === 'ch-' + mine));
+  requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => {
+    const g = fitCanvas(c); if (!g) return; drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+  }));
 }
 function showScreen(id, focusId) {
   document.querySelectorAll('.screen').forEach(el => el.classList.toggle('hidden', el.id !== 'sc-' + id));
   cur = id; $('bandTitle').textContent = TITLES[id];
   renderRecords();
   if (id === 'stats') renderStats();
-  if (id === 'vs') showLan();
+  if (id === 'adv') { renderAdv(); focusId = focusId || 'adv-0'; }
+  if (id === 'chars') { renderChars(); focusId = focusId || 'ch-' + (stats.char || 'lumi'); }
+  if (id === 'vs') { showLan(); showRankRec(); }
   setHints('menu');
   requestAnimationFrame(() => {
     drawArts();
@@ -72,13 +92,15 @@ function openMenu(id = 'main', focusId) {
 function showGame() {
   document.body.classList.add('ingame');
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
-  $('bandTitle').textContent = game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전';
+  if (game.adv) { $('bandTitle').textContent = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1}`; setHints('game'); fit(); return; }
+  const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
+  $('bandTitle').textContent = (game.mode === 'replay' ? '리플레이' : game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : game.soloMode === 'efever' ? '엔드리스 피버' : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전') + rl;
   setHints('game'); fit();
 }
 function menuBack() {
   if (cur === 'main') return;
   if (cur === 'vs') cancelWait();
-  if (cur === 'solo') { showScreen('ai', 't-solo'); return; }
+  if (cur === 'solo' || cur === 'psolo') { showScreen('ai', 't-solo'); return; }
   showScreen('main', 't-' + cur);
 }
 function renderStyle() {
@@ -86,6 +108,8 @@ function renderStyle() {
     const [kind, who, st] = b.dataset.act.split(':');
     if (kind === 'ft') { b.classList.toggle('on', +who === (stats.firstTo || 2)); return; }
     if (kind === 'rtab') { b.classList.toggle('on', who === recTab); return; }
+    if (kind === 'rule') { b.classList.toggle('on', who === (stats.rule || 'tsu')); return; }
+    if (kind === 'pl') { b.classList.toggle('on', +who === (stats.players || 2)); return; }
     if (kind === 'board') { b.classList.toggle('on', who === (stats.board || 'wide')); return; }
     b.classList.toggle('on', (who === 'me' ? stats.style || 'puyo' : who === 'p2' ? stats.p2Style || 'puyo' : stats.cpuStyle || 'puyo') === st);
   });
@@ -98,15 +122,22 @@ function act(a) {
     return;
   }
   if (k === 'go') showScreen(v);
-  else if (k === 'solo') { if ((stats.style || 'puyo') === 'tetris') showScreen('solo'); else { game.soloMode = 'endless'; start('solo'); } }
+  else if (k === 'solo') showScreen((stats.style || 'puyo') === 'tetris' ? 'solo' : 'psolo');
+  else if (k === 'psolo') { game.soloMode = v; start('solo'); }
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
   else if (k === 'rtab') { recTab = v; renderStats(); }
+  else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
+  else if (k === 'adv') advPlay(+v);
+  else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); }
+  else if (k === 'rule') { stats = loadStats(); stats.rule = v; saveStats(); renderStyle(); }
+  else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide' }));
-  else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide' }));
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name })); }
+  else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
+  else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
 }
 function moveSel(dx, dy) {
@@ -141,6 +172,21 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
   t.addEventListener('focus', () => { const d = t.querySelector('.td'); $('mDesc').textContent = d && getComputedStyle(d).display === 'none' ? t.dataset.desc : ''; });
 });
 $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = $('pName').value.trim().slice(0, 10) || '플레이어'; $('pName').value = stats.name; saveStats(); });
+$('hist').addEventListener('click', e => {           // 최근 경기: ▶ 다시 보기 · ⤓ 파일로 저장
+  const b = e.target.closest('button.rp'); if (!b) return;
+  const rp = findReplay(b.dataset.rp || b.dataset.rpx);
+  if (!rp) { renderStats(); return; }
+  if (b.dataset.rp) startReplay(rp); else exportReplay(rp);
+});
+$('bLoadRp').addEventListener('click', () => $('rpFile').click());
+$('rpFile').addEventListener('change', () => {
+  const file = $('rpFile').files[0]; $('rpFile').value = '';
+  if (!file) return;
+  file.text().then(t => {
+    let rp = null; try { rp = checkReplay(JSON.parse(t)); } catch (e) {}
+    if (rp) startReplay(rp); else alert('리플레이 파일이 아니거나 손상된 파일이에요.');
+  });
+});
 $('bReset').addEventListener('click', () => {
   if (!confirm('지금까지의 기록을 모두 지울까요? 닉네임은 유지돼요.')) return;
   const name = loadStats().name; stats = defStats(); stats.name = name; saveStats(); renderStats(); renderRecords();
@@ -189,6 +235,18 @@ function drawArts() {
       x.beginPath(); x.moveTo(fw * 0.6, h * 0.55); x.quadraticCurveTo(w / 2, -h * 0.1, w - fw * 0.5, h * 0.18); x.stroke(); x.setLineDash([]);
       const gr = x.createRadialGradient(w - fw * 0.5, h * 0.18, 1, w - fw * 0.5, h * 0.18, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(0.4, '#ffd93d'); gr.addColorStop(1, 'rgba(255,217,61,0)');
       x.fillStyle = gr; x.beginPath(); x.arc(w - fw * 0.5, h * 0.18, 16, 0, Math.PI * 2); x.fill();
+    } else if (kind === 'chars') {
+      const ids = [stats.char || 'lumi', ...CHARS.map(c => c.id).filter(i => i !== (stats.char || 'lumi'))].slice(0, 3);
+      [1, 2, 0].forEach(i => drawChar(x, ids[i], w * (0.5 + (i === 0 ? 0 : i === 1 ? -0.3 : 0.3)), h * (i ? 0.58 : 0.5), Math.min(w * 0.36, h * (i ? 0.7 : 0.9)), 'happy'));   // 가운데(내 캐릭터)를 맨 위에
+    } else if (kind === 'adv') {
+      const ids = ['toto', 'lumi', 'kuro'];
+      x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(0, h * 0.62, w, h * 0.38);
+      [0, 2, 1].forEach(i => drawChar(x, ids[i], w * (0.2 + i * 0.3), h * (i === 1 ? 0.48 : 0.56), Math.min(w * 0.3, h * (i === 1 ? 0.85 : 0.7)), 'happy'));
+    } else if (kind === 'rank') {
+      const C = ['#c47dff', '#ffdc3a', '#cfd1dc'], H = [0.9, 0.65, 0.5];
+      [1, 0, 2].forEach(i => { const bw = w * 0.26, bx = w * (0.37 + (i === 1 ? -0.3 : i === 2 ? 0.3 : 0)) , bh = h * H[i] * 0.7;
+        x.fillStyle = C[i]; x.fillRect(bx, h - bh, bw, bh); x.fillStyle = 'rgba(0,0,0,0.15)'; x.fillRect(bx, h - bh, bw, 6); });
+      drawStar(x, w * 0.5, h * 0.18, Math.min(w, h) * 0.16, '#ffe066');
     } else if (kind === 'stats') {
       x.fillStyle = '#f4f2fb'; x.fillRect(0, 0, w, h);
       const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0'];

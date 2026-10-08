@@ -88,8 +88,8 @@ function fit() {
 }
 function setSize(W) { LW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
 
-const mkField = (style, ox, human, name) => style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
-const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스' };
+const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
+const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
 const SOLO_KO = { marathon: '마라톤', sprint: '스프린트', ultra: '울트라', endless: '끝없이' };
 const fmtClock = ms => { const s = ms / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(2).padStart(5, '0')}`; };
 const AI_PUYO = [
@@ -98,50 +98,92 @@ const AI_PUYO = [
   { delay: 95,  noise: 60,   pot: 1.1,  miss: 0,    greedy: 0, atk: 0.85, soft: true },  // 어려움
 ];
 const AI_TETRIS = [
-  { delay: 380, noise: 3,   miss: 0.25, atk: 0.35, hard: false, holdUse: false },
-  { delay: 190, noise: 0.8, miss: 0.06, atk: 0.6,  hard: true,  holdUse: true },
-  { delay: 80,  noise: 0.1, miss: 0,    atk: 0.85, hard: true,  holdUse: true },
+  { delay: 380, noise: 3,   miss: 0.25, atk: 0.35, hard: false, holdUse: false, tspin: 0,   look: false },
+  { delay: 190, noise: 0.8, miss: 0.06, atk: 0.6,  hard: true,  holdUse: true,  tspin: 0.6, look: false },
+  { delay: 80,  noise: 0.1, miss: 0,    atk: 0.85, hard: true,  holdUse: true,  tspin: 1,   look: true },
 ];
+// 판 배치: 내 판 · 가운데 패널 · 상대 판들(3~4인이면 오른쪽으로 이어 붙이고 화면 전체를 줄여서 맞춤)
+const slotX = i => i === 0 ? OX1 : OX2 + (i - 1) * (SW + 20);
+const PLAYER_TONES = [TONES.red, TONES.blue, TONES.green, TONES.orange];
+const playersOf = mode => mode === 'vs' && game.adv ? game.adv.st.players || 2 : mode === 'vs' || mode === 'local' ? Math.max(2, Math.min(4, stats.players || 2)) : mode === 'solo' ? 1 : game.netN || 2;
+const AI_FUSION = [                     // 퓨전 CPU — noise: 평가 흔들림 · miss: 실수 확률 · atk: 공격 배율
+  { delay: 420, noise: 6,   miss: 0.2,  atk: 0.4 },
+  { delay: 220, noise: 2,   miss: 0.06, atk: 0.6 },
+  { delay: 110, noise: 0.5, miss: 0,    atk: 0.85 },
+];
+const aiPreset = (kind, lv) => ({ ...(kind === 'fusion' ? AI_FUSION : kind === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] });
 function build(mode) {
-  const vs = mode !== 'solo';
+  const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? OX2 + SW + 20 : OX1 + SW + PANEL_W);
+  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W);
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
-  f1.tone = vs ? TONES.red : TONES.green;
+  f1.tone = vs ? TONES.red : TONES.green; f1.char = stats.char || 'lumi';
   game.fields = [f1];
   if (!vs) return;
-  const op = game.oppStyle || 'puyo';
-  const f2 = mkField(op, OX2, mode === 'local', mode === 'online' ? '상대' : mode === 'local' ? '2P' : 'CPU');
-  f2.tone = TONES.blue; f1.opp = f2; f2.opp = f1;
-  if (mode === 'local') { f1.name = '1P'; f1.pi = 0; f2.pi = 1; }
-  else if (mode === 'online') f2.remote = true;
-  else {
-    const lv = game.diff == null ? 1 : game.diff;
+  const lv = game.diff == null ? 1 : game.diff;
+  for (let i = 1; i < n; i++) {
+    const human = mode === 'local' && i === 1, st = i === 1 ? game.oppStyle || 'puyo' : game.cpuStyles[i - 2] || 'puyo';
+    const cpuNo = mode === 'local' ? i - 1 : i;
+    const f = mkField(st, slotX(i), human, mode === 'online' ? '상대' : human ? '2P' : n > 2 ? `CPU ${cpuNo}` : 'CPU');
+    f.tone = PLAYER_TONES[i];
+    if (human) f.pi = 1;
+    else if (mode === 'online') f.remote = true;
     // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
-    // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용
-    f2.ai = { ...(op === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
+    // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
+    else f.ai = aiPreset(f.kind, lv);
+    game.fields.push(f);
   }
-  game.fields.push(f2);
+  if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
+  // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
+  const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
+  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
+  for (const f of game.fields) f.opp = pickTarget(f);
+  if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
 }
-function start(mode, seed, styles, board) {
+// 판 위 결과 띠 글자
+const endLabel = f => f.won ? '승리!' : !game.vs ? '게임 오버' : game.fields.length > 2 && f.place ? `${f.place}위` : '패배';
+// 공격 대상: 2명이면 상대. 3명 이상이면 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
+// kind를 주면 그 스타일(뿌요/테트리스) 상대를 먼저 고름(공격 변환이 섞이지 않게)
+function pickTarget(f, kind) {
+  let alive = game.fields.filter(o => o !== f && !o.dead);
+  if (!alive.length) return f.opp || null;
+  if (kind && alive.some(o => o.kind === kind)) alive = alive.filter(o => o.kind === kind);
+  if (alive.length === 1) return alive[0];
+  if (f.lastHitBy && alive.includes(f.lastHitBy)) return f.lastHitBy;
+  return alive.reduce((a, b) => (b.score > a.score ? b : a));
+}
+function start(mode, seed, styles, board, rule) {
+  if (!game.advGo && !(game.keepSeries && game.adv)) { game.adv = null; game.cpuChars = null; }   // 어드벤처가 아니면 정리
+  game.advGo = false;
   audio(); game.net = mode === 'online'; game.oppLeft = false;
   applyBoard(board || stats.board || 'wide');
+  game.rule = mode === 'solo' ? (game.soloMode === 'efever' ? 'fever' : 'tsu') : RULES[rule] ? rule : RULES[stats.rule] ? stats.rule : 'tsu';
   game.myStyle = styles ? styles.me : stats.style || 'puyo';
   const cs = stats.cpuStyle || 'puyo';
-  game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
-  game.startArgs = [mode, null, styles, board];
-  if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
+  const cpuSt = () => cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
+  game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cpuSt();
+  game.cpuStyles = styles && styles.ops ? styles.ops : [cpuSt(), cpuSt()];      // 3~4인일 때 나머지 CPU
+  game.startArgs = [mode, null, styles, board, rule];
+  if ((mode === 'vs' || mode === 'local') && playersOf(mode) > 2) game.series = null;      // 3~4인은 한 판 승부
+  else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: game.adv ? game.adv.st.ft || 1 : stats.firstTo || 2 }; }
+  else if (mode === 'online' && game.ranked) { if (!game.series || game.series.to !== 2) game.series = { me: 0, op: 0, to: 2 }; }   // 랭크전: 2선승
+  else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
   game.keepSeries = false;
-  seedSeq(seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed);
-  build(mode); game.lastMode = mode; game.stT = 0; game.t0 = performance.now(); game.recorded = false;
-  game.fields.forEach(f => f.spawn());
+  const sd = seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed;
+  seedSeq(sd); game.replay = null;
+  build(mode); game.lastMode = mode; game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
+  game.rec = newRecording(sd);           // 리플레이 녹화(판이 끝나면 저장)
+  game.seed = sd; game.bb = null; game.party = null;
+  if (game.rule === 'party' && game.vs) partyInit();
+  if (game.rule === 'bigbang' && game.vs) { bbInit(); game.fields.forEach(f => { if (f.remote) f.spawn(); else f.phase = 'bbwait'; }); }   // 빅뱅: 첫 라운드에 퍼즐이 깔림
+  else game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 2000; bgmPlay('game'); game.introGo = false; overlay.classList.add('hidden'); sfx.ready();
   showGame();
-  if (game.net) gsend({ t: 'hi', name: stats.name });
+  if (game.net) gsend({ t: 'hi', name: stats.name, char: stats.char || 'lumi' });
 }
 const $ = id => document.getElementById(id);
 const DIFF = ['쉬움', '보통', '어려움'];
-const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습' };
+const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습', chars: '캐릭터', adv: '어드벤처' };

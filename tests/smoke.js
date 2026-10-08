@@ -12,15 +12,15 @@ const PORT = 3999 + Math.floor(Math.random() * 500);
 const SIM = `
 window.__sim = (cfg) => {
   stats.style = cfg.my; stats.cpuStyle = cfg.op; stats.p2Style = cfg.op;
-  if (cfg.board) stats.board = cfg.board;
-  if (cfg.rule) stats.rule = cfg.rule;
-  if (cfg.players) stats.players = cfg.players;
+  stats.board = cfg.board || 'wide'; stats.players = cfg.players || 2;
+  stats.rule = cfg.rule || 'tsu';
   game.diff = cfg.diff == null ? 2 : cfg.diff; game.soloMode = cfg.solo || 'endless';
-  start(cfg.mode);
+  if (cfg.adv) advPlay(cfg.adv[1], true, cfg.adv[0]); else start(cfg.mode);
+  if (cfg.pre) eval(cfg.pre);
   for (const f of game.fields) {          // 사람 자리도 CPU로 바꿔 자동 진행
     if (!f.human) continue;
     f.human = false;
-    f.ai = { ...(f.kind === 'tetris' ? AI_TETRIS : AI_PUYO)[2], delay: 30 };
+    f.ai = { ...aiPreset(f.kind, 2), delay: 30 };
   }
   for (const f of game.fields) if (f.phase === 'drop' && !f.human) f.planAI();
   let t = 0, steps = 0;
@@ -31,6 +31,17 @@ window.__sim = (cfg) => {
     if (game.state === 'over' && game.recorded) break;
   }
   render(t);
+  if (cfg.replay) {
+    const orig = game.fields.map(f => ({ score: f.score, dead: f.dead, grid: f.encode() }));
+    const rp = findReplay(stats.history[0].rp) || null;
+    if (!rp) return { state: 'no-replay' };
+    startReplay(JSON.parse(JSON.stringify(rp)));
+    let k = 0; while (k++ < 60000 && !(game.state === 'over' && game.overT > 2000)) { t += 16; update(16); if (k % 50 === 0) render(t); }
+    render(t);
+    const now = game.fields.map(f => ({ score: f.score, dead: f.dead, grid: f.encode() }));
+    return { state: game.state, steps: k, events: rp.ev.length, size: JSON.stringify(rp).length, same: orig.every((o, i) => o.score === now[i].score && o.dead === now[i].dead && (!o.dead || o.grid === now[i].grid)), orig, now };
+    // 점수·탈락·탈락한 판의 격자가 같으면 같은 경기. 끝나는 순간 살아 있는 판은 연쇄 연출 단계가 몇 프레임 다를 수 있음
+  }
   return { state: game.state, steps, kinds: game.fields.map(f => f.kind), dead: game.fields.map(f => f.dead),
     scores: game.fields.map(f => f.score), maxChain: game.fields.map(f => f.maxChain), extra: cfg.probe ? eval(cfg.probe) : null };
 };`;
@@ -46,6 +57,7 @@ const CASES = [
 ];
 const extra = require('./cases');
 CASES.push(...extra);
+if (process.env.ONLY) CASES.splice(0, CASES.length, ...CASES.filter(c => new RegExp(process.env.ONLY).test(c.name)));   // ONLY=리플레이 npm test
 
 (async () => {
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1' }, stdio: 'pipe' });

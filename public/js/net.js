@@ -28,38 +28,50 @@ function onNet(m) {
   switch (m.t) {
     case 'created':
       $('roomCode').textContent = m.code; $('roomBox').classList.remove('hidden'); $('bCancel').classList.remove('hidden');
-      status('상대에게 방 코드를 알려주고 기다리세요.'); break;
-    case 'waiting': $('bCancel').classList.remove('hidden'); status('상대를 찾는 중…'); break;
+      status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
+    case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
+    case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
+    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… 내 레이팅 ${m.r} (${m.tier}) · 기다릴수록 범위가 넓어져요`); break;
+    case 'rdone':                          // 랭크전 끝: 레이팅 변화
+      game.rankRes = m;
+      if (!overlay.classList.contains('hidden') && game.ranked) $('ovSub').textContent = rankLine(m);
+      break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
-      start('online', m.seed, { me: m.styles[m.you], op: m.styles[1 - m.you] }, m.board); break;
-    case 'oppReady': $('ovSub').textContent = '상대가 다시 하기를 눌렀습니다.'; break;
+      {
+        // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
+        const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
+        game.netN = m.styles.length;
+        if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
+        start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
+        game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; });
+      }
+      break;
+    case 'oppReady': $('ovSub').textContent = m.size > 2 ? `${m.have}/${m.size}명이 다시 하기를 눌렀습니다.` : '상대가 다시 하기를 눌렀습니다.'; break;
     case 'left':
+      if (game.ranked && game.state === 'play') { game.oppLeft = true; game.net = false; game.fields[1].die(); break; }   // 랭크전: 상대 이탈 = 내 승리
+      if (game.fields.length > 2 && m.rest >= 2) {          // 3~4인: 나간 사람만 탈락 처리하고 계속
+        const f = game.seatField && game.seatField[m.who];
+        if (f && !f.dead && game.state === 'play') { f.die(); f.texts.push({ txt: '나감', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#fff', size: 30 }); }
+        break;
+      }
       game.oppLeft = true; game.resetOnline = true;
       if (game.state === 'over' || (game.fields[1] && game.fields[1].dead)) {   // 이미 끝난 판(기권 포함): 결과는 그대로, 다시 하기만 막음
         game.net = false;
         if (!overlay.classList.contains('hidden')) { overlayBtns('menu'); $('ovSub').textContent += ' · 상대가 나갔습니다'; }
       } else if (game.net) { game.net = false; showMessage('상대가 나갔습니다', '메뉴에서 새 대전을 시작하세요.'); }
       break;
-    case 'g': onGame(m.d); break;
+    case 'g': onGame(m.d, m.f); break;
   }
 }
-function onGame(d) {
-  const me = game.fields[0], op = game.fields[1];
+function onGame(d, from) {
+  const op = from != null && game.seatField ? game.seatField[from] : game.fields[1];
   if (!op || !op.remote || game.mode !== 'online') return;
-  switch (d.t) {
-    case 'st':
-      op.pending = d.pe; op.score = d.sc; op.maxChain = d.mc;
-      if (op.kind === 'tetris') { op.net = d.pc; op.holdK = d.ho; op.gauge = d.gg || 0; }
-      else { op.net = d.pc ? { ...d.pc, n: d.n } : null; if (op.phase === 'wait') op.applyNet(); }
-      break;
-    case 'lock': case 'garb': case 'tlock': case 'tgarb': op.queue.push(d); break;
-    case 'atk': if (game.state === 'play') game.launch(op, me, d.n, op.ox + d.x, op.oy + d.y, 'attack', d.ch); break;
-    case 'off': game.launch(op, op, d.n, op.ox + d.x, op.oy + d.y, 'offset', d.ch); break;
-    case 'dead': if (game.state === 'play') op.die(); break;
-    case 'hi': op.name = String(d.name || '상대').slice(0, 10); break;
-  }
+  if (d.to != null) { const t = game.seatField && game.seatField[d.to]; d = { ...d, to: t ? game.fields.indexOf(t) : undefined }; }   // 자리 번호 → 내 판 번호
+  if (d.t === 'hi') { op.name = String(d.name || '상대').slice(0, 10); if (CHARS.some(c => c.id === d.char)) op.char = d.char; if (op.other) { op.other.name = op.name; op.other.char = op.char; } return; }
+  if (d.t === 'st') recState(op, d); else recEv(op, d);         // 상대 판도 리플레이에 기록
+  applyRemote(op, d);
 }
 // 서버가 알려주는 내부망 주소를 표시 — 다른 사람은 이 주소로 접속하면 된다
 function showLan() {
@@ -69,6 +81,16 @@ function showLan() {
     $('lanInfo').innerHTML = '다른 사람 접속 주소 ' + info.lan.map(u => `<b>${esc(u)}</b>`).join(' · ');
     $('lanInfo').classList.remove('hidden');
   }).catch(() => {});
+}
+// 랭크전: 이 브라우저를 구분하는 토큰(처음 한 번 만들어 저장)
+const rankToken = (() => {
+  const mk = () => Array.from({ length: 24 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'[rnd(56)]).join('');
+  try { let t = localStorage.getItem('puyo-token'); if (!/^[A-Za-z0-9]{16,40}$/.test(t || '')) { t = mk(); localStorage.setItem('puyo-token', t); } return t; } catch (e) { return mk(); }
+})();
+const rankUrl = (p, style) => `/rank/${p}?style=${style}&token=${rankToken}`;
+function showRankRec() {
+  if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
+  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { $('recRank').textContent = `${m.r} · ${m.tier}${m.w + m.l ? ` · ${m.w}승 ${m.l}패` : ''}`; }).catch(() => {});
 }
 function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); }
 $('bCancel').addEventListener('click', cancelWait);
@@ -96,3 +118,4 @@ document.querySelectorAll('#pad button').forEach(btn => {
   const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
+const rankLine = m => `랭크전 ${m.win ? '승리' : '패배'} ${m.score ? `${Math.max(...m.score)} : ${Math.min(...m.score)} · ` : ''}레이팅 ${m.r} (${m.d >= 0 ? '+' : ''}${m.d}) · ${m.tier}`;
