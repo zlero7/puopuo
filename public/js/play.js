@@ -247,8 +247,8 @@ function render(t) {
       for (let i = 0; i < 5; i++) drawMino(ctx, tPieceAt(me.idx + i), PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1);
     } else {
       const n1 = pairAt(me.idx), n2 = pairAt(me.idx + 1);
-      drawPair(ctx, PX, OY + 92, 1, n1[0], n1[1], Math.sin(t / 300) * 2);
-      drawPair(ctx, PX, OY + 182, 0.78, n2[0], n2[1], 0);
+      drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
+      drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
     }
   }
   {                                    // 홀드(뿌요·테트리스 공통)
@@ -260,7 +260,7 @@ function render(t) {
     ctx.save(); ctx.globalAlpha = me.canHold === false ? 0.35 : 1;
     if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
     else if (!isT && me.holdP) {          // 홀드한 뿌요 쌍을 옆으로 눕혀 표시
-      ctx.translate(PX, OY + 318); ctx.scale(0.6, 0.6);
+      ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS);
       drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);
     }
     ctx.restore();

@@ -28,4 +28,7 @@ module.exports = [
     probe: '[game.fields[0].done, game.fields[0].fv.lv, stats.practice.fBest]', expect: r => r.state === 'over' && r.maxChain[0] >= 4 },
   { name: '엔드리스 피버 6×12', mode: 'solo', my: 'puyo', op: 'puyo', solo: 'efever', board: 'classic', steps: 40000, expect: r => r.state === 'over' && r.maxChain[0] >= 4 },
   { name: '피버 리플레이', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'fever', steps: 40000, replay: true, expect: r => r.same },
+  { name: '타이니 뿌요 vs 뿌요', mode: 'vs', my: 'puyo', op: 'puyo', board: 'tiny', steps: 40000,
+    probe: '[COLS, VIS, BOARDS[BOARD].drop]', expect: r => r.state === 'over' && r.extra[0] === 12 },
+  { name: '타이니 뿌요 엔드리스 피버', mode: 'solo', my: 'puyo', op: 'puyo', solo: 'efever', board: 'tiny', steps: 40000, expect: r => r.state === 'over' && r.maxChain[0] >= 5 },
 ];

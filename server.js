@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 const rooms = new Map();        // code -> { code, size, board, players: [ws], seats: [ws], ready: Set, started }
 const quickWaiting = new Map(); // '판크기:인원' -> 아직 다 안 찬 빠른 매칭 방
-const BOARD_KEYS = ['wide', 'classic'], RULE_KEYS = ['tsu', 'fever'];
+const BOARD_KEYS = ['wide', 'classic', 'tiny'], RULE_KEYS = ['tsu', 'fever'];
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newCode() {

@@ -629,7 +629,7 @@ class Field {
   }
 
   dropGarbage() {
-    const n = Math.min(30, this.pending); this.pending -= n; this.noGarb = true;
+    const n = Math.min(BOARDS[BOARD].drop || 30, this.pending); this.pending -= n; this.noGarb = true;   // 한 번에 떨어지는 최대 개수
     const counts = Array(COLS).fill(Math.floor(n / COLS)); const order = [...Array(COLS).keys()].sort(() => Math.random() - 0.5);
     for (let i = 0; i < n % COLS; i++) counts[order[i]]++;
     if (!this.remote) emit(this, { t: 'garb', c: counts, g: this.encode() });
@@ -667,7 +667,8 @@ class Field {
       if (py < 1 || sy < 1) continue;
       s[py][x] = p.a; s[sy][sx] = p.b;
       const res = simResolve(s); let sc = 0; const atk = Math.floor(res.score / 70);
-      if (res.chain > 0) {
+      if (this.fv.on) sc += res.chain * 3000;     // 피버 중: 씨앗판은 터뜨리는 게 우선
+      else if (res.chain > 0) {
         if (res.chain >= 4) sc += 2000 + res.chain * 400;
         else if (res.chain === 3) sc += 900;
         else if (danger || (this.pending > 0 && atk >= this.pending)) sc += 600 * res.chain + atk * 10;
@@ -678,7 +679,7 @@ class Field {
       for (let c = 0; c < COLS; c++) sc -= h[c] * h[c] * 0.9;
       if (h[SP] >= VIS - 1) sc -= 4000; else if (h[SP] >= VIS - 3) sc -= 250;
       sc += connectScore(s);
-      if (!danger && this.ai.pot > 0) { const pot = potential(s); sc += this.ai.pot * 150 * pot * pot; }
+      if (!danger && this.ai.pot > 0 && !this.fv.on) { const pot = potential(s); sc += this.ai.pot * 150 * pot * pot; }
       sc += Math.random() * this.ai.noise;
       cands.push({ x, o });
       if (sc > bestS) { bestS = sc; best = { x, o }; }

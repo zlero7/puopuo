@@ -7,6 +7,7 @@
 const BOARDS = {
   wide:    { cols: 8,  vis: 14, ko: '넓게 8×14' },
   classic: { cols: 6,  vis: 12, ko: '원작 6×12' },
+  tiny:    { cols: 12, vis: 24, ko: '타이니 12×24', drop: 60 },   // 작은 뿌요로 넓고 높은 판
 };
 const SW = 320, FH = 560;                        // 판 한 칸의 폭(테트리스 판 폭) · 높이
 let BOARD = 'wide', COLS, VIS, ROWS, CS, SP, FW, R, BW;
