@@ -83,7 +83,18 @@ Esc(모바일은 Ⅱ 버튼)를 누르면 연습·AI 대전은 일시정지되�
 | 파일 | 역할 |
 |---|---|
 | `server.js` | `index.html` 제공 + WebSocket 방 매칭·메시지 중계 |
-| `public/index.html` | 게임 전체(렌더링, 규칙, CPU, 온라인 클라이언트) |
+| `public/index.html` | 화면(HTML·CSS) |
+| `public/js/core.js` | 상수, 그리기 도우미, 사운드, 조각 순서 |
+| `public/js/puyo.js` | 뿌요뿌요 판, AI 시뮬레이션, 뿌요 그리기 |
+| `public/js/tetris.js` | 테트리스 판 |
+| `public/js/game.js` | 게임 상태, 조작 키, 판 배치·시작 |
+| `public/js/stats.js` | 기록(내 정보) |
+| `public/js/ui.js` | 설정 창, 메뉴 |
+| `public/js/play.js` | 결과 창, 이펙트, 게임 진행, 그리기 |
+| `public/js/input.js` · `net.js` · `main.js` | 입력, 온라인 클라이언트, 시작 |
+| `tests/smoke.js` | `npm test` — 여러 모드를 CPU끼리 돌려 오류 확인 |
+
+스크립트는 모듈이 아닌 일반 `<script>`라서 `index.html`을 파일로 바로 열어도 동작합니다.
 
 온라인 대전은 각자 자기 필드를 직접 계산하고, 서버는 메시지를 상대에게 넘겨주기만 합니다.
 

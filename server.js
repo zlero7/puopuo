@@ -35,6 +35,12 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(data);
     });
+  } else if (/^\/js\/[\w-]+\.js$/.test(url)) {      // 게임 스크립트(경로 탈출 불가: 영문·숫자·-·_ 파일 이름만)
+    fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+      res.end(data);
+    });
   } else if (url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ port: PORT, lan: lanAddresses().map(a => a.url) }));
