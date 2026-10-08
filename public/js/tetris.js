@@ -190,7 +190,7 @@ class TField {
   }
   vsPuyo() { return this.opp && this.opp.kind === 'puyo'; }
 
-  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } this.spawnType(this.forceQ ? this.forceQ.shift() : tPieceAt(this.idx++)); }
+  spawn() { if (this.remote) { this.phase = 'wait'; this.cur = null; return; } if (swapDue(this)) { swapField(this); return; } this.spawnType(this.forceQ ? this.forceQ.shift() : tPieceAt(this.idx++)); }
   peekK(i) { return this.forceQ ? this.forceQ[i] : tPieceAt(this.idx + i); }   // 다음 조각(빅뱅 퍼즐이면 정해진 순서)
   spawnType(k) {
     const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 };
@@ -431,6 +431,7 @@ class TField {
   }
   // 온라인: 상대 테트리스 화면 재현
   applyEvent(ev) {
+    if (ev.t === 'sw') { swapField(this); return; }
     if (ev.t === 'tlock') {
       this.decode(ev.g);
       if (ev.fx) this.showLockFx(ev.fx);

@@ -130,6 +130,7 @@ function build(mode) {
   }
   if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
   for (const f of game.fields) f.opp = pickTarget(f);
+  if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
 }
 // 판 위 결과 띠 글자
 const endLabel = f => f.won ? '승리!' : !game.vs ? '게임 오버' : game.fields.length > 2 && f.place ? `${f.place}위` : '패배';

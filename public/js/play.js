@@ -118,14 +118,14 @@ function togglePause() {
 function stateOf(f) {
   if (f.kind === 'tetris') {
     const q = f.phase === 'drop' && f.cur ? { k: f.cur.k, x: f.cur.x, y: f.cur.y, r: f.cur.r } : null;
-    return { t: 'st', n: f.idx, pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain };
+    return { t: 'st', k: 't', n: f.idx, pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain };
   }
   const p = f.piece; let pc = null;
   if (p && f.phase === 'drop') {
     const cf = f.fits({ ...p, y: p.y + 1 });
     pc = { x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, p: cf ? Math.round(Math.min(1, f.acc / (f.soft ? 35 : f.fallIv())) * 100) / 100 : 0 };
   }
-  const d = { t: 'st', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
+  const d = { t: 'st', k: 'p', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
   if (game.rule === 'fever') d.fv = [f.fv.gauge, f.fv.on ? 1 : 0, Math.max(0, Math.ceil(f.fv.t / 100))];
   return d;
 }
@@ -307,6 +307,7 @@ function render(t) {
   }
   ctx.restore();
   if (game.rule === 'bigbang') drawBigBang(ctx);
+  if (game.rule === 'swap') drawSwap(ctx);
   drawFx(ctx);
   if (game.mode === 'replay') drawReplayHud(ctx);
   if (game.state === 'intro') drawIntro(t);

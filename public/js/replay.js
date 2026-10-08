@@ -26,7 +26,9 @@ function recState(f, d) {
 }
 // 원격 판(온라인 상대 · 리플레이)에 이벤트 적용
 function applyRemote(f, d) {
+  f = routeKind(f, d);                      // 스왑: 뿌요/테트리스 이벤트는 맞는 판으로
   switch (d.t) {
+    case 'sw': f.queue.push(d); break;
     case 'st':
       f.pending = d.pe; f.score = d.sc; f.maxChain = d.mc;
       if (game.mode === 'replay' && d.n != null) f.idx = d.n;
@@ -110,6 +112,7 @@ function startReplay(rp) {
   game.myStyle = ps[0].style; game.oppStyle = vs ? ps[1].style : null;
   game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; return f; });
   if (vs) for (const f of game.fields) f.opp = pickTarget(f);
+  if (game.rule === 'swap' && vs) game.fields.forEach(f => makeSwapPair(f, 1));
   game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
   game.seed = rp.seed; game.bb = null;
   if (game.rule === 'bigbang' && vs) bbInit();

@@ -38,4 +38,10 @@ module.exports = [
   { name: '빅뱅 4인', mode: 'vs', my: 'puyo', op: 'random', players: 4, rule: 'bigbang', steps: 80000,
     probe: '({ round: game.bb.round, hp: game.bb.hp })', expect: r => r.state === 'over' },
   { name: '빅뱅 리플레이', mode: 'vs', my: 'tetris', op: 'puyo', rule: 'bigbang', steps: 60000, replay: true, expect: r => r.same },
+  { name: '스왑 뿌요 vs 테트리스', mode: 'vs', my: 'puyo', op: 'tetris', rule: 'swap', diff: 0, steps: 80000,
+    pre: 'game.fields.forEach(f => { f.swapAt = f.other.swapAt = 3000; })',
+    probe: '({ el: game.el, f: game.fields.map(f => [f.kind, f.other && f.other.kind, f.swapAt]) })', expect: r => r.state === 'over' && r.extra.f.some(x => x[2] >= 25000) },
+  { name: '스왑 3인', mode: 'vs', my: 'tetris', op: 'puyo', rule: 'swap', diff: 0, players: 3, steps: 80000,
+    probe: 'game.fields.map(f => [f.kind, f.swapAt])', expect: r => r.state === 'over' },
+  { name: '스왑 리플레이', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'swap', diff: 0, steps: 80000, replay: true, expect: r => r.same },
 ];

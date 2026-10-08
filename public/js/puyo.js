@@ -244,6 +244,7 @@ class Field {
 
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }
+    if (swapDue(this)) { swapField(this); return; }      // 스왑(swap.js)
     if (game.rule === 'fever' && !this.fv.on && (this.fv.gauge >= FEVER_GAUGE || (game.soloMode === 'efever' && !game.vs && !this.fv.lv))) { this.startFever(); return; }
     if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } if (this.bbOn()) { this.bbFinish(0); return; } this.die(); return; }
     const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
@@ -289,6 +290,7 @@ class Field {
         this.piece = { x: ev.x, y: ev.y, o: ev.o, a: ev.a, b: ev.b, rx: sp ? sp.rx : ev.x, ang: sp ? sp.ang : ev.o * Math.PI / 2 };
         this.lock(off, !!ev.h);
       } else if (ev.t === 'garb') this.placeGarbage(ev.c);
+      else if (ev.t === 'sw') { swapField(this); return; }
       else if (ev.t === 'fv') { this.fv.on = !!ev.on; this.decode(ev.g, true); this.piece = null; this.phase = 'settle'; this.settleT = 0; }
     }
     if (this.phase === 'wait' && this.dieLater) { this.dieLater = false; this.die(); return; }
