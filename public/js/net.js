@@ -28,26 +28,40 @@ function onNet(m) {
   switch (m.t) {
     case 'created':
       $('roomCode').textContent = m.code; $('roomBox').classList.remove('hidden'); $('bCancel').classList.remove('hidden');
-      status('상대에게 방 코드를 알려주고 기다리세요.'); break;
-    case 'waiting': $('bCancel').classList.remove('hidden'); status('상대를 찾는 중…'); break;
+      status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
+    case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
+    case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
-      start('online', m.seed, { me: m.styles[m.you], op: m.styles[1 - m.you] }, m.board); break;
-    case 'oppReady': $('ovSub').textContent = '상대가 다시 하기를 눌렀습니다.'; break;
+      {
+        // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
+        const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
+        game.netN = m.styles.length;
+        start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board);
+        game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; });
+      }
+      break;
+    case 'oppReady': $('ovSub').textContent = m.size > 2 ? `${m.have}/${m.size}명이 다시 하기를 눌렀습니다.` : '상대가 다시 하기를 눌렀습니다.'; break;
     case 'left':
+      if (game.fields.length > 2 && m.rest >= 2) {          // 3~4인: 나간 사람만 탈락 처리하고 계속
+        const f = game.seatField && game.seatField[m.who];
+        if (f && !f.dead && game.state === 'play') { f.die(); f.texts.push({ txt: '나감', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#fff', size: 30 }); }
+        break;
+      }
       game.oppLeft = true; game.resetOnline = true;
       if (game.state === 'over' || (game.fields[1] && game.fields[1].dead)) {   // 이미 끝난 판(기권 포함): 결과는 그대로, 다시 하기만 막음
         game.net = false;
         if (!overlay.classList.contains('hidden')) { overlayBtns('menu'); $('ovSub').textContent += ' · 상대가 나갔습니다'; }
       } else if (game.net) { game.net = false; showMessage('상대가 나갔습니다', '메뉴에서 새 대전을 시작하세요.'); }
       break;
-    case 'g': onGame(m.d); break;
+    case 'g': onGame(m.d, m.f); break;
   }
 }
-function onGame(d) {
-  const op = game.fields[1];
+function onGame(d, from) {
+  const op = from != null && game.seatField ? game.seatField[from] : game.fields[1];
   if (!op || !op.remote || game.mode !== 'online') return;
+  if (d.to != null) { const t = game.seatField && game.seatField[d.to]; d = { ...d, to: t ? game.fields.indexOf(t) : undefined }; }   // 자리 번호 → 내 판 번호
   if (d.t === 'hi') { op.name = String(d.name || '상대').slice(0, 10); return; }
   if (d.t === 'st') recState(op, d); else recEv(op, d);         // 상대 판도 리플레이에 기록
   applyRemote(op, d);

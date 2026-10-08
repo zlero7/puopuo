@@ -53,8 +53,8 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
-const rooms = new Map();      // code -> { code, players: [ws, ws], ready: [bool, bool] }
-const quickWaiting = new Map(); // 판 크기별 빠른 매칭 대기자
+const rooms = new Map();        // code -> { code, size, board, players: [ws], seats: [ws], ready: Set, started }
+const quickWaiting = new Map(); // '판크기:인원' -> 아직 다 안 찬 빠른 매칭 방
 const BOARD_KEYS = ['wide', 'classic'];
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -65,25 +65,42 @@ function newCode() {
   return c;
 }
 function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
-
-function startRoom(room) {
-  room.ready = [false, false];
-  const seed = Math.floor(Math.random() * 2 ** 32);
-  const styles = room.players.map(p => p.style || 'puyo');        // 각자 고른 스타일(뿌요뿌요/테트리스)
-  const board = room.board || 'wide';                              // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
-  room.players.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board }));
+const sizeOf = v => Math.max(2, Math.min(4, Math.floor(+v) || 2));
+function newRoom(ws, size, board) {
+  const room = { code: newCode(), size, board: board || 'wide', players: [], seats: [], ready: new Set(), started: false };
+  rooms.set(room.code, room);
+  return room;
+}
+function lobby(room) { for (const p of room.players) send(p, { t: 'lobby', have: room.players.length, size: room.size }); }
+function addPlayer(room, ws) {
+  room.players.push(ws); ws.room = room;
+  if (room.players.length >= room.size) startRoom(room); else lobby(room);
 }
 
-// 방을 떠나면 방을 없애고 남은 사람에게 알린다
+// 판 시작: 자리 번호(seat)는 이 순서. 게임 메시지는 보낸 사람의 자리 번호를 붙여 중계
+function startRoom(room) {
+  room.ready.clear(); room.started = true; room.seats = room.players.slice();
+  for (const [k, r] of quickWaiting) if (r === room) quickWaiting.delete(k);
+  const seed = Math.floor(Math.random() * 2 ** 32);
+  const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
+  const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board }));
+}
+
+// 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
 function leave(ws) {
-  for (const [k, w] of quickWaiting) if (w === ws) quickWaiting.delete(k);
   const room = ws.room;
   if (!room) return;
-  rooms.delete(room.code);
-  for (const p of room.players) {
-    p.room = null;
-    if (p !== ws) send(p, { t: 'left' });
+  ws.room = null;
+  room.players = room.players.filter(p => p !== ws); room.ready.delete(ws);
+  if (!room.started) {
+    if (!room.players.length) { rooms.delete(room.code); for (const [k, r] of quickWaiting) if (r === room) quickWaiting.delete(k); }
+    else lobby(room);
+    return;
   }
+  const who = room.seats.indexOf(ws);
+  for (const p of room.players) send(p, { t: 'left', who, rest: room.players.length });
+  if (room.players.length < 2) { rooms.delete(room.code); for (const p of room.players) p.room = null; }
 }
 
 wss.on('connection', ws => {
@@ -100,48 +117,43 @@ wss.on('connection', ws => {
     switch (m.t) {
       case 'create': {
         leave(ws);
-        const room = { code: newCode(), players: [ws], ready: [false, false], board: ws.board };
-        rooms.set(room.code, room); ws.room = room;
-        send(ws, { t: 'created', code: room.code });
+        const room = newRoom(ws, sizeOf(m.size), ws.board);
+        addPlayer(room, ws);
+        send(ws, { t: 'created', code: room.code, size: room.size });
         break;
       }
       case 'join': {
         const room = rooms.get(String(m.code || '').toUpperCase());
         if (!room) { send(ws, { t: 'error', msg: '방을 찾을 수 없습니다. 코드를 확인하세요.' }); return; }
         if (room.players.includes(ws)) return;
-        if (room.players.length >= 2) { send(ws, { t: 'error', msg: '이미 두 명이 들어간 방입니다.' }); return; }
+        if (room.started || room.players.length >= room.size) { send(ws, { t: 'error', msg: '이미 사람이 다 찬 방입니다.' }); return; }
         leave(ws);
-        room.players.push(ws); ws.room = room;
-        startRoom(room);
+        addPlayer(room, ws);
         break;
       }
-      case 'quick': {
+      case 'quick': {        // 같은 판 크기·인원끼리 모아서 다 차면 시작
         leave(ws);
-        const bk = ws.board || 'wide', other = quickWaiting.get(bk);
-        if (other && other !== ws && other.readyState === 1) {
-          const room = { code: newCode(), players: [other, ws], ready: [false, false], board: bk };
-          rooms.set(room.code, room);
-          other.room = room; ws.room = room; quickWaiting.delete(bk);
-          startRoom(room);
-        } else {
-          quickWaiting.set(bk, ws);
-          send(ws, { t: 'waiting' });
-        }
+        const size = sizeOf(m.size), key = `${ws.board || 'wide'}:${size}`;
+        let room = quickWaiting.get(key);
+        if (!room || room.started) { room = newRoom(ws, size, ws.board); quickWaiting.set(key, room); }
+        addPlayer(room, ws);
+        if (!room.started) send(ws, { t: 'waiting', have: room.players.length, size });
         break;
       }
-      case 'ready': {        // 게임이 끝난 뒤 '다시 하기'
+      case 'ready': {        // 게임이 끝난 뒤 '다시 하기': 남은 사람이 모두 누르면 새 판
         const room = ws.room;
-        if (!room || room.players.length < 2) return;
-        room.ready[room.players.indexOf(ws)] = true;
-        if (room.ready.every(Boolean)) startRoom(room);
-        else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady' }); });
+        if (!room || !room.started || room.players.length < 2) return;
+        room.ready.add(ws);
+        if (room.players.every(p => room.ready.has(p))) startRoom(room);
+        else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady', have: room.ready.size, size: room.players.length }); });
         break;
       }
       case 'leave': leave(ws); break;
-      case 'g': {            // 게임 메시지는 상대에게 그대로 중계
+      case 'g': {            // 게임 메시지는 다른 사람들에게 보낸 사람 자리 번호를 붙여 중계
         const room = ws.room;
-        if (!room) return;
-        for (const p of room.players) if (p !== ws) send(p, { t: 'g', d: m.d });
+        if (!room || !room.started) return;
+        const f = room.seats.indexOf(ws);
+        for (const p of room.players) if (p !== ws) send(p, { t: 'g', d: m.d, f });
         break;
       }
     }

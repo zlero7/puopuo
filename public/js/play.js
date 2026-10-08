@@ -22,7 +22,11 @@ function resume() {
 }
 function forfeit() {
   const me = game.fields[0];
-  if (game.state === 'play') { me.die(); game.state = 'over'; game.fields[1].won = true; recordGame(); }
+  if (game.state === 'play') {
+    me.die(); me.place = game.fields.filter(f => !f.dead).length + 1;
+    if (game.fields.length === 2) game.fields[1].won = true;
+    game.state = 'over'; recordGame();
+  }
   nsend({ t: 'leave' }); game.net = false;
   openMenu('vs', 't-quick');
 }
@@ -46,7 +50,7 @@ const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const
 game.launch = (from, to, n, x, y, kind, ch) => {
   const col = kind === 'offset' ? '#8fd0ff' : CH_COL[Math.max(0, (ch == null ? from.chain : ch) - 1) % CH_COL.length];
   const tx = to.ox + to.fw / 2, ty = to.oy - 32;
-  game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind === 'attack' ? 720 : 420, n, to, kind, col,
+  game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind === 'attack' ? 720 : 420, n, from, to, kind, col,
     size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind === 'attack' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
   ring(x, y, col, 8, 46, 320, 6); burst(x, y, col, 10, 0.25);
   kind === 'attack' ? sfx.send() : sfx.rot();
@@ -59,6 +63,7 @@ function orbPos(o) {
 function impact(o) {
   if (o.kind === 'attack') {
     if (!o.to.remote) o.to.pending += o.n;          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+    if (o.from !== o.to) o.to.lastHitBy = o.from;   // 3~4인: 나를 공격한 사람에게 반격
     o.to.trayBump = 1; o.to.hit = Math.min(1, 0.4 + o.n / 20);
     o.to.shake = Math.max(o.to.shake, 3 + Math.min(7, o.n / 3));
     ring(o.x1, o.y1, o.col, 6, 40 + Math.min(40, o.n * 2), 380, 7); ring(o.x1, o.y1, '#ffffff', 4, 28, 240, 3);
@@ -154,15 +159,21 @@ function update(dt) {
   if (active) {
     const fin = !game.vs && game.fields[0].done;
     if (fin) { game.state = 'over'; game.overT = 0; sfx.win(); recordGame(); }
-    const dead = !fin && game.fields.find(f => f.dead);
-    if (dead) {
-      game.state = 'over'; game.overT = 0;
-      if (game.vs) {
-        const w = dead.opp; w.won = true; w.piece = null; (dead.human ? sfx.lose : sfx.win)();
-        if (game.series && game.mode !== 'replay') { if (w === game.fields[0]) game.series.me++; else game.series.op++; }
+    const F = game.fields, first = !fin && F.find(f => f.dead);
+    if (first && !game.vs) { game.state = 'over'; game.overT = 0; sfx.lose(); recordGame(); }
+    else if (first) {
+      for (const f of F) if (f.dead && !f.place) { f.place = F.filter(o => !o.dead).length + 1; f.piece = null; }   // 탈락 순위
+      const alive = F.filter(f => !f.dead);
+      const humansOut = game.mode !== 'online' && F.some(f => f.human) && F.every(f => !f.human || f.dead);    // 3~4인: 사람이 모두 탈락하면 끝(온라인은 끝까지 관전)
+      if (alive.length <= 1 || humansOut) {
+        game.state = 'over'; game.overT = 0;
+        alive.sort((a, b) => b.score - a.score).forEach((f, i) => { f.place = i + 1; });
+        const w = alive[0] || F.find(f => f !== first);
+        w.won = true; w.place = 1; w.piece = null;
+        (F[0].won || !F[0].human ? sfx.win : sfx.lose)();
+        if (game.series && game.mode !== 'replay') { if (w === F[0]) game.series.me++; else game.series.op++; }
+        recordGame();                        // 승패(won)가 정해진 뒤에 기록해야 함
       }
-      else sfx.lose();
-      recordGame();                          // 승패(won)가 정해진 뒤에 기록해야 함
     }
   } else if (game.state === 'over') {
     game.overT += dt;
@@ -185,10 +196,15 @@ function update(dt) {
         [game.vs ? '보낸 공격' : isT ? '지운 줄' : '터뜨린 뿌요', game.vs ? me.sent : me.pops], ['플레이 시간', game.el < 60000 ? '1분 미만' : fmtTime(game.el)]];
       if (game.vs) {
         const local = game.mode === 'local';
-        const who = (online ? `${game.fields[1].name} 님과의 대전` : local ? '로컬 대전' : `AI ${DIFF[game.diff]}`) + ` · ${STYLE_KO[me.kind]} vs ${STYLE_KO[game.fields[1].kind]}`;
+        const many = game.fields.length > 2;
+        const who = (online ? `${game.fields[1].name} 님과의 대전` : local ? '로컬 대전' : `AI ${DIFF[game.diff]}`) +
+          (many ? ` · ${game.fields.length}인 대전` : ` · ${STYLE_KO[me.kind]} vs ${STYLE_KO[game.fields[1].kind]}`);
+        if (many) chips[3] = ['순위', `${me.place || 1}위 / ${game.fields.length}명`];
         const sr = game.series, done = sr && sr.to > 1 && (sr.me >= sr.to || sr.op >= sr.to), mid = sr && sr.to > 1 && !done;
-        const title = local ? `${done ? '최종 ' : ''}${(done ? sr.me > sr.op : me.won) ? '1P' : '2P'} 승리!`
-          : done ? (sr.me > sr.op ? '최종 승리!' : '최종 패배') : me.won ? '승리!' : '패배';
+        const winner = game.fields.find(f => f.won);
+        const title = local && many ? `${winner ? winner.name : ''} 승리!`
+          : local ? `${done ? '최종 ' : ''}${(done ? sr.me > sr.op : me.won) ? '1P' : '2P'} 승리!`
+          : done ? (sr.me > sr.op ? '최종 승리!' : '최종 패배') : me.won ? '승리!' : many ? `${me.place}위` : '패배';
         const sub = (sr ? `시리즈 ${sr.me} : ${sr.op}${sr.to > 1 ? ` (${sr.to}선승)` : ''} · ` : '') + who + (game.oppLeft ? ' · 상대가 나갔습니다' : '');
         showResult(me.won ? 'yellow' : 'blue', title, sub, chips, online ? (net.ws && !game.oppLeft ? 'online' : 'menu') : mid ? 'next' : 'offline');
         if (mid) game.autoNextT = 3500;
@@ -262,7 +278,11 @@ function render(t) {
     ctx.fillStyle = gr; ctx.fillText('VS', 0, 3);
     ctx.restore();
     const sr = game.series;                    // 시리즈 점수(선승제 / 같은 상대와의 누적)
-    if (sr) {
+    if (game.fields.length > 2 && me.opp && !me.dead && game.state === 'play') {   // 3~4인: 지금 공격 대상
+      slab(ctx, PX - 66, y + 50, 132, 54, me.opp.tone || TONES.blue, 4);
+      outlined(ctx, '공격 대상', PX, y + 64, 13, '#fff', (me.opp.tone || TONES.blue).d, 4);
+      outlined(ctx, me.opp.name, PX, y + 86, 20, '#fff', (me.opp.tone || TONES.blue).d, 5);
+    } else if (sr) {
       slab(ctx, PX - 62, y + 50, 124, 46, TONES.white, 4);
       outlined(ctx, `${sr.me} : ${sr.op}`, PX, y + 74, 28, '#22212e', '#fff', 4);
       if (sr.to > 1) { ctx.font = '13px ' + FONT(); ctx.fillStyle = '#6d6b80'; ctx.textAlign = 'center'; ctx.fillText(`${sr.to}선승`, PX, y + 108); }

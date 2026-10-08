@@ -102,36 +102,59 @@ const AI_TETRIS = [
   { delay: 190, noise: 0.8, miss: 0.06, atk: 0.6,  hard: true,  holdUse: true,  tspin: 0.6, look: false },
   { delay: 80,  noise: 0.1, miss: 0,    atk: 0.85, hard: true,  holdUse: true,  tspin: 1,   look: true },
 ];
+// 판 배치: 내 판 · 가운데 패널 · 상대 판들(3~4인이면 오른쪽으로 이어 붙이고 화면 전체를 줄여서 맞춤)
+const slotX = i => i === 0 ? OX1 : OX2 + (i - 1) * (SW + 20);
+const PLAYER_TONES = [TONES.red, TONES.blue, TONES.green, TONES.orange];
+const playersOf = mode => mode === 'vs' || mode === 'local' ? Math.max(2, Math.min(4, stats.players || 2)) : mode === 'solo' ? 1 : game.netN || 2;
 function build(mode) {
-  const vs = mode !== 'solo';
+  const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? OX2 + SW + 20 : OX1 + SW + PANEL_W);
+  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W);
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
   f1.tone = vs ? TONES.red : TONES.green;
   game.fields = [f1];
   if (!vs) return;
-  const op = game.oppStyle || 'puyo';
-  const f2 = mkField(op, OX2, mode === 'local', mode === 'online' ? '상대' : mode === 'local' ? '2P' : 'CPU');
-  f2.tone = TONES.blue; f1.opp = f2; f2.opp = f1;
-  if (mode === 'local') { f1.name = '1P'; f1.pi = 0; f2.pi = 1; }
-  else if (mode === 'online') f2.remote = true;
-  else {
-    const lv = game.diff == null ? 1 : game.diff;
+  const lv = game.diff == null ? 1 : game.diff;
+  for (let i = 1; i < n; i++) {
+    const human = mode === 'local' && i === 1, st = i === 1 ? game.oppStyle || 'puyo' : game.cpuStyles[i - 2] || 'puyo';
+    const cpuNo = mode === 'local' ? i - 1 : i;
+    const f = mkField(st, slotX(i), human, mode === 'online' ? '상대' : human ? '2P' : n > 2 ? `CPU ${cpuNo}` : 'CPU');
+    f.tone = PLAYER_TONES[i];
+    if (human) f.pi = 1;
+    else if (mode === 'online') f.remote = true;
     // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
     // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
-    f2.ai = { ...(op === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
+    else f.ai = { ...(st === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
+    game.fields.push(f);
   }
-  game.fields.push(f2);
+  if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
+  for (const f of game.fields) f.opp = pickTarget(f);
+}
+// 판 위 결과 띠 글자
+const endLabel = f => f.won ? '승리!' : !game.vs ? '게임 오버' : game.fields.length > 2 && f.place ? `${f.place}위` : '패배';
+// 공격 대상: 2명이면 상대. 3명 이상이면 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
+// kind를 주면 그 스타일(뿌요/테트리스) 상대를 먼저 고름(공격 변환이 섞이지 않게)
+function pickTarget(f, kind) {
+  let alive = game.fields.filter(o => o !== f && !o.dead);
+  if (!alive.length) return f.opp || null;
+  if (kind && alive.some(o => o.kind === kind)) alive = alive.filter(o => o.kind === kind);
+  if (alive.length === 1) return alive[0];
+  if (f.lastHitBy && alive.includes(f.lastHitBy)) return f.lastHitBy;
+  return alive.reduce((a, b) => (b.score > a.score ? b : a));
 }
 function start(mode, seed, styles, board) {
   audio(); game.net = mode === 'online'; game.oppLeft = false;
   applyBoard(board || stats.board || 'wide');
   game.myStyle = styles ? styles.me : stats.style || 'puyo';
   const cs = stats.cpuStyle || 'puyo';
-  game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
+  const cpuSt = () => cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
+  game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cpuSt();
+  game.cpuStyles = styles && styles.ops ? styles.ops : [cpuSt(), cpuSt()];      // 3~4인일 때 나머지 CPU
   game.startArgs = [mode, null, styles, board];
-  if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
+  if ((mode === 'vs' || mode === 'local') && playersOf(mode) > 2) game.series = null;      // 3~4인은 한 판 승부
+  else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
+  else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
   game.keepSeries = false;

@@ -14,4 +14,11 @@ module.exports = [
   { name: '리플레이: 뿌요 vs 뿌요 다시 보기', mode: 'vs', my: 'puyo', op: 'puyo', replay: true, expect: r => r.same },
   { name: '리플레이: 뿌요 vs 테트리스 다시 보기', mode: 'vs', my: 'puyo', op: 'tetris', replay: true, expect: r => r.same },
   { name: '리플레이: 테트리스 vs 테트리스 다시 보기', mode: 'vs', my: 'tetris', op: 'tetris', replay: true, expect: r => r.same },
+  { name: '3인 CPU 대전(뿌요·테트리스 섞기)', mode: 'vs', my: 'puyo', op: 'random', players: 3, steps: 40000,
+    probe: 'game.fields.map(f => [f.kind, f.place, f.won, f.sent])', expect: r => r.state === 'over' && r.extra.filter(f => f[2]).length === 1 },
+  { name: '4인 CPU 대전', mode: 'vs', my: 'tetris', op: 'random', players: 4, steps: 50000,
+    probe: 'game.fields.map(f => [f.kind, f.place, f.won, f.sent])', expect: r => r.state === 'over' && r.extra.every(f => f[1] >= 1) },
+  { name: '4인 로컬 대전', mode: 'local', my: 'puyo', op: 'puyo', players: 4, steps: 50000,
+    probe: 'game.fields.map(f => [f.name, f.place, f.won])', expect: r => r.state === 'over' },
+  { name: '4인 리플레이', mode: 'vs', my: 'puyo', op: 'random', players: 4, replay: true, expect: r => r.same },
 ];

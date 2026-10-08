@@ -6,7 +6,7 @@
    ① 온라인이면 상대에게 보내고 ② 녹화 중이면 리플레이에 기록한다.
    재생은 온라인 상대 화면을 재현하는 코드(원격 판)를 그대로 쓴다. */
 function emit(f, d) {
-  if (game.net && f === game.fields[0]) gsend(d);
+  if (game.net && f === game.fields[0]) gsend(d.to != null ? { ...d, to: game.fields[d.to] ? game.fields[d.to].seat : undefined } : d);   // 판 번호 → 자리 번호
   recEv(f, d);
 }
 // 녹화: [진행 시간(ms), 판 번호, 이벤트]
@@ -36,10 +36,17 @@ function applyRemote(f, d) {
     case 'lock': case 'garb': case 'tlock': case 'tgarb':
       if (f.kind === 'tetris' && typeof d.g === 'string' && d.g.length < TW * TH) d = { ...d, g: d.g.padStart(TW * TH, '0') };
       f.queue.push(d); break;
-    case 'atk': if (game.state === 'play' && f.opp) game.launch(f, f.opp, d.n, f.ox + d.x, f.oy + d.y, 'attack', d.ch); break;
+    case 'atk': {
+      const to = game.fields[d.to] || f.opp;
+      if (game.state === 'play' && to) game.launch(f, to, d.n, f.ox + d.x, f.oy + d.y, 'attack', d.ch);
+      break;
+    }
     case 'off': game.launch(f, f, d.n, f.ox + d.x, f.oy + d.y, 'offset', d.ch); break;
     case 'dead':
-      if (f.kind === 'tetris') while (f.queue.length) { const ev = f.queue.shift(); if (ev.g) f.decode(ev.g); }   // 마지막으로 놓은 블록까지 보이게
+      if (f.kind === 'tetris') {                                   // 남은 이벤트를 바로 적용해서 마지막으로 놓은 블록까지 보이게
+        if (f.phase === 'clear') f.dropRows(f.clearRows);
+        while (f.queue.length) { const ev = f.queue.shift(); if (ev.g) { f.decode(ev.g); if (ev.rows && ev.rows.length) f.dropRows(ev.rows); } }
+      }
       if (game.state === 'play') f.die(); break;
   }
 }
@@ -64,6 +71,7 @@ function newRecording(seed) {
 // 판이 끝났을 때 저장하고 기록(최근 경기)에 붙일 id를 돌려줌
 function finishRecording() {
   const r = game.rec; if (!r || game.mode === 'replay') return null;
+  game.fields.forEach((f, pi) => { if (!f.remote) r.ev.push([Math.round(game.el || 0), pi, stateOf(f)]); });   // 마지막 점수까지
   game.rec = null;
   r.players = game.fields.map(f => ({ name: f.name, style: f.kind }));
   r.len = Math.round(game.el || 0);
@@ -96,10 +104,10 @@ function startReplay(rp) {
   const ps = rp.players, vs = ps.length > 1;
   game.mode = 'replay'; game.vs = vs; game.diff = rp.diff; game.soloMode = rp.solo;
   seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = [];
-  setSize(vs ? OX2 + SW + 20 : OX1 + SW + PANEL_W);
+  setSize(vs ? slotX(ps.length - 1) + SW + 20 : OX1 + SW + PANEL_W);
   game.myStyle = ps[0].style; game.oppStyle = vs ? ps[1].style : null;
-  game.fields = ps.map((p, i) => { const f = mkField(p.style, i ? OX2 : OX1, false, p.name); f.remote = true; f.tone = vs ? [TONES.red, TONES.blue][i] : TONES.green; return f; });
-  if (vs) { game.fields[0].opp = game.fields[1]; game.fields[1].opp = game.fields[0]; }
+  game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; return f; });
+  if (vs) for (const f of game.fields) f.opp = pickTarget(f);
   game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
   game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 1600; game.introGo = false; overlay.classList.add('hidden'); bgmPlay('game'); sfx.ready();

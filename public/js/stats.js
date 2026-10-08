@@ -32,7 +32,8 @@ function recordGame() {
   }
   stats.sent += me.sent;
   let r, mode;
-  const opLab = game.fields[1] ? ` vs ${STYLE_KO[game.fields[1].kind]}` : '';
+  const many = game.fields.length > 2;
+  const opLab = many ? ` · ${game.fields.length}인 ${me.place || 1}위` : game.fields[1] ? ` vs ${STYLE_KO[game.fields[1].kind]}` : '';
   if (game.mode === 'solo') {
     stats.practice.games++;
     const sm = isT ? game.soloMode || 'endless' : 'endless';
@@ -46,7 +47,7 @@ function recordGame() {
   }
   else if (game.mode === 'local') { r = me.won ? 'w' : 'l'; mode = `로컬 대전 · ${STYLE_KO[me.kind]}${opLab}`; }
   else if (game.mode === 'vs') { const a = stats.ai[game.diff]; me.won ? a.w++ : a.l++; r = me.won ? 'w' : 'l'; mode = `AI ${DIFF[game.diff]} · ${STYLE_KO[me.kind]}${opLab}`; }
-  else { me.won ? stats.online.w++ : stats.online.l++; r = me.won ? 'w' : 'l'; mode = `대전 · ${game.fields[1].name} · ${STYLE_KO[me.kind]}${opLab}`; }
+  else { me.won ? stats.online.w++ : stats.online.l++; r = me.won ? 'w' : 'l'; mode = `대전 · ${many ? `${game.fields.length}인` : game.fields[1].name} · ${STYLE_KO[me.kind]}${opLab}`; }
   if (BOARD !== 'wide' && !isT) mode += ` · ${BOARDS[BOARD].ko}`;
   stats.history.unshift({ d: Date.now(), m: mode, r, sc: me.score, ch: me.maxChain, k: isT ? 't' : 'p', rp });
   stats.history = stats.history.slice(0, 12);

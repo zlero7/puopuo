@@ -465,8 +465,10 @@ class Field {
       for (const p of g.cells) { this.popList.push(p); set.add(p); sx += p.col; sy += p.y; } }
     bonus += COLOR_BONUS[Math.min(cols.size, 5)];
     const step = 10 * total * clamp(bonus, 1, 999);
-    this.score += step; this.pops += total;
+    if (!this.remote) this.score += step;           // 원격 판(온라인 상대·리플레이) 점수는 받은 값만 씀
+    this.pops += total;
     if (!game.vs) this.level = 1 + Math.floor(this.pops / 40);
+    if (game.vs && !this.remote && (this.chain === 1 || !this.opp || this.opp.dead)) this.opp = pickTarget(this, this.chain === 1 ? null : this.opp && this.opp.kind);
     const tp = targetPt(); this.carry += step; let units = Math.floor(this.carry / tp); this.carry -= units * tp;
     if (this.chain === 1 && this.acBonus) {        // 전멸 보너스: 다음 연쇄 첫 단계에 방해뿌요 30개(테트리스 상대는 2100점)
       this.acBonus = false;
@@ -527,7 +529,7 @@ class Field {
     const c = Math.min(this.pending, n);
     const rx = x - this.ox, ry = y - this.oy;
     if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
-    if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', n, x: rx, y: ry, ch: this.chain }); }
+    if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.chain }); }
   }
 
   // 테트리스 상대: 연쇄 단계 점수(+이월)가 210·630·1050·1710·3500·7000·14000점에 닿으면 1~7줄.
@@ -553,7 +555,7 @@ class Field {
       if (this.lineOut > 0 && game.vs) {
         const [x, y] = this.lastAtkXY || [this.ox + FW / 2, this.oy + FH / 2];
         game.launch(this, this.opp, this.lineOut, x, y, 'attack');
-        emit(this, { t: 'atk', n: this.lineOut, x: x - this.ox, y: y - this.oy, ch: this.chain });
+        emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n: this.lineOut, x: x - this.ox, y: y - this.oy, ch: this.chain });
       }
       this.lineOut = 0; this.lineCarry = 0;
     }
@@ -742,7 +744,7 @@ class Field {
       } else c.fillStyle = tx.col;
       c.fillText(tx.txt, 0, 0); c.restore();
     }
-    const danger = this.opp && this.opp.kind === 'tetris' && this.opp.gauge >= 11 && !this.dead;
+    const danger = !this.dead && game.fields.some(o => o.opp === this && o.kind === 'tetris' && !o.dead && o.gauge >= 11);
     if (danger !== this.dangerOn) { this.dangerOn = danger; if (danger && this.human) sfx.danger(); }
     if (danger) {
       const a = 0.55 + 0.45 * Math.sin(t / 120);
@@ -760,7 +762,7 @@ class Field {
       const bt = this.won ? TONES.yellow : game.vs ? TONES.blue : TONES.green;
       c.save(); c.translate(FW / 2, FH / 2); c.rotate(-0.06);
       slab(c, -FW / 2 - 20, -42, FW + 40, 84, bt, 6);
-      outlined(c, this.won ? '승리!' : game.vs ? '패배' : '게임 오버', 0, 2, 50, '#fff', bt.d, 9);
+      outlined(c, endLabel(this), 0, 2, 50, '#fff', bt.d, 9);
       c.restore();
     }
     c.restore(); c.restore();

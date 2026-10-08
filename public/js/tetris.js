@@ -355,17 +355,19 @@ class TField {
     const c = Math.min(this.pending, n), rx = x - this.ox, ry = y - this.oy;
     if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.ren }); }
     if (n <= 0) return;
+    if (n > 0) this.opp = pickTarget(this, this.gauge > 0 ? 'puyo' : null);     // 게이지를 모으는 중이면 뿌요 상대 유지
     if (this.vsPuyo()) { this.gauge = Math.min(60, this.gauge + n); sfx.gauge(); }
-    else { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', n, x: rx, y: ry, ch: this.ren }); }
+    else { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.ren }); }
   }
   releaseGauge() {
     if (!this.gauge) return;
     let g = this.gauge; this.gauge = 0;
     const c = Math.min(g, this.pending); g -= c; this.pending -= c;
     if (g <= 0) return;
-    const n = T2P[Math.min(g, 60)], x = this.ox + TGX / 2, y = this.oy + FH / 2;
+    this.opp = pickTarget(this, 'puyo');
+    const n = this.vsPuyo() ? T2P[Math.min(g, 60)] : g, x = this.ox + TGX / 2, y = this.oy + FH / 2;   // 뿌요 상대가 다 떨어졌으면 줄 그대로
     game.launch(this, this.opp, n, x, y, 'attack', Math.min(8, Math.ceil(g / 3)));
-    emit(this, { t: 'atk', n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
+    emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
   }
   updateClear(dt) {
     this.clearT += dt;
@@ -405,6 +407,13 @@ class TField {
     this.grid = this.grid.slice(n).concat(rows);
     this.shake = Math.max(this.shake, 3 + n); sfx.garb();
     if (!this.remote) emit(this, { t: 'tgarb', g: this.encode() });
+  }
+  // 줄 지우기 결과만 바로 반영(연출 없이)
+  dropRows(rows) {
+    if (!rows || !rows.length) return;
+    this.grid = this.grid.filter((_, r) => !rows.includes(r));
+    while (this.grid.length < TH) this.grid.unshift(Array(TW).fill(0));
+    this.clearRows = []; this.phase = 'wait';
   }
   // 온라인: 상대 테트리스 화면 재현
   applyEvent(ev) {
@@ -578,7 +587,7 @@ class TField {
       const bt = this.won ? TONES.yellow : game.vs ? TONES.blue : TONES.green;
       c.save(); c.translate(SW / 2, FH / 2); c.rotate(-0.06);
       slab(c, -GW / 2 - 20, -42, GW + 40, 84, bt, 6);
-      outlined(c, this.won ? '승리!' : game.vs ? '패배' : '게임 오버', 0, 2, 50, '#fff', bt.d, 9);
+      outlined(c, endLabel(this), 0, 2, 50, '#fff', bt.d, 9);
       c.restore();
     }
     c.restore(); c.restore();

@@ -12,9 +12,8 @@ const PORT = 3999 + Math.floor(Math.random() * 500);
 const SIM = `
 window.__sim = (cfg) => {
   stats.style = cfg.my; stats.cpuStyle = cfg.op; stats.p2Style = cfg.op;
-  if (cfg.board) stats.board = cfg.board;
+  stats.board = cfg.board || 'wide'; stats.players = cfg.players || 2;
   if (cfg.rule) stats.rule = cfg.rule;
-  if (cfg.players) stats.players = cfg.players;
   game.diff = cfg.diff == null ? 2 : cfg.diff; game.soloMode = cfg.solo || 'endless';
   start(cfg.mode);
   for (const f of game.fields) {          // 사람 자리도 CPU로 바꿔 자동 진행
@@ -56,6 +55,7 @@ const CASES = [
 ];
 const extra = require('./cases');
 CASES.push(...extra);
+if (process.env.ONLY) CASES.splice(0, CASES.length, ...CASES.filter(c => new RegExp(process.env.ONLY).test(c.name)));   // ONLY=리플레이 npm test
 
 (async () => {
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1' }, stdio: 'pipe' });

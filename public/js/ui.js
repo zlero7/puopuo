@@ -87,6 +87,7 @@ function renderStyle() {
     const [kind, who, st] = b.dataset.act.split(':');
     if (kind === 'ft') { b.classList.toggle('on', +who === (stats.firstTo || 2)); return; }
     if (kind === 'rtab') { b.classList.toggle('on', who === recTab); return; }
+    if (kind === 'pl') { b.classList.toggle('on', +who === (stats.players || 2)); return; }
     if (kind === 'board') { b.classList.toggle('on', who === (stats.board || 'wide')); return; }
     b.classList.toggle('on', (who === 'me' ? stats.style || 'puyo' : who === 'p2' ? stats.p2Style || 'puyo' : stats.cpuStyle || 'puyo') === st);
   });
@@ -103,11 +104,12 @@ function act(a) {
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
   else if (k === 'rtab') { recTab = v; renderStats(); }
+  else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide' }));
-  else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide' }));
+  else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', size: stats.players || 2 }));
+  else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
 }
 function moveSel(dx, dy) {
