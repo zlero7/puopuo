@@ -125,7 +125,9 @@ function stateOf(f) {
     const cf = f.fits({ ...p, y: p.y + 1 });
     pc = { x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, p: cf ? Math.round(Math.min(1, f.acc / (f.soft ? 35 : f.fallIv())) * 100) / 100 : 0 };
   }
-  return { t: 'st', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
+  const d = { t: 'st', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
+  if (game.rule === 'fever') d.fv = [f.fv.gauge, f.fv.on ? 1 : 0, Math.max(0, Math.ceil(f.fv.t / 100))];
+  return d;
 }
 function update(dt) {
   if (game.state === 'intro') {
@@ -209,12 +211,13 @@ function update(dt) {
         showResult(me.won ? 'yellow' : 'blue', title, sub, chips, online ? (net.ws && !game.oppLeft ? 'online' : 'menu') : mid ? 'next' : 'offline');
         if (mid) game.autoNextT = 3500;
       } else {
-        const sm = isT ? game.soloMode || 'endless' : 'endless', fin = me.done;
-        const rec = !isT ? `뿌요뿌요 연습 최고 ${(stats.practice.best || 0).toLocaleString()}점`
+        const sm = game.soloMode || 'endless', fin = me.done;
+        const rec = !isT && sm === 'efever' ? `엔드리스 피버 최고 ${(stats.practice.fBest || 0).toLocaleString()}점 · 최고 ${stats.practice.fChain || 0}연쇄`
+          : !isT ? `뿌요뿌요 연습 최고 ${(stats.practice.best || 0).toLocaleString()}점`
           : sm === 'sprint' ? (fin ? `기록 ${fmtClock(me.doneAt)} · 최고 ${fmtClock(stats.tRec.sprint)}` : `40줄을 채우지 못했어요 · 최고 ${stats.tRec.sprint ? fmtClock(stats.tRec.sprint) : '-'}`)
           : sm === 'endless' ? `테트리스 끝없이 최고 ${(stats.practice.tBest || 0).toLocaleString()}점`
           : `${SOLO_KO[sm]} 최고 ${(stats.tRec[sm] || 0).toLocaleString()}점`;
-        const title = fin ? (sm === 'ultra' ? '시간 종료!' : '완주!') : '게임 오버';
+        const title = fin ? (sm === 'ultra' || sm === 'efever' ? '시간 종료!' : '완주!') : '게임 오버';
         if (isT) chips[2] = ['지운 줄', me.lines];
         showResult(fin ? 'yellow' : 'green', game.newRecord && (fin || sm !== 'sprint') ? title + ' 신기록!' : title, rec, chips, 'offline');
       }
@@ -290,7 +293,8 @@ function render(t) {
   } else {
     const ly = OY + 372, sm = game.soloMode;
     slab(ctx, PX - 70, ly, 140, 62, TONES.green, 5);
-    outlined(ctx, isT && sm !== 'endless' ? SOLO_KO[sm] : '레벨 ' + me.level, PX, ly + 32, isT && sm !== 'endless' ? 24 : 26, '#fff', TONES.green.d, 6);
+    const lab = isT && sm !== 'endless' ? SOLO_KO[sm] : !isT && sm === 'efever' ? `${me.fv.lv || feverLv()[0]}연쇄 판` : '레벨 ' + me.level;
+    outlined(ctx, lab, PX, ly + 32, lab.length > 5 ? 22 : 26, '#fff', TONES.green.d, 6);
     if (isT) {
       const el = game.state === 'play' || game.state === 'over' || game.state === 'pause' ? (me.doneAt || game.el) : 0;
       const lines = [

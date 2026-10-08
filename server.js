@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 const rooms = new Map();        // code -> { code, size, board, players: [ws], seats: [ws], ready: Set, started }
 const quickWaiting = new Map(); // '판크기:인원' -> 아직 다 안 찬 빠른 매칭 방
-const BOARD_KEYS = ['wide', 'classic'];
+const BOARD_KEYS = ['wide', 'classic'], RULE_KEYS = ['tsu', 'fever'];
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newCode() {
@@ -67,7 +67,7 @@ function newCode() {
 function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
 const sizeOf = v => Math.max(2, Math.min(4, Math.floor(+v) || 2));
 function newRoom(ws, size, board) {
-  const room = { code: newCode(), size, board: board || 'wide', players: [], seats: [], ready: new Set(), started: false };
+  const room = { code: newCode(), size, board: board || 'wide', rule: ws.rule || 'tsu', players: [], seats: [], ready: new Set(), started: false };
   rooms.set(room.code, room);
   return room;
 }
@@ -84,7 +84,7 @@ function startRoom(room) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
   const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
-  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board }));
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule }));
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
@@ -113,6 +113,7 @@ wss.on('connection', ws => {
     if (!m || typeof m.t !== 'string') return;
     if (m.style === 'puyo' || m.style === 'tetris') ws.style = m.style;
     if (BOARD_KEYS.includes(m.board)) ws.board = m.board;
+    if (RULE_KEYS.includes(m.rule)) ws.rule = m.rule;
 
     switch (m.t) {
       case 'create': {
@@ -133,7 +134,7 @@ wss.on('connection', ws => {
       }
       case 'quick': {        // 같은 판 크기·인원끼리 모아서 다 차면 시작
         leave(ws);
-        const size = sizeOf(m.size), key = `${ws.board || 'wide'}:${size}`;
+        const size = sizeOf(m.size), key = `${ws.board || 'wide'}:${ws.rule || 'tsu'}:${size}`;
         let room = quickWaiting.get(key);
         if (!room || room.started) { room = newRoom(ws, size, ws.board); quickWaiting.set(key, room); }
         addPlayer(room, ws);

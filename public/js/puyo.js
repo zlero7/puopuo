@@ -225,6 +225,7 @@ class Field {
 
   reset() {
     this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    this.fv = { gauge: 0, on: false, t: 0, lv: 0, stash: null, hit: false }; this.forcePair = null;   // 피버(fever.js)
     this.idx = 0; this.score = 0; this.chain = 0; this.maxChain = 0; this.pending = 0; this.carry = 0; this.atkCarry = 0; this.trayBump = 0; this.hit = 0;
     this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lineCarry = 0; this.lineOut = 0; this.lineAtk = 0;
     this.acBonus = false; this.blockedAt = 0; this.dangerOn = false; this.holdP = null; this.canHold = true;
@@ -243,8 +244,9 @@ class Field {
 
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }
-    if (this.grid[1][SP]) { this.die(); return; }
-    const [a, b] = pairAt(this.idx++);
+    if (game.rule === 'fever' && !this.fv.on && (this.fv.gauge >= FEVER_GAUGE || (game.soloMode === 'efever' && !game.vs && !this.fv.lv))) { this.startFever(); return; }
+    if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } this.die(); return; }
+    const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 };
     this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true;
     if (!this.fits(this.piece)) { this.die(); return; }
@@ -269,9 +271,9 @@ class Field {
      상대 클라이언트가 보낸 '고정(lock)'·'방해뿌요 낙하(garb)' 이벤트를 순서대로 같은 규칙으로 재생한다.
      연쇄·낙하는 결정적이라 애니메이션까지 그대로 나오고, 이벤트마다 보낸 격자 스냅샷으로 어긋나면 바로잡는다. */
   encode() { return this.grid.map(r => r.map(p => p ? p.c : 0).join('')).join(''); }
-  decode(g) {
+  decode(g, fall = false) {               // fall: 위에서 떨어지며 들어오는 연출(피버 판 바꾸기)
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const v = +g[r * COLS + c]; this.grid[r][c] = v ? this.mk(v, r, c, r) : null;
+      const v = +g[r * COLS + c]; this.grid[r][c] = v ? this.mk(v, r, c, fall ? r - ROWS - 1 - Math.random() * 1.5 : r) : null;
     }
   }
   pump() {
@@ -285,6 +287,7 @@ class Field {
         this.piece = { x: ev.x, y: ev.y, o: ev.o, a: ev.a, b: ev.b, rx: sp ? sp.rx : ev.x, ang: sp ? sp.ang : ev.o * Math.PI / 2 };
         this.lock(off, !!ev.h);
       } else if (ev.t === 'garb') this.placeGarbage(ev.c);
+      else if (ev.t === 'fv') { this.fv.on = !!ev.on; this.decode(ev.g, true); this.piece = null; this.phase = 'settle'; this.settleT = 0; }
     }
     if (this.phase === 'wait') this.applyNet();
   }
@@ -323,6 +326,7 @@ class Field {
       if (this.queue.length > 2) dt *= 4;            // 밀린 이벤트가 많으면 빨리 감아 따라잡기
       if (this.phase === 'wait') { this.pump(); return; }
     }
+    if (this.fv.on && !this.remote && !this.fv.loading) this.fv.t -= dt;          // 피버 시간: 씨앗판이 떨어지는 동안만 멈춤(연쇄 중에도 흐름)
     if (this.phase === 'drop') this.updateDrop(dt);
     else if (this.phase === 'settle') this.updateSettle(dt);
     else if (this.phase === 'pop') this.updatePop(dt);
@@ -460,7 +464,9 @@ class Field {
 
   beginPop(gs) {
     this.popList = []; const set = new Set(); let total = 0, sx = 0, sy = 0;
-    let bonus = CHAIN_POWER[Math.min(this.chain, CHAIN_POWER.length - 1)]; const cols = new Set();
+    const POW = this.fv.on ? FEVER_POWER : CHAIN_POWER;
+    let bonus = POW[Math.min(this.chain, POW.length - 1)]; const cols = new Set();
+    if (this.chain === 1) this.fv.hit = false;
     for (const g of gs) { total += g.cells.length; bonus += groupBonus(g.cells.length); cols.add(g.c);
       for (const p of g.cells) { this.popList.push(p); set.add(p); sx += p.col; sy += p.y; } }
     bonus += COLOR_BONUS[Math.min(cols.size, 5)];
@@ -528,7 +534,7 @@ class Field {
     this.sent += n;
     const c = Math.min(this.pending, n);
     const rx = x - this.ox, ry = y - this.oy;
-    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
+    if (c > 0) { this.pending -= c; n -= c; this.feverHit(); game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
     if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.chain }); }
   }
 
@@ -542,7 +548,7 @@ class Field {
     for (let i = P2T.length - 1; i >= 0; i--) if (this.lineCarry >= P2T[i] * mf) { lines = i + 1; this.lineCarry -= P2T[i] * mf; break; }
     if (this.pending > 0) {
       const before = this.pending, c = Math.min(this.pending, Math.max(1, units));
-      this.pending -= c; game.launch(this, this, c, x, y, 'offset');
+      this.pending -= c; this.feverHit(); game.launch(this, this, c, x, y, 'offset');
       emit(this, { t: 'off', n: c, x: x - this.ox, y: y - this.oy, ch: this.chain });
       if (units <= before) lines = 0;
     }
@@ -551,6 +557,7 @@ class Field {
   }
 
   endChain() {
+    const ch = this.chain; this.fv.loading = false;
     if (this.chain > 0 && this.opp && this.opp.kind === 'tetris' && !this.remote) {
       if (this.lineOut > 0 && game.vs) {
         const [x, y] = this.lastAtkXY || [this.ox + FW / 2, this.oy + FH / 2];
@@ -561,7 +568,7 @@ class Field {
     }
     if (this.chain > 0) {
       if (this.chain >= 2) this.chains2++;
-      if (this.isEmpty()) {
+      if (this.isEmpty() && !this.fv.on) {     // 피버 씨앗판은 다 터뜨려도 전멸 보너스 없음
         this.allClears++;
         this.texts.push({ txt: '전멸!', x: FW / 2, y: FH / 2, age: 0, dur: 1600, col: '#ffd93d', size: 44 }); sfx.clear();
         if (game.vs) this.acBonus = true;
@@ -570,8 +577,55 @@ class Field {
     }
     this.chain = 0;
     if (this.remote) { this.spawn(); return; }
+    if (this.fv.on) {                         // 피버 중: 연쇄가 끝나면 다음 씨앗판, 시간이 다 되면 원래 판으로. 방해뿌요는 피버가 끝난 뒤에
+      if (ch > 0) {
+        const [, max] = feverLv();
+        this.fv.lv = ch >= this.fv.seedN ? Math.min(max, this.fv.lv + 1) : Math.max(3, this.fv.lv - 1);
+        const bonus = ch * (game.vs ? 300 : 600);
+        this.fv.t += bonus;
+        if (bonus) this.texts.push({ txt: `+${(bonus / 1000).toFixed(1)}초`, x: FW / 2, y: FH * 0.62, age: 0, dur: 1100, col: '#ffe066', size: 26 });
+        if (this.fv.t > 0) { this.loadSeed(); return; }
+      }
+      if (this.fv.t <= 0) { this.endFever(); return; }
+      this.spawn(); return;
+    }
     if (this.pending > 0 && !this.noGarb) { this.dropGarbage(); return; }
     this.spawn();
+  }
+
+  /* ---------- 피버 ---------- */
+  feverHit() {                               // 상쇄하면 연쇄 한 번에 게이지 한 칸
+    if (game.rule !== 'fever' || this.fv.on || this.fv.hit || this.remote) return;
+    this.fv.hit = true; this.fv.gauge = Math.min(FEVER_GAUGE, this.fv.gauge + 1);
+    if (this.fv.gauge >= FEVER_GAUGE) this.texts.push({ txt: '피버 준비!', x: FW / 2, y: FH * 0.7, age: 0, dur: 1300, col: '#ff9a3d', size: 30 });
+  }
+  startFever() {
+    const solo = !game.vs;
+    this.fv.on = true; this.fv.t = solo ? 30000 : FEVER_TIME;
+    if (!this.fv.lv) this.fv.lv = feverLv()[0];
+    this.fv.stash = this.encode();
+    this.texts.push({ txt: '피버!', x: FW / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#ff5fd0', size: 52 });
+    if (this.human) sfx.margin();
+    this.loadSeed();
+  }
+  loadSeed() {
+    const s = feverSeed(this.fv.lv);
+    if (!s) { this.endFever(); return; }
+    this.fv.seedN = s.n; this.fv.loading = true;
+    const g = s.g.map(row => row.join('')).join('');
+    this.decode(g, true);
+    this.forcePair = [s.trig.c, 1 + rnd(4)];          // 트리거 색이 든 조각을 바로 줌
+    emit(this, { t: 'fv', g, on: 1 });
+    this.piece = null; this.phase = 'settle'; this.settleT = 0;
+  }
+  endFever() {
+    if (!game.vs && game.soloMode === 'efever') { this.fv.on = false; this.done = true; this.doneAt = game.el; this.phase = 'done'; this.piece = null; return; }   // 엔드리스 피버: 시간 끝
+    const g = this.fv.stash || ''.padStart(ROWS * COLS, '0');
+    this.fv.on = false; this.fv.gauge = 0; this.fv.stash = null; this.forcePair = null;
+    this.decode(g, true);
+    emit(this, { t: 'fv', g, on: 0 });
+    this.texts.push({ txt: '피버 끝', x: FW / 2, y: FH * 0.3, age: 0, dur: 1200, col: '#fff', size: 34 });
+    this.piece = null; this.phase = 'settle'; this.settleT = 0;
   }
 
   dropGarbage() {
@@ -661,13 +715,15 @@ class Field {
     outlined(c, `최고 ${this.maxChain}연쇄`, this.ox + FW - 72, sy + 26, 15, '#fff', tone.d, 4);
     c.restore();
     this.drawTray(c);
+    if (game.rule === 'fever') this.drawFeverGauge(c, t);
 
     c.save(); c.translate(this.ox + shx, this.oy + shy);
     c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(-10, -4, FW + 20, FH + 20);
     c.fillStyle = tone.d; c.fillRect(-10, -10, FW + 20, FH + 20);
     c.fillStyle = '#fff'; c.fillRect(-5, -5, FW + 10, FH + 10);
     c.save(); c.beginPath(); c.rect(0, 0, FW, FH); c.clip();
-    for (let r = 0; r < VIS; r++) for (let q = 0; q < COLS; q++) { c.fillStyle = (r + q) % 2 ? '#191342' : '#1e174e'; c.fillRect(q * CS, r * CS, CS, CS); }
+    const fvOn = this.fv.on;                   // 피버 중에는 판 색이 바뀜
+    for (let r = 0; r < VIS; r++) for (let q = 0; q < COLS; q++) { c.fillStyle = fvOn ? ((r + q) % 2 ? '#3c1250' : '#4a165e') : (r + q) % 2 ? '#191342' : '#1e174e'; c.fillRect(q * CS, r * CS, CS, CS); }
 
     // 사망 칸 X
     const near = this.grid[3][SP] ? 1 : this.grid[5][SP] ? 0.6 : 0.3;
@@ -753,6 +809,7 @@ class Field {
       c.restore();
       c.strokeStyle = `rgba(255,69,89,${0.35 * a})`; c.lineWidth = 8; c.strokeRect(0, 0, FW, FH);
     }
+    if (game.rule === 'fever' && !this.dead) this.drawFever(c);
     if (this.acBonus && !this.dead) {           // 전멸 보너스 대기 표시
       c.save(); c.translate(FW - 70, FH - 22); slab(c, -62, -15, 124, 30, TONES.yellow, 3);
       outlined(c, '전멸 보너스', 0, 1, 15, '#fff', TONES.yellow.d, 4); c.restore();
@@ -766,6 +823,24 @@ class Field {
       c.restore();
     }
     c.restore(); c.restore();
+  }
+
+  // 피버 게이지(판 왼쪽 7칸)와 피버 남은 시간
+  drawFeverGauge(c, t) {                     // 점수판 바로 아래 7칸 막대
+    const w = (FW - 12) / FEVER_GAUGE, y = this.oy + FH + 70;
+    for (let i = 0; i < FEVER_GAUGE; i++) {
+      const x = this.ox + 6 + i * w, on = this.fv.on || i < this.fv.gauge;
+      c.fillStyle = 'rgba(0,0,0,0.18)'; rr(c, x + 2, y, w - 4, 6, 3); c.fill();
+      if (on) { c.fillStyle = this.fv.on ? `hsl(${(t / 4 + i * 40) % 360},90%,58%)` : '#ff8a1c'; rr(c, x + 2, y, w - 4, 6, 3); c.fill(); }
+    }
+  }
+  drawFever(c) {
+    if (this.fv.on) {
+      c.save(); c.translate(FW / 2, 24);
+      slab(c, -64, -16, 128, 32, TONES.purple, 3);
+      outlined(c, `피버 ${Math.max(0, this.fv.t / 1000).toFixed(1)}`, 0, 1, 18, '#fff', TONES.purple.d, 5);
+      c.restore();
+    }
   }
 
   drawTray(c) {

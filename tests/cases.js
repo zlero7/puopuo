@@ -21,4 +21,11 @@ module.exports = [
   { name: '4인 로컬 대전', mode: 'local', my: 'puyo', op: 'puyo', players: 4, steps: 50000,
     probe: 'game.fields.map(f => [f.name, f.place, f.won])', expect: r => r.state === 'over' },
   { name: '4인 리플레이', mode: 'vs', my: 'puyo', op: 'random', players: 4, replay: true, expect: r => r.same },
+  { name: '피버 규칙 뿌요 vs 뿌요', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'fever', steps: 40000, pre: 'game.fields.forEach(f => { f.fv.gauge = 7; })',
+    probe: 'game.fields.map(f => ({ gauge: f.fv.gauge, lv: f.fv.lv, on: f.fv.on }))', expect: r => r.state === 'over' && r.extra.some(f => f.lv > 0) },
+  { name: '피버 규칙 6×12 뿌요 vs 테트리스', mode: 'vs', my: 'puyo', op: 'tetris', rule: 'fever', board: 'classic', steps: 40000 },
+  { name: '엔드리스 피버(연습)', mode: 'solo', my: 'puyo', op: 'puyo', solo: 'efever', steps: 40000,
+    probe: '[game.fields[0].done, game.fields[0].fv.lv, stats.practice.fBest]', expect: r => r.state === 'over' && r.maxChain[0] >= 4 },
+  { name: '엔드리스 피버 6×12', mode: 'solo', my: 'puyo', op: 'puyo', solo: 'efever', board: 'classic', steps: 40000, expect: r => r.state === 'over' && r.maxChain[0] >= 4 },
+  { name: '피버 리플레이', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'fever', steps: 40000, replay: true, expect: r => r.same },
 ];

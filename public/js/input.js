@@ -61,13 +61,14 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => { for (const i of game.inp) i.left = i.right = i.down = false; if (game.state === 'play' && !game.net) openPause(); });
 window.addEventListener('resize', fit);
-$('bRetry').addEventListener('click', () => { if (game.mode === 'replay') { startReplay(game.replay.data); return; } game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle, ops: game.cpuStyles }, BOARD); });
+$('bRetry').addEventListener('click', () => { if (game.mode === 'replay') { startReplay(game.replay.data); return; } game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle, ops: game.cpuStyles }, BOARD, game.rule); });
 $('bResume').addEventListener('click', resume);
 $('bForfeit').addEventListener('click', forfeit);
 $('bMenu').addEventListener('click', () => {
   if (game.net) { nsend({ t: 'leave' }); game.net = false; }
   if (game.mode === 'replay') { game.replay = null; openMenu('stats'); return; }
   if (game.mode === 'solo' && game.myStyle === 'tetris') { openMenu('solo', 't-' + (game.soloMode || 'endless')); return; }
+  if (game.mode === 'solo') { openMenu('psolo', 't-p' + (game.soloMode || 'endless')); return; }
   if (game.mode === 'local') { openMenu('vs', 't-local'); return; }
   openMenu(game.mode === 'online' ? 'vs' : 'ai', game.mode === 'solo' ? 't-solo' : game.mode === 'vs' ? ['t-easy', 't-normal', 't-hard'][game.diff] : 't-quick');
 });

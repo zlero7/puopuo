@@ -31,7 +31,8 @@ function applyRemote(f, d) {
       f.pending = d.pe; f.score = d.sc; f.maxChain = d.mc;
       if (game.mode === 'replay' && d.n != null) f.idx = d.n;
       if (f.kind === 'tetris') { f.net = d.pc; f.holdK = d.ho; f.gauge = d.gg || 0; }
-      else { f.net = d.pc ? { ...d.pc, n: d.n } : null; if (game.mode === 'replay') f.holdP = d.hp || null; if (f.phase === 'wait') f.applyNet(); }
+      else { if (d.fv) { f.fv.gauge = d.fv[0]; f.fv.on = !!d.fv[1]; f.fv.t = d.fv[2] * 100; }
+        f.net = d.pc ? { ...d.pc, n: d.n } : null; if (game.mode === 'replay') f.holdP = d.hp || null; if (f.phase === 'wait') f.applyNet(); }
       break;
     case 'lock': case 'garb': case 'tlock': case 'tgarb':
       if (f.kind === 'tetris' && typeof d.g === 'string' && d.g.length < TW * TH) d = { ...d, g: d.g.padStart(TW * TH, '0') };
@@ -66,7 +67,7 @@ function saveReplay(rp) {
 const findReplay = id => loadReplays().find(x => x.id === id) || null;
 function newRecording(seed) {
   return { v: 1, id: Date.now().toString(36) + rnd(1296).toString(36), d: Date.now(), mode: game.mode, diff: game.diff, solo: game.soloMode,
-    board: BOARD, seed, players: game.fields.map(f => ({ name: f.name, style: f.kind })), ev: [] };
+    board: BOARD, rule: game.rule, seed, players: game.fields.map(f => ({ name: f.name, style: f.kind })), ev: [] };
 }
 // 판이 끝났을 때 저장하고 기록(최근 경기)에 붙일 id를 돌려줌
 function finishRecording() {
@@ -100,7 +101,7 @@ const RP_SPEEDS = [0.5, 1, 2, 4];
 function startReplay(rp) {
   audio(); game.net = false; game.oppLeft = false; game.rec = null; game.series = null;
   game.replay = { data: rp, i: 0, speed: 1, end: rp.ev.length ? rp.ev[rp.ev.length - 1][0] : 0 };
-  applyBoard(rp.board); seedSeq(rp.seed >>> 0);
+  applyBoard(rp.board); seedSeq(rp.seed >>> 0); game.rule = RULES[rp.rule] ? rp.rule : 'tsu';
   const ps = rp.players, vs = ps.length > 1;
   game.mode = 'replay'; game.vs = vs; game.diff = rp.diff; game.soloMode = rp.solo;
   seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = [];

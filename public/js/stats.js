@@ -36,14 +36,15 @@ function recordGame() {
   const opLab = many ? ` · ${game.fields.length}인 ${me.place || 1}위` : game.fields[1] ? ` vs ${STYLE_KO[game.fields[1].kind]}` : '';
   if (game.mode === 'solo') {
     stats.practice.games++;
-    const sm = isT ? game.soloMode || 'endless' : 'endless';
+    const sm = game.soloMode || 'endless';
     stats.tRec = { sprint: 0, ultra: 0, marathon: 0, ...stats.tRec };
     game.newRecord = false;
-    if (!isT) { game.newRecord = me.score > stats.practice.best; stats.practice.best = Math.max(stats.practice.best, me.score); }
+    if (!isT && sm === 'efever') { const fb = stats.practice.fBest || 0; game.newRecord = me.score > fb; stats.practice.fBest = Math.max(fb, me.score); stats.practice.fChain = Math.max(stats.practice.fChain || 0, me.maxChain); }
+    else if (!isT) { game.newRecord = me.score > stats.practice.best; stats.practice.best = Math.max(stats.practice.best, me.score); }
     else if (sm === 'endless') { game.newRecord = me.score > stats.practice.tBest; stats.practice.tBest = Math.max(stats.practice.tBest, me.score); }
     else if (sm === 'sprint') { if (me.done) { const t = me.doneAt; game.newRecord = !stats.tRec.sprint || t < stats.tRec.sprint; if (game.newRecord) stats.tRec.sprint = Math.round(t); } }
     else { game.newRecord = me.score > stats.tRec[sm]; stats.tRec[sm] = Math.max(stats.tRec[sm], me.score); }
-    r = 'p'; mode = `연습 · ${STYLE_KO[me.kind]}${isT ? ' ' + SOLO_KO[sm] : ''}`;
+    r = 'p'; mode = `연습 · ${STYLE_KO[me.kind]}${isT ? ' ' + SOLO_KO[sm] : sm === 'efever' ? ' 엔드리스 피버' : ''}`;
   }
   else if (game.mode === 'local') { r = me.won ? 'w' : 'l'; mode = `로컬 대전 · ${STYLE_KO[me.kind]}${opLab}`; }
   else if (game.mode === 'vs') { const a = stats.ai[game.diff]; me.won ? a.w++ : a.l++; r = me.won ? 'w' : 'l'; mode = `AI ${DIFF[game.diff]} · ${STYLE_KO[me.kind]}${opLab}`; }
@@ -82,7 +83,7 @@ function renderStats() {
       ['퍼펙트 클리어', `${stats.tPC || 0}번`], ['최고 REN', `${stats.bestRen || 0} REN`]],
     solo: [['뿌요뿌요 연습', (pr.best || 0).toLocaleString() + '점', '최고 점수'], ['테트리스 끝없이', (pr.tBest || 0).toLocaleString() + '점', '최고 점수'],
       ['스프린트', tr.sprint ? fmtClock(tr.sprint) : '-', '40줄 최단 시간'], ['울트라', (tr.ultra || 0).toLocaleString() + '점', '3분 최고 점수'],
-      ['마라톤', (tr.marathon || 0).toLocaleString() + '점', '150줄 최고 점수']],
+      ['마라톤', (tr.marathon || 0).toLocaleString() + '점', '150줄 최고 점수'], ['엔드리스 피버', (pr.fBest || 0).toLocaleString() + '점', `최고 ${pr.fChain || 0}연쇄`]],
   };
   document.querySelectorAll('.rtabs .seg').forEach(b => b.classList.toggle('on', b.dataset.act === 'rtab:' + recTab));
   $('chips').innerHTML = TABS[recTab].map(([k, v, sub], i) => `<div class="chip" style="--c:${C[i % C.length]}"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`).join('');
@@ -106,6 +107,9 @@ function renderRecords() {
   $('recUltra').textContent = tr.ultra ? `최고 ${tr.ultra.toLocaleString()}점` : '기록 없음';
   $('recEndless').textContent = (stats.practice || {}).tBest ? `최고 ${stats.practice.tBest.toLocaleString()}점` : '기록 없음';
   [0, 1, 2].forEach(i => { $('rec' + i).textContent = `${stats.ai[i].w}승 ${stats.ai[i].l}패`; });
+  const pr = stats.practice || {};
+  $('recPEndless').textContent = pr.best ? `최고 ${pr.best.toLocaleString()}점` : '기록 없음';
+  $('recPEfever').textContent = pr.fBest ? `최고 ${pr.fBest.toLocaleString()}점 · ${pr.fChain || 0}연쇄` : '기록 없음';
   $('recOnline').textContent = `${stats.online.w}승 ${stats.online.l}패`;
   $('mainRec').textContent = `${stats.games}판 플레이`;
 }

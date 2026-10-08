@@ -143,15 +143,16 @@ function pickTarget(f, kind) {
   if (f.lastHitBy && alive.includes(f.lastHitBy)) return f.lastHitBy;
   return alive.reduce((a, b) => (b.score > a.score ? b : a));
 }
-function start(mode, seed, styles, board) {
+function start(mode, seed, styles, board, rule) {
   audio(); game.net = mode === 'online'; game.oppLeft = false;
   applyBoard(board || stats.board || 'wide');
+  game.rule = mode === 'solo' ? (game.soloMode === 'efever' ? 'fever' : 'tsu') : RULES[rule] ? rule : RULES[stats.rule] ? stats.rule : 'tsu';
   game.myStyle = styles ? styles.me : stats.style || 'puyo';
   const cs = stats.cpuStyle || 'puyo';
   const cpuSt = () => cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
   game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cpuSt();
   game.cpuStyles = styles && styles.ops ? styles.ops : [cpuSt(), cpuSt()];      // 3~4인일 때 나머지 CPU
-  game.startArgs = [mode, null, styles, board];
+  game.startArgs = [mode, null, styles, board, rule];
   if ((mode === 'vs' || mode === 'local') && playersOf(mode) > 2) game.series = null;      // 3~4인은 한 판 승부
   else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
   else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
@@ -169,4 +170,4 @@ function start(mode, seed, styles, board) {
 }
 const $ = id => document.getElementById(id);
 const DIFF = ['쉬움', '보통', '어려움'];
-const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습' };
+const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습' };
