@@ -116,6 +116,7 @@ function togglePause() {
 }
 
 function stateOf(f) {
+  if (f.kind === 'fusion') { const p = f.cur; return { t: 'st', k: 'f', n: f.idx, pc: p ? { ...p } : null, pe: f.pending, sc: f.score, mc: f.maxChain }; }
   if (f.kind === 'tetris') {
     const q = f.phase === 'drop' && f.cur ? { k: f.cur.k, x: f.cur.x, y: f.cur.y, r: f.cur.r } : null;
     return { t: 'st', k: 't', n: f.idx, pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain };
@@ -245,6 +246,7 @@ function render(t) {
   ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 34, 100, 192);
   outlined(ctx, '다음', PX, OY + 13, 22, '#fff', TONES.yellow.d, 6);
   if (effOn(me, 'blind')) outlined(ctx, '?', PX, OY + 130, 70, '#fff', TONES.purple.d, 10);    // 파티: 미리보기 가리기
+  else if (me.kind === 'fusion') { if (!me.dead) drawFusionNext(ctx, me, t); }
   else if (me.phase !== 'none' && !me.dead) {
     if (isT) {
       for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }

@@ -88,8 +88,8 @@ function fit() {
 }
 function setSize(W) { LW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
 
-const mkField = (style, ox, human, name) => style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
-const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스' };
+const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
+const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
 const SOLO_KO = { marathon: '마라톤', sprint: '스프린트', ultra: '울트라', endless: '끝없이' };
 const fmtClock = ms => { const s = ms / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(2).padStart(5, '0')}`; };
 const AI_PUYO = [
@@ -106,6 +106,12 @@ const AI_TETRIS = [
 const slotX = i => i === 0 ? OX1 : OX2 + (i - 1) * (SW + 20);
 const PLAYER_TONES = [TONES.red, TONES.blue, TONES.green, TONES.orange];
 const playersOf = mode => mode === 'vs' || mode === 'local' ? Math.max(2, Math.min(4, stats.players || 2)) : mode === 'solo' ? 1 : game.netN || 2;
+const AI_FUSION = [                     // 퓨전 CPU — noise: 평가 흔들림 · miss: 실수 확률 · atk: 공격 배율
+  { delay: 420, noise: 6,   miss: 0.2,  atk: 0.4 },
+  { delay: 220, noise: 2,   miss: 0.06, atk: 0.6 },
+  { delay: 110, noise: 0.5, miss: 0,    atk: 0.85 },
+];
+const aiPreset = (kind, lv) => ({ ...(kind === 'fusion' ? AI_FUSION : kind === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] });
 function build(mode) {
   const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
@@ -125,7 +131,7 @@ function build(mode) {
     else if (mode === 'online') f.remote = true;
     // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
     // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
-    else f.ai = { ...(st === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
+    else f.ai = aiPreset(f.kind, lv);
     game.fields.push(f);
   }
   if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }

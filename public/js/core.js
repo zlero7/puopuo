@@ -179,7 +179,7 @@ function makeRng(seed) {                 // mulberry32: 같은 시드면 두 사
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-function seedSeq(seed) { seqRng = makeRng(seed); tRng = makeRng((seed ^ 0x9E3779B9) >>> 0); tseq = []; }
+function seedSeq(seed) { seqRng = makeRng(seed); tRng = makeRng((seed ^ 0x9E3779B9) >>> 0); tseq = []; fuSeed(seed); }
 function pairAt(i) {
   const r = n => Math.floor(seqRng() * n);
   while (seq.length <= i) { const n = seq.length < 2 ? 3 : 4; seq.push([1 + r(n), 1 + r(n)]); }

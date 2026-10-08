@@ -50,4 +50,8 @@ module.exports = [
   { name: '파티 4인', mode: 'vs', my: 'puyo', op: 'random', players: 4, rule: 'party', steps: 12000,
     probe: 'game.fields.map(f => [f.kind, f.place, f.won, f.score])', expect: r => r.state === 'over' && r.extra.filter(f => f[2]).length === 1 },
   { name: '파티 리플레이', mode: 'vs', my: 'tetris', op: 'puyo', rule: 'party', steps: 12000, replay: true, expect: r => r.same },
+  { name: '퓨전 2인', mode: 'vs', my: 'puyo', op: 'tetris', rule: 'fusion', steps: 60000,
+    probe: 'game.fields.map(f => ({ k: f.kind, lines: f.lines, pops: f.pops, sent: f.sent, mc: f.maxChain }))', expect: r => r.state === 'over' && r.kinds.every(k => k === 'fusion') && r.extra.some(f => f.lines > 0) },
+  { name: '퓨전 4인', mode: 'vs', my: 'puyo', op: 'puyo', players: 4, rule: 'fusion', steps: 80000, expect: r => r.state === 'over' },
+  { name: '퓨전 리플레이', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'fusion', steps: 60000, replay: true, expect: r => r.same },
 ];

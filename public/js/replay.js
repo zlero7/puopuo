@@ -29,9 +29,11 @@ function applyRemote(f, d) {
   f = routeKind(f, d);                      // 스왑: 뿌요/테트리스 이벤트는 맞는 판으로
   switch (d.t) {
     case 'sw': f.queue.push(d); break;
+    case 'fg': if (f.kind === 'fusion') f.queue.push(typeof d.g === 'string' && d.g.length < FW_W * FW_H ? { ...d, g: d.g.padStart(FW_W * FW_H, '0') } : d); break;
     case 'st':
       f.pending = d.pe; f.score = d.sc; f.maxChain = d.mc;
       if (game.mode === 'replay' && d.n != null) f.idx = d.n;
+      if (f.kind === 'fusion') { f.net = d.pc; break; }
       if (f.kind === 'tetris') { f.net = d.pc; f.holdK = d.ho; f.gauge = d.gg || 0; }
       else { if (d.fv) { f.fv.gauge = d.fv[0]; f.fv.on = !!d.fv[1]; f.fv.t = d.fv[2] * 100; }
         f.net = d.pc ? { ...d.pc, n: d.n } : null; if (game.mode === 'replay') f.holdP = d.hp || null; if (f.phase === 'wait') f.applyNet(); }

@@ -20,7 +20,7 @@ window.__sim = (cfg) => {
   for (const f of game.fields) {          // 사람 자리도 CPU로 바꿔 자동 진행
     if (!f.human) continue;
     f.human = false;
-    f.ai = { ...(f.kind === 'tetris' ? AI_TETRIS : AI_PUYO)[2], delay: 30 };
+    f.ai = { ...aiPreset(f.kind, 2), delay: 30 };
   }
   for (const f of game.fields) if (f.phase === 'drop' && !f.human) f.planAI();
   let t = 0, steps = 0;
