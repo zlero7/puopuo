@@ -497,6 +497,7 @@ class Field {
     this.popSet = set; this.popT = 0; this.phase = 'pop';
     this.maxChain = Math.max(this.maxChain, this.chain);
     sfx.pop(this.chain);
+    if (this.chain >= 2) cutIn(this, this.chain - 1);
     const ax = clamp((sx / n + 0.5) * CS, 60, FW - 60), ay = clamp((sy / n - 1 + 0.5) * CS, 40, FH - 40);
     if (this.opp && this.opp.kind === 'tetris') this.attackT(step, units, this.ox + ax, this.oy + ay);
     else this.attack(units, this.ox + ax, this.oy + ay);

@@ -146,6 +146,7 @@ function update(dt) {
     }
   }
   if (active && game.mode === 'replay') replayTick();
+  for (const f of game.fields) updateCut(f, dt);
   if (active && game.rule === 'bigbang') bbTick(dt);
   if (active && game.rule === 'party') partyTick();
   for (const f of game.fields) f.update(dt, active);
@@ -310,6 +311,16 @@ function render(t) {
     }
   }
   ctx.restore();
+  for (const f of game.fields) {           // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
+    if (!f.char) continue;
+    drawChar(ctx, f.char, f.ox + 12, 18, 38, f.dead ? 'sad' : 'happy');
+    drawCut(ctx, f);
+    if (game.state === 'over' && game.vs && (f.won || f.dead)) {
+      const ch = charOf(f.char), txt = f.won ? ch.win : ch.lose;
+      slab(ctx, f.ox + 16, OY + FH * 0.66, f.fw - 32, 40, { c: '#ffffff', d: ch.d }, 4);
+      outlined(ctx, txt, f.ox + f.fw / 2, OY + FH * 0.66 + 20, Math.min(19, 300 / txt.length + 4), '#22212e', '#fff', 4);
+    }
+  }
   if (game.rule === 'bigbang') drawBigBang(ctx);
   if (game.rule === 'swap') drawSwap(ctx);
   if (game.rule === 'party' && game.vs) drawParty(ctx);

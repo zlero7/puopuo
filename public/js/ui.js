@@ -51,11 +51,29 @@ function setHints(kind) {
       return `<span><kbd>${n('left')} ${n('right')}</kbd> 이동</span><span><kbd>${n('ccw')} ${n('cw')}</kbd> 회전</span><span><kbd>${n('hard')}</kbd> 하드드롭</span>` +
         `<span><kbd>${n('hold')}</kbd> 홀드</span>` + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
 }
+// 캐릭터 고르기 화면(카드 8장)
+function renderChars(focusId) {
+  const sec = $('sc-chars'), mine = stats.char || 'lumi';
+  if (!sec.children.length) {
+    sec.innerHTML = CHARS.map(ch => `<button class="tile charcard" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}">` +
+      `<span class="in"></span><canvas data-char="${ch.id}"></canvas><span class="mine">내 캐릭터</span><span class="tt">${esc(ch.name)}</span></button>`).join('');
+    sec.querySelectorAll('.tile').forEach(t => {
+      t.addEventListener('click', () => act(t.dataset.act));
+      t.addEventListener('mouseenter', () => t.focus({ preventScroll: true }));
+      t.addEventListener('focus', () => { $('mDesc').textContent = t.dataset.desc; });
+    });
+  }
+  sec.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.id === 'ch-' + mine));
+  requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => {
+    const g = fitCanvas(c); if (!g) return; drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+  }));
+}
 function showScreen(id, focusId) {
   document.querySelectorAll('.screen').forEach(el => el.classList.toggle('hidden', el.id !== 'sc-' + id));
   cur = id; $('bandTitle').textContent = TITLES[id];
   renderRecords();
   if (id === 'stats') renderStats();
+  if (id === 'chars') { renderChars(); focusId = focusId || 'ch-' + (stats.char || 'lumi'); }
   if (id === 'vs') showLan();
   setHints('menu');
   requestAnimationFrame(() => {
@@ -107,6 +125,7 @@ function act(a) {
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
   else if (k === 'rtab') { recTab = v; renderStats(); }
+  else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); }
   else if (k === 'rule') { stats = loadStats(); stats.rule = v; saveStats(); renderStyle(); }
   else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
@@ -211,6 +230,9 @@ function drawArts() {
       x.beginPath(); x.moveTo(fw * 0.6, h * 0.55); x.quadraticCurveTo(w / 2, -h * 0.1, w - fw * 0.5, h * 0.18); x.stroke(); x.setLineDash([]);
       const gr = x.createRadialGradient(w - fw * 0.5, h * 0.18, 1, w - fw * 0.5, h * 0.18, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(0.4, '#ffd93d'); gr.addColorStop(1, 'rgba(255,217,61,0)');
       x.fillStyle = gr; x.beginPath(); x.arc(w - fw * 0.5, h * 0.18, 16, 0, Math.PI * 2); x.fill();
+    } else if (kind === 'chars') {
+      const ids = [stats.char || 'lumi', ...CHARS.map(c => c.id).filter(i => i !== (stats.char || 'lumi'))].slice(0, 3);
+      [1, 2, 0].forEach(i => drawChar(x, ids[i], w * (0.5 + (i === 0 ? 0 : i === 1 ? -0.3 : 0.3)), h * (i ? 0.58 : 0.5), Math.min(w * 0.36, h * (i ? 0.7 : 0.9)), 'happy'));   // 가운데(내 캐릭터)를 맨 위에
     } else if (kind === 'stats') {
       x.fillStyle = '#f4f2fb'; x.fillRect(0, 0, w, h);
       const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0'];

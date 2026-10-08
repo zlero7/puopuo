@@ -199,7 +199,7 @@ class FField {
       this.carry += stepSc; const tp = targetPt(), units = Math.floor(this.carry / tp); this.carry -= units * tp;
       for (const k of fuPopSet(this.grid, gs)) { const y = Math.floor(k / FW_W), x = k % FW_W, v = this.grid[y][x]; this.burst(x, y, v.k === 'p' ? PAL[v.c].m : '#e4e1f3'); this.grid[y][x] = 0; }
       this.texts.push({ txt: `${this.chainN}연쇄!`, x: SW / 2, y: FH * 0.35, age: 0, dur: 1100, col: CH_COL[(this.chainN - 1) % CH_COL.length], size: 30 + Math.min(this.chainN, 8) * 2 });
-      sfx.pop(this.chainN); this.attack(units); this.sync(); this.resT = 380; return;
+      sfx.pop(this.chainN); if (this.chainN >= 2) cutIn(this, this.chainN - 1); this.attack(units); this.sync(); this.resT = 380; return;
     }
     this.maxChain = Math.max(this.maxChain, this.chainN);
     if (this.chainN >= 2) this.chains2++;

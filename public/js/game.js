@@ -118,7 +118,7 @@ function build(mode) {
   setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W);
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
-  f1.tone = vs ? TONES.red : TONES.green;
+  f1.tone = vs ? TONES.red : TONES.green; f1.char = stats.char || 'lumi';
   game.fields = [f1];
   if (!vs) return;
   const lv = game.diff == null ? 1 : game.diff;
@@ -135,6 +135,9 @@ function build(mode) {
     game.fields.push(f);
   }
   if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
+  // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
+  const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
+  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
   for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
 }
@@ -176,8 +179,8 @@ function start(mode, seed, styles, board, rule) {
   else game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 2000; bgmPlay('game'); game.introGo = false; overlay.classList.add('hidden'); sfx.ready();
   showGame();
-  if (game.net) gsend({ t: 'hi', name: stats.name });
+  if (game.net) gsend({ t: 'hi', name: stats.name, char: stats.char || 'lumi' });
 }
 const $ = id => document.getElementById(id);
 const DIFF = ['쉬움', '보통', '어려움'];
-const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습' };
+const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습', chars: '캐릭터' };

@@ -334,6 +334,8 @@ class TField {
     return { labs, b2b: !!b2b, ren: lines ? (pre ? this.ren + 1 : this.ren) : 0, pc };
   }
   showLockFx(fx) {
+    const big = fx.labs.length + (fx.pc ? 2 : 0) + (fx.b2b ? 1 : 0) + (fx.ren >= 3 ? 1 : 0);
+    if (big) cutIn(this, Math.min(4, big + (fx.ren >= 5 ? 1 : 0)));
     let y = FH * 0.42;
     const push = (txt, col, size) => { this.texts.push({ txt, x: SW / 2, y, age: 0, dur: 1300, col, size }); y += size + 6; };
     if (fx.pc) push('퍼펙트 클리어!', '#ffd93d', 34);

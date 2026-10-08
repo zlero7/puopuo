@@ -11,7 +11,7 @@ const SWAP_T = 25000;
 // 짝 판 만들기: 같은 자리에 다른 스타일 판
 function makeSwapPair(f, lv) {
   const k = f.kind === 'puyo' ? 'tetris' : 'puyo', g = mkField(k, f.sx != null ? f.sx : f.ox, f.human, f.name);
-  g.tone = f.tone; g.pi = f.pi; g.remote = f.remote;
+  g.tone = f.tone; g.pi = f.pi; g.remote = f.remote; g.char = f.char;
   if (!f.human && !f.remote) g.ai = { ...(k === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
   f.other = g; g.other = f;
   f.swapAt = g.swapAt = SWAP_T;

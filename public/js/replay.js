@@ -82,14 +82,14 @@ function saveReplay(rp) {
 const findReplay = id => loadReplays().find(x => x.id === id) || null;
 function newRecording(seed) {
   return { v: 1, id: Date.now().toString(36) + rnd(1296).toString(36), d: Date.now(), mode: game.mode, diff: game.diff, solo: game.soloMode,
-    board: BOARD, rule: game.rule, seed, players: game.fields.map(f => ({ name: f.name, style: f.kind })), ev: [] };
+    board: BOARD, rule: game.rule, seed, players: game.fields.map(f => ({ name: f.name, style: f.kind, char: f.char })), ev: [] };
 }
 // 판이 끝났을 때 저장하고 기록(최근 경기)에 붙일 id를 돌려줌
 function finishRecording() {
   const r = game.rec; if (!r || game.mode === 'replay') return null;
   game.fields.forEach((f, pi) => { if (!f.remote) r.ev.push([Math.round(game.el || 0), pi, stateOf(f)]); });   // 마지막 점수까지
   game.rec = null;
-  r.players.forEach((p, i) => { if (game.fields[i]) p.name = game.fields[i].name; });   // 이름만 갱신(스타일은 시작할 때 것 — 스왑이면 끝에 바뀌어 있음)
+  r.players.forEach((p, i) => { if (game.fields[i]) { p.name = game.fields[i].name; p.char = game.fields[i].char; } });   // 이름만 갱신(스타일은 시작할 때 것 — 스왑이면 끝에 바뀌어 있음)
   r.len = Math.round(game.el || 0);
   return r.ev.length && saveReplay(r) ? r.id : null;
 }
@@ -122,7 +122,7 @@ function startReplay(rp) {
   seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = [];
   setSize(vs ? slotX(ps.length - 1) + SW + 20 : OX1 + SW + PANEL_W);
   game.myStyle = ps[0].style; game.oppStyle = vs ? ps[1].style : null;
-  game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; return f; });
+  game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; if (CHARS.some(c => c.id === p.char)) f.char = p.char; return f; });
   if (vs) for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap' && vs) game.fields.forEach(f => makeSwapPair(f, 1));
   game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
