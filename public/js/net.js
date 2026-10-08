@@ -31,6 +31,11 @@ function onNet(m) {
       status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
     case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
     case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
+    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… 내 레이팅 ${m.r} (${m.tier}) · 기다릴수록 범위가 넓어져요`); break;
+    case 'rdone':                          // 랭크전 끝: 레이팅 변화
+      game.rankRes = m;
+      if (!overlay.classList.contains('hidden') && game.ranked) $('ovSub').textContent = rankLine(m);
+      break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
@@ -38,12 +43,14 @@ function onNet(m) {
         // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
         const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
         game.netN = m.styles.length;
+        if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
         start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
         game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; });
       }
       break;
     case 'oppReady': $('ovSub').textContent = m.size > 2 ? `${m.have}/${m.size}명이 다시 하기를 눌렀습니다.` : '상대가 다시 하기를 눌렀습니다.'; break;
     case 'left':
+      if (game.ranked && game.state === 'play') { game.oppLeft = true; game.net = false; game.fields[1].die(); break; }   // 랭크전: 상대 이탈 = 내 승리
       if (game.fields.length > 2 && m.rest >= 2) {          // 3~4인: 나간 사람만 탈락 처리하고 계속
         const f = game.seatField && game.seatField[m.who];
         if (f && !f.dead && game.state === 'play') { f.die(); f.texts.push({ txt: '나감', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#fff', size: 30 }); }
@@ -75,6 +82,16 @@ function showLan() {
     $('lanInfo').classList.remove('hidden');
   }).catch(() => {});
 }
+// 랭크전: 이 브라우저를 구분하는 토큰(처음 한 번 만들어 저장)
+const rankToken = (() => {
+  const mk = () => Array.from({ length: 24 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'[rnd(56)]).join('');
+  try { let t = localStorage.getItem('puyo-token'); if (!/^[A-Za-z0-9]{16,40}$/.test(t || '')) { t = mk(); localStorage.setItem('puyo-token', t); } return t; } catch (e) { return mk(); }
+})();
+const rankUrl = (p, style) => `/rank/${p}?style=${style}&token=${rankToken}`;
+function showRankRec() {
+  if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
+  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { $('recRank').textContent = `${m.r} · ${m.tier}${m.w + m.l ? ` · ${m.w}승 ${m.l}패` : ''}`; }).catch(() => {});
+}
 function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); }
 $('bCancel').addEventListener('click', cancelWait);
 $('bJoin').addEventListener('click', () => {
@@ -101,3 +118,4 @@ document.querySelectorAll('#pad button').forEach(btn => {
   const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
+const rankLine = m => `랭크전 ${m.win ? '승리' : '패배'} ${m.score ? `${Math.max(...m.score)} : ${Math.min(...m.score)} · ` : ''}레이팅 ${m.r} (${m.d >= 0 ? '+' : ''}${m.d}) · ${m.tier}`;

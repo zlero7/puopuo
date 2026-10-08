@@ -2,11 +2,12 @@
 'use strict';
 
 /* ================= 결과 창 ================= */
-const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit | replay | adv
+const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit | replay | adv | rnext
   game.ovKind = kind;
-  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next', 'replay', 'adv'], bRematch: ['online'], bLeave: ['online'], bMenu: ['offline', 'menu', 'pause', 'next', 'replay', 'adv'], bForfeit: ['forfeit'] };
+  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next', 'replay', 'adv'], bRematch: ['online', 'rnext'], bLeave: ['online', 'rnext'], bMenu: ['offline', 'menu', 'pause', 'next', 'replay', 'adv'], bForfeit: ['forfeit'] };
   for (const [id, ks] of Object.entries(show)) $(id).classList.toggle('hidden', !ks.includes(kind));
   $('bRetry').textContent = kind === 'pause' ? '처음부터' : kind === 'replay' ? '다시 보기' : '다시 하기';
+  $('bRematch').textContent = kind === 'rnext' ? '다음 판' : '다시 하기';
   $('bMenu').textContent = kind === 'pause' ? '메뉴로 나가기' : game.adv ? '어드벤처로' : '메뉴로';
 };
 // Esc / P: 일시정지 창(연습·AI 대전) 또는 기권 확인(온라인 — 게임은 멈추지 않음)
@@ -183,10 +184,9 @@ function update(dt) {
     }
   } else if (game.state === 'over') {
     game.overT += dt;
-    if (game.ovKind === 'next' && !overlay.classList.contains('hidden')) {
-      game.autoNextT -= dt;
-      $('bRetry').textContent = `다음 판 (${Math.max(1, Math.ceil(game.autoNextT / 1000))})`;
-      if (game.autoNextT <= 0) $('bRetry').click();
+    if ((game.ovKind === 'next' || game.ovKind === 'rnext') && !overlay.classList.contains('hidden')) {
+      const b = game.ovKind === 'rnext' ? $('bRematch') : $('bRetry');
+      if (game.autoNextT > 0) { game.autoNextT -= dt; b.textContent = `다음 판 (${Math.max(1, Math.ceil(game.autoNextT / 1000))})`; if (game.autoNextT <= 0) b.click(); }
     }
     if (game.ovKind === 'forfeit' && !overlay.classList.contains('hidden')) overlay.classList.add('hidden');
     if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && game.mode === 'replay') {
@@ -207,6 +207,12 @@ function update(dt) {
           (many ? ` · ${game.fields.length}인 대전` : ` · ${STYLE_KO[me.kind]} vs ${STYLE_KO[game.fields[1].kind]}`);
         if (many) chips[3] = ['순위', `${me.place || 1}위 / ${game.fields.length}명`];
         const sr = game.series, done = sr && sr.to > 1 && (sr.me >= sr.to || sr.op >= sr.to), mid = sr && sr.to > 1 && !done;
+        if (game.ranked && online) {             // 랭크전: 판 사이엔 자동으로 다음 판, 끝나면 레이팅 변화
+          showResult(me.won ? 'yellow' : 'blue', done ? (sr.me > sr.op ? '랭크전 승리!' : '랭크전 패배') : me.won ? '승리!' : '패배',
+            done || game.oppLeft ? (game.rankRes ? rankLine(game.rankRes) : '레이팅 계산 중…') : `시리즈 ${sr.me} : ${sr.op} (2선승) · 랭크전`, chips, done || game.oppLeft || !net.ws ? 'menu' : 'rnext');
+          if (!done && !game.oppLeft) game.autoNextT = 3500;
+          return;
+        }
         if (game.adv && !mid) {                  // 어드벤처: 별 저장 후 다음 스테이지 / 다시 도전
           const st = game.advResult = advFinish(), last = game.adv.c === ADV.length - 1 && game.adv.s === ADV[game.adv.c].stages.length - 1;
           showResult(st > 0 ? 'yellow' : 'blue', st > 0 ? `스테이지 클리어! ${'★'.repeat(st)}${'☆'.repeat(3 - st)}` : '패배…',

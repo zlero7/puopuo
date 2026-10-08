@@ -75,7 +75,7 @@ function showScreen(id, focusId) {
   if (id === 'stats') renderStats();
   if (id === 'adv') { renderAdv(); focusId = focusId || 'adv-0'; }
   if (id === 'chars') { renderChars(); focusId = focusId || 'ch-' + (stats.char || 'lumi'); }
-  if (id === 'vs') showLan();
+  if (id === 'vs') { showLan(); showRankRec(); }
   setHints('menu');
   requestAnimationFrame(() => {
     drawArts();
@@ -135,6 +135,7 @@ function act(a) {
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
@@ -241,6 +242,11 @@ function drawArts() {
       const ids = ['toto', 'lumi', 'kuro'];
       x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(0, h * 0.62, w, h * 0.38);
       [0, 2, 1].forEach(i => drawChar(x, ids[i], w * (0.2 + i * 0.3), h * (i === 1 ? 0.48 : 0.56), Math.min(w * 0.3, h * (i === 1 ? 0.85 : 0.7)), 'happy'));
+    } else if (kind === 'rank') {
+      const C = ['#c47dff', '#ffdc3a', '#cfd1dc'], H = [0.9, 0.65, 0.5];
+      [1, 0, 2].forEach(i => { const bw = w * 0.26, bx = w * (0.37 + (i === 1 ? -0.3 : i === 2 ? 0.3 : 0)) , bh = h * H[i] * 0.7;
+        x.fillStyle = C[i]; x.fillRect(bx, h - bh, bw, bh); x.fillStyle = 'rgba(0,0,0,0.15)'; x.fillRect(bx, h - bh, bw, 6); });
+      drawStar(x, w * 0.5, h * 0.18, Math.min(w, h) * 0.16, '#ffe066');
     } else if (kind === 'stats') {
       x.fillStyle = '#f4f2fb'; x.fillRect(0, 0, w, h);
       const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0'];

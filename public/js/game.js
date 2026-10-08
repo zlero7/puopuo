@@ -167,6 +167,7 @@ function start(mode, seed, styles, board, rule) {
   game.startArgs = [mode, null, styles, board, rule];
   if ((mode === 'vs' || mode === 'local') && playersOf(mode) > 2) game.series = null;      // 3~4인은 한 판 승부
   else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: game.adv ? game.adv.st.ft || 1 : stats.firstTo || 2 }; }
+  else if (mode === 'online' && game.ranked) { if (!game.series || game.series.to !== 2) game.series = { me: 0, op: 0, to: 2 }; }   // 랭크전: 2선승
   else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;

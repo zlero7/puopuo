@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
+const rank = require('./rank');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   // 모든 네트워크 카드에서 접속 허용
@@ -41,6 +42,14 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       res.end(data);
     });
+  } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
+    const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
+    let body;
+    if (url === '/rank/top') body = rank.top(style);
+    else if (!rank.validToken(q.get('token'))) { res.writeHead(400); res.end(); return; }
+    else body = rank.me(q.get('token'), style);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(body));
   } else if (url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ port: PORT, lan: lanAddresses().map(a => a.url) }));
@@ -84,11 +93,12 @@ function startRoom(room) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
   const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
-  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule }));
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0 }));
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
 function leave(ws) {
+  rankQ.delete(ws);
   const room = ws.room;
   if (!room) return;
   ws.room = null;
@@ -99,8 +109,38 @@ function leave(ws) {
     return;
   }
   const who = room.seats.indexOf(ws);
+  if (room.ranked && !room.ranked.ended && room.players.length === 1) rankedEnd(room, room.seats.indexOf(room.players[0]));   // 랭크전 도중 나가면 나간 쪽 패배
   for (const p of room.players) send(p, { t: 'left', who, rest: room.players.length });
   if (room.players.length < 2) { rooms.delete(room.code); for (const p of room.players) p.room = null; }
+}
+
+/* ---------- 랭크전 ----------
+   1:1 · 원작 6×12 판 · 통상 규칙 · 2선승. 기다린 시간만큼 레이팅 허용 범위가 넓어짐(±100에서 10초마다 +50, 최대 ±600) */
+const rankQ = new Set();
+const rankWindow = ws => Math.min(600, 100 + 50 * Math.floor((Date.now() - ws.rank.since) / 10000));
+function matchRanked() {
+  const list = [...rankQ].filter(w => w.readyState === 1).sort((a, b) => a.rank.since - b.rank.since);
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j];
+    if (!rankQ.has(a) || !rankQ.has(b) || a.rank.token === b.rank.token) continue;
+    const d = Math.abs(a.rank.rec.r - b.rank.rec.r);
+    if (d > rankWindow(a) || d > rankWindow(b)) continue;
+    rankQ.delete(a); rankQ.delete(b);
+    const room = newRoom(a, 2, 'classic'); room.rule = 'tsu';
+    room.ranked = { score: [0, 0], rep: {}, ended: false };
+    a.style = a.rank.style; b.style = b.rank.style;
+    addPlayer(room, a); addPlayer(room, b);
+  }
+}
+setInterval(matchRanked, 2000);
+// 랭크전 끝: 레이팅 계산 후 두 사람에게 결과
+function rankedEnd(room, w) {
+  const R = room.ranked; if (!R || R.ended) return;
+  R.ended = true;
+  const W = room.seats[w], L = room.seats[1 - w];
+  if (!W || !W.rank || !L || !L.rank) return;
+  const [dw, dl] = rank.report(W.rank.rec, L.rank.rec);
+  for (const [p, win, d] of [[W, true, dw], [L, false, dl]]) send(p, { t: 'rdone', win, r: Math.round(p.rank.rec.r), d, tier: rank.tierOf(p.rank.rec.r), score: R.score });
 }
 
 wss.on('connection', ws => {
@@ -141,9 +181,32 @@ wss.on('connection', ws => {
         if (!room.started) send(ws, { t: 'waiting', have: room.players.length, size });
         break;
       }
+      case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
+        if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
+        leave(ws);
+        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name), since: Date.now() };
+        rankQ.add(ws);
+        send(ws, { t: 'rwait', r: Math.round(ws.rank.rec.r), tier: rank.tierOf(ws.rank.rec.r) });
+        matchRanked();
+        break;
+      }
+      case 'rres': {         // 랭크전 한 판 결과: 두 사람 보고가 맞을 때만 인정
+        const room = ws.room, R = room && room.ranked;
+        if (!R || R.ended || !room.started) return;
+        const i = room.seats.indexOf(ws); if (i < 0) return;
+        R.rep[i] = !!m.win;
+        if (Object.keys(R.rep).length < 2) return;
+        const wins = [0, 1].filter(k => R.rep[k]);
+        R.rep = {};
+        if (wins.length !== 1) return;                     // 엇갈리면 이 판은 무효
+        R.score[wins[0]]++;
+        if (R.score[wins[0]] >= 2) rankedEnd(room, wins[0]);
+        break;
+      }
       case 'ready': {        // 게임이 끝난 뒤 '다시 하기': 남은 사람이 모두 누르면 새 판
         const room = ws.room;
         if (!room || !room.started || room.players.length < 2) return;
+        if (room.ranked && room.ranked.ended) return;     // 끝난 랭크전은 다시 하기 없음
         room.ready.add(ws);
         if (room.players.every(p => room.ready.has(p))) startRoom(room);
         else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady', have: room.ready.size, size: room.players.length }); });

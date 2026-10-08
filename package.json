@@ -1,11 +1,13 @@
 {
   "name": "puyopuyo-online",
   "version": "1.0.0",
-  "description": "웹 뿌요뿌요 — 1인용 연습, CPU 대전, 온라인 1:1 대전",
+  "description": "웹 뿌요뿌요 — 연습, CPU 대전(2~4인), 온라인 대전·랭크전, 어드벤처, 여러 규칙(피버·빅뱅·스왑·파티·퓨전)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/smoke.js"
+    "test": "node tests/smoke.js",
+    "test:online": "node tests/online.js 3 && node tests/online.js 2 ranked",
+    "test:rank": "node tests/rank.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
