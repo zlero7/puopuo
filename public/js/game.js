@@ -98,9 +98,9 @@ const AI_PUYO = [
   { delay: 95,  noise: 60,   pot: 1.1,  miss: 0,    greedy: 0, atk: 0.85, soft: true },  // 어려움
 ];
 const AI_TETRIS = [
-  { delay: 380, noise: 3,   miss: 0.25, atk: 0.35, hard: false, holdUse: false },
-  { delay: 190, noise: 0.8, miss: 0.06, atk: 0.6,  hard: true,  holdUse: true },
-  { delay: 80,  noise: 0.1, miss: 0,    atk: 0.85, hard: true,  holdUse: true },
+  { delay: 380, noise: 3,   miss: 0.25, atk: 0.35, hard: false, holdUse: false, tspin: 0,   look: false },
+  { delay: 190, noise: 0.8, miss: 0.06, atk: 0.6,  hard: true,  holdUse: true,  tspin: 0.6, look: false },
+  { delay: 80,  noise: 0.1, miss: 0,    atk: 0.85, hard: true,  holdUse: true,  tspin: 1,   look: true },
 ];
 function build(mode) {
   const vs = mode !== 'solo';
@@ -119,7 +119,7 @@ function build(mode) {
   else {
     const lv = game.diff == null ? 1 : game.diff;
     // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
-    // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용
+    // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
     f2.ai = { ...(op === 'tetris' ? AI_TETRIS : AI_PUYO)[lv] };
   }
   game.fields.push(f2);

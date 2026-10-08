@@ -75,6 +75,90 @@ function drawMino(c, k, cx, cy, s, alpha = 1) {
   for (const [x, y] of cells) drawBlock(c, cx + (x - Math.min(...xs) - w / 2) * s, cy + (y - Math.min(...ys) - h / 2) * s, s, TCOL[k], alpha);
 }
 
+// 판(grid) 위에서 조각 p가 들어갈 수 있는지
+function tValidOn(g, p) {
+  for (const [x, y] of TROT[p.k][p.r]) { const X = p.x + x, Y = p.y + y; if (X < 0 || X >= TW || Y < 0 || Y >= TH || g[Y][X]) return false; }
+  return true;
+}
+// SRS 회전(월킥 포함). 성공하면 { p, kick: 몇 번째 킥인지 }
+function rotateOn(g, cur, dir) {
+  if (cur.k === 'O') return null;
+  const from = cur.r, to = (from + dir + 4) % 4, kicks = (cur.k === 'I' ? K_I : K_JLSTZ)[`${from}>${to}`];
+  for (let i = 0; i < kicks.length; i++) {
+    const p = { ...cur, r: to, x: cur.x + kicks[i][0], y: cur.y - kicks[i][1] };
+    if (tValidOn(g, p)) return { p, kick: i };
+  }
+  return null;
+}
+// T스핀 판정(0 없음 · 1 미니 · 2 정식): 3코너 규칙, 앞쪽 두 칸이 모두 막혔거나 5번째 킥이면 정식
+function tspinOf(g, p, lastRot, lastKick) {
+  if (p.k !== 'T' || !lastRot) return 0;
+  const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && g[y][x]);
+  const C = [[p.x, p.y], [p.x + 2, p.y], [p.x + 2, p.y + 2], [p.x, p.y + 2]];   // 왼위 오위 오아래 왼아래
+  const filled = C.map(([x, y]) => occ(x, y));
+  if (filled.filter(Boolean).length < 3) return 0;
+  const front = [[0, 1], [1, 2], [2, 3], [3, 0]][p.r];
+  return (filled[front[0]] && filled[front[1]]) || lastKick === 4 ? 2 : 1;
+}
+const tSpawnOf = (g, k) => { const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 }; if (tValidOn(g, { ...p, y: 1 })) p.y = 1; return p; };
+
+// 놓을 수 있는 모든 자리 찾기: 이동(L·R)·회전(C·W)·한 칸 내리기(D)를 BFS로 돌려 땅에 닿는 상태를 모음.
+// 회전으로 끝난 상태는 따로 세서 T스핀처럼 '밀어 넣는' 자리까지 찾는다. 결과: [{ p, spin, path }]
+function tReach(g, start, startRot = 0) {
+  const T = start.k === 'T';
+  const key = (x, y, r, rk) => (((y + 4) * 16 + x + 4) * 4 + r) * 6 + rk;
+  const nodes = [{ x: start.x, y: start.y, r: start.r, rk: T ? startRot : 0, prev: -1, mv: '' }];
+  const seen = new Set([key(start.x, start.y, start.r, nodes[0].rk)]), out = new Map();
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i], p = { k: start.k, x: n.x, y: n.y, r: n.r };
+    const push = (q, rk, mv) => {
+      const kk = key(q.x, q.y, q.r, rk); if (seen.has(kk)) return;
+      seen.add(kk); nodes.push({ x: q.x, y: q.y, r: q.r, rk, prev: i, mv });
+    };
+    const down = { ...p, y: p.y + 1 };
+    if (tValidOn(g, down)) push(down, 0, 'D');
+    else {                                     // 땅에 닿음: 여기서 놓을 수 있음
+      const spin = tspinOf(g, p, n.rk > 0, n.rk - 1);
+      const ok = `${p.x},${p.y},${p.r},${spin}`;
+      if (!out.has(ok)) {
+        const path = []; for (let j = i; j > 0; j = nodes[j].prev) path.push(nodes[j].mv);
+        out.set(ok, { p, spin, path: path.reverse() });
+      }
+    }
+    for (const d of [-1, 1]) { const q = { ...p, x: p.x + d }; if (tValidOn(g, q)) push(q, 0, d < 0 ? 'L' : 'R'); }
+    for (const d of [1, -1]) { const q = rotateOn(g, p, d); if (q) push(q.p, T ? q.kick + 1 : 0, d > 0 ? 'C' : 'W'); }
+  }
+  return [...out.values()];
+}
+// 판에 조각을 놓고 줄을 지운 결과
+function tPlace(g, p) {
+  const h = g.map(r => r.slice());
+  for (const [x, y] of TROT[p.k][p.r]) h[p.y + y][p.x + x] = 3;
+  const kept = h.filter(r => !r.every(Boolean)), lines = TH - kept.length;
+  while (kept.length < TH) kept.unshift(Array(TW).fill(0));
+  return { g: kept, lines, pc: lines > 0 && kept.every(r => r.every(v => !v)) };
+}
+// T스핀 더블 자리 찾기: 아래 두 모서리가 막히고 위 한쪽이 지붕(덮개)으로 막힌 T 모양 빈칸.
+// fill: 돌려 넣었을 때 지워질 두 줄이 얼마나 찼는지(0~2, 2면 T스핀 더블 확정) · clears: 실제로 지워질 줄 수
+function tSlots(g, h) {
+  const out = [];
+  const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && g[y][x]);
+  for (let x = 1; x < TW - 1; x++) for (let y = 1; y < TH - 1; y++) {
+    if (occ(x - 1, y) || occ(x, y) || occ(x + 1, y) || occ(x, y + 1)) continue;   // T가 아래로 향한 모양이 비어야 함
+    if (!occ(x - 1, y + 1) || !occ(x + 1, y + 1)) continue;                       // 아래 두 모서리
+    const tl = occ(x - 1, y - 1), tr = occ(x + 1, y - 1);
+    if (tl === tr) continue;                                                       // 위는 한쪽만 지붕
+    if (occ(x, y - 1)) continue;                                                   // T가 들어올 입구
+    const open = tl ? x + 1 : x - 1;                                               // 지붕 반대쪽은 위가 뚫려 있어야 들어옴
+    if (h[open] > TH - y) continue;
+    let a = 0, b = 0;
+    for (let c = 0; c < TW; c++) { if (c < x - 1 || c > x + 1) a += g[y][c] ? 1 : 0; if (c !== x) b += g[y + 1][c] ? 1 : 0; }
+    const clears = (a === TW - 3 ? 1 : 0) + (b === TW - 1 ? 1 : 0);
+    out.push({ x, y, clears, fill: a / (TW - 3) + b / (TW - 1), cells: [[x - 1, y], [x, y], [x + 1, y], [x, y + 1]] });
+  }
+  return out;
+}
+
 class TField {
   constructor(ox, oy, human, name) {
     this.kind = 'tetris'; this.ox = ox; this.oy = oy; this.human = human; this.name = name; this.opp = null;
@@ -136,12 +220,9 @@ class TField {
   }
   rotate(dir) {
     if (this.phase !== 'drop' || this.cur.k === 'O') return false;
-    const from = this.cur.r, to = (from + dir + 4) % 4, kicks = (this.cur.k === 'I' ? K_I : K_JLSTZ)[`${from}>${to}`];
-    for (let i = 0; i < kicks.length; i++) {
-      const p = { ...this.cur, r: to, x: this.cur.x + kicks[i][0], y: this.cur.y - kicks[i][1] };
-      if (this.valid(p)) { this.cur = p; this.lastRot = true; this.lastKick = i; this.lockReset(); if (this.human) sfx.rot(); return true; }
-    }
-    return false;
+    const q = rotateOn(this.grid, this.cur, dir);
+    if (!q) return false;
+    this.cur = q.p; this.lastRot = true; this.lastKick = q.kick; this.lockReset(); if (this.human) sfx.rot(); return true;
   }
   hardDrop() {
     if (this.phase !== 'drop') return;
@@ -198,15 +279,7 @@ class TField {
   }
 
   // T스핀 판정: 3코너 규칙, 앞쪽 두 칸이 모두 막혔거나 5번째 킥이면 정식, 아니면 미니
-  tspinType() {
-    const p = this.cur; if (p.k !== 'T' || !this.lastRot) return 0;
-    const occ = (x, y) => x < 0 || x >= TW || y >= TH || (y >= 0 && this.grid[y][x]);
-    const C = [[p.x, p.y], [p.x + 2, p.y], [p.x + 2, p.y + 2], [p.x, p.y + 2]];   // 왼위 오위 오아래 왼아래
-    const filled = C.map(([x, y]) => occ(x, y));
-    if (filled.filter(Boolean).length < 3) return 0;
-    const front = [[0, 1], [1, 2], [2, 3], [3, 0]][p.r];
-    return (filled[front[0]] && filled[front[1]]) || this.lastKick === 4 ? 2 : 1;
-  }
+  tspinType() { return tspinOf(this.grid, this.cur, this.lastRot, this.lastKick); }
   lock(hard) {
     const p = this.cur, ts = this.tspinType(), cells = this.cells(p);
     if (cells.every(([, y]) => y < TH - TVIS)) { for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); this.die(); return; }
@@ -342,49 +415,90 @@ class TField {
     } else if (ev.t === 'tgarb') { this.decode(ev.g); this.shake = Math.max(this.shake, 4); }
   }
 
-  /* ---------- CPU: 놓을 수 있는 모든 자리를 평가(높이·구멍·울퉁불퉁함·지운 줄) ---------- */
-  evalPlace(p) {
-    const g = this.grid.map(r => r.slice());
-    for (const [x, y] of this.cells(p)) g[y][x] = 1;
-    const kept = g.filter(r => !r.every(Boolean)), lines = TH - kept.length;
-    while (kept.length < TH) kept.unshift(Array(TW).fill(0));
+  /* ---------- CPU ----------
+     놓을 수 있는 모든 자리(T스핀 포함, tReach)를 높이·구멍·울퉁불퉁함·지운 줄·T스핀으로 평가.
+     ai.tspin: T스핀 의지(0이면 예전처럼 쌓기만) · ai.look: 다음 조각까지 내다보기 */
+  evalPlace(g, pl, b2b) {
+    const ai = this.ai, w = ai.tspin || 0;
+    const { g: kept, lines, pc } = tPlace(g, pl.p);
     const h = []; let holes = 0;
-    for (let c = 0; c < TW; c++) {
-      let r = 0; while (r < TH && !kept[r][c]) r++;
-      h.push(TH - r);
-      for (let y = r + 1; y < TH; y++) if (!kept[y][c]) holes++;
-    }
+    for (let c = 0; c < TW; c++) { let r = 0; while (r < TH && !kept[r][c]) r++; h.push(TH - r); }
+    let slot = null;                                     // 가장 잘 채워진 T스핀 자리 하나만 봄(그 아래 빈칸은 구멍으로 안 셈)
+    if (w) for (const sl of tSlots(kept, h)) if (!slot || sl.fill > slot.fill) slot = sl;
+    const slotCells = new Set(slot ? slot.cells.map(([x, y]) => y * TW + x) : []);
+    for (let c = 0; c < TW; c++) for (let y = TH - h[c] + 1; y < TH; y++) if (!kept[y][c] && !slotCells.has(y * TW + c)) holes++;
     const agg = h.reduce((a, b) => a + b, 0), maxH = Math.max(...h);
     let bump = 0; for (let c = 0; c < TW - 1; c++) bump += Math.abs(h[c] - h[c + 1]);
-    let s = -0.51 * agg + 0.76 * lines - 0.36 * holes * 2 - 0.18 * bump;
+    let s = -0.51 * agg + 0.76 * lines - 0.72 * holes - 0.18 * bump;
     if (maxH > 13) s -= (maxH - 13) * 3;
-    if (lines === 4) s += 4; else if (lines > 0 && maxH < 9 && this.ai.hard) s -= 0.5;
-    return s;
-  }
-  planAI() {
-    const opts = [{ k: this.cur.k, hold: false }];
-    if (this.ai.holdUse && this.canHold) { const hk = this.holdK || tPieceAt(this.idx); if (hk !== this.cur.k) opts.push({ k: hk, hold: true }); }
-    let best = null, bs = -Infinity; const cands = [];
-    for (const o of opts) for (let r = 0; r < (o.k === 'O' ? 1 : 4); r++) for (let x = -2; x < TW; x++) {
-      const p = { k: o.k, x, y: 1, r };
-      if (!this.valid(p)) { p.y = 0; if (!this.valid(p)) continue; }
-      while (this.valid({ ...p, y: p.y + 1 })) p.y++;
-      const sc = this.evalPlace(p) + (Math.random() - 0.5) * this.ai.noise;
-      cands.push({ hold: o.hold, r, x });
-      if (sc > bs) { bs = sc; best = { hold: o.hold, r, x }; }
+    const calm = maxH < 12 ? 1 : 0.3;                    // 위험할 때는 T스핀보다 살아남기
+    if (pc) s += 12;
+    if (lines === 4) s += 4;
+    else if (pl.spin === 2 && lines) s += w * calm * [0, -1.5, 9, 12][lines] + (b2b ? w * 1.5 : 0);
+    else if (lines > 0) {
+      if (maxH < 9 && ai.hard) s -= 0.5;
+      if (b2b && w) s -= w * calm * 1.5;                  // 백투백 끊기
     }
-    if (cands.length && Math.random() < this.ai.miss) best = cands[rnd(cands.length)];
-    this.tgt = best; this.stuck = 0;
+    if (pl.p.k === 'T' && !pl.spin && w && tSlots(g, this.heights(g)).some(sl => sl.clears === 2)) s -= w * 3;   // 자리가 있는데 T를 그냥 씀
+    if (slot) s += w * calm * (1 + slot.fill * slot.fill) * 1.2;
+    return { s, g: kept, lines };
+  }
+  heights(g) { const h = []; for (let c = 0; c < TW; c++) { let r = 0; while (r < TH && !g[r][c]) r++; h.push(TH - r); } return h; }
+  planAI() {
+    const ai = this.ai, g = this.grid, b2b = this.b2b;
+    const opts = [{ k: this.cur.k, hold: false, start: this.cur, rot: this.lastRot ? this.lastKick + 1 : 0, next: tPieceAt(this.idx) }];
+    if (ai.holdUse && this.canHold) {
+      const hk = this.holdK || tPieceAt(this.idx);
+      if (hk !== this.cur.k) opts.push({ k: hk, hold: true, start: tSpawnOf(g, hk), rot: 0, next: this.holdK ? tPieceAt(this.idx) : tPieceAt(this.idx + 1) });
+    }
+    const cands = [];
+    for (const o of opts) for (const pl of tReach(g, o.start, o.rot)) {
+      const e = this.evalPlace(g, pl, b2b);
+      const keepT = ai.tspin && (o.hold ? this.cur.k : this.holdK) === 'T' ? ai.tspin * 1.5 : 0;   // T를 홀드에 아껴 두기
+      cands.push({ hold: o.hold, pl, s: e.s + keepT, g2: e.g, lines: e.lines, next: o.next });
+    }
+    if (!cands.length) { this.tgt = null; return; }
+    if (ai.look) {                                     // 위쪽 후보만 다음 조각까지 내다봄
+      cands.sort((a, b) => b.s - a.s);
+      for (const c of cands.slice(0, 8)) {
+        const nb = (c.pl.spin === 2 && c.lines) || c.lines === 4 ? true : c.lines ? false : b2b;
+        let best = -Infinity;
+        for (const pl of tReach(c.g2, tSpawnOf(c.g2, c.next))) best = Math.max(best, this.evalPlace(c.g2, pl, nb).s);
+        c.s = c.s * 0.6 + (best > -Infinity ? best : -50) * 0.4 + 0.001;
+      }
+    }
+    let best = null, bs = -Infinity;
+    for (const c of cands) { const sc = c.s + (Math.random() - 0.5) * ai.noise; if (sc > bs) { bs = sc; best = c; } }
+    if (Math.random() < ai.miss) best = cands[rnd(cands.length)];
+    this.tgt = { hold: best.hold, p: best.pl.p, spin: best.pl.spin }; this.stuck = 0;
+  }
+  // 지금 위치에서 목표 자리까지의 입력 순서(중력으로 밀렸으면 다시 찾음)
+  pathTo(t) {
+    const st = tReach(this.grid, this.cur, this.lastRot ? this.lastKick + 1 : 0);
+    const m = st.find(o => o.p.x === t.p.x && o.p.y === t.p.y && o.p.r === t.p.r && o.spin === t.spin)
+      || (!t.spin && st.find(o => o.p.x === t.p.x && o.p.y === t.p.y && o.p.r === t.p.r));
+    return m ? m.path : null;
   }
   aiAct(dt) {
     this.aiT -= dt; if (this.aiT > 0 || !this.tgt) return;
     this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6);
-    const t = this.tgt, p = this.cur;
-    if (t.hold && this.canHold) { const keep = { ...t, hold: false }; this.hold(); this.tgt = keep; return; }
+    const t = this.tgt;
+    if (t.hold && this.canHold) { const keep = { ...t, hold: false }; this.hold(); if (this.phase === 'drop') this.tgt = keep; return; }
     if (this.stuck > 4) { this.hardDrop(); return; }
-    if (p.r !== t.r) { const d = (t.r - p.r + 4) % 4; if (!this.rotate(d === 3 ? -1 : 1)) this.stuck++; return; }
-    if (p.x !== t.x) { if (!this.moveX(p.x < t.x ? 1 : -1)) this.stuck++; return; }
-    if (this.ai.hard) this.hardDrop(); else this.soft = true;
+    const path = this.pathTo(t);
+    if (!path) { this.stuck++; this.planAI(); return; }
+    if (path.every(m => m === 'D')) {                  // 남은 건 내리기뿐: 하드드롭(쉬움은 소프트드롭)
+      if (this.ai.hard || !path.length) this.hardDrop(); else this.soft = true;
+      return;
+    }
+    const m = path[0];
+    if (m === 'L' || m === 'R') { if (!this.moveX(m === 'L' ? -1 : 1)) this.stuck++; }
+    else if (m === 'C' || m === 'W') { if (!this.rotate(m === 'C' ? 1 : -1)) this.stuck++; }
+    else {                                             // 연속된 내리기는 한 번에(소프트드롭)
+      let n = 0; while (path[n] === 'D') n++;
+      for (let i = 0; i < n && this.valid({ ...this.cur, y: this.cur.y + 1 }); i++) { this.cur.y++; this.lastRot = false; }
+      if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; }
+    }
   }
 
   /* ---------- 그리기 ---------- */
