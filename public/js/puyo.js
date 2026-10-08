@@ -240,17 +240,18 @@ class Field {
   mk(c, r, col, y) { return { c, r, col, y, vy: 0, sq: -1, amp: 0 }; }
   valid(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS && !this.grid[y][x]; }
   fits(p) { return this.valid(p.x, p.y) && this.valid(p.x + DX[p.o], p.y + DY[p.o]); }
-  fallIv() { return game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60); }
+  fallIv() { return (game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60)) / (effOn(this, 'speed') ? 3 : 1); }
 
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }
     if (swapDue(this)) { swapField(this); return; }      // 스왑(swap.js)
     if (game.rule === 'fever' && !this.fv.on && (this.fv.gauge >= FEVER_GAUGE || (game.soloMode === 'efever' && !game.vs && !this.fv.lv))) { this.startFever(); return; }
-    if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } if (this.bbOn()) { this.bbFinish(0); return; } this.die(); return; }
+    if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } if (this.bbOn()) { this.bbFinish(0); return; } if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 };
+    const item = nextItem(this); if (item) this.piece[rnd(2) ? 'ia' : 'ib'] = item;     // 파티: ★아이템
     this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true;
-    if (!this.fits(this.piece)) { this.die(); return; }
+    if (!this.fits(this.piece)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (!this.human) this.planAI();
   }
   // 홀드: 지금 쌍을 맡겨 두고 맡긴 쌍(없으면 다음 쌍)을 꺼냄. 한 번 놓을 때까지 한 번만
@@ -259,7 +260,7 @@ class Field {
     const keep = [this.piece.a, this.piece.b], [a, b] = this.holdP || pairAt(this.idx++);
     this.holdP = keep; this.canHold = false;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 }; this.acc = 0;
-    if (!this.fits(this.piece)) { this.die(); return; }
+    if (!this.fits(this.piece)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (this.human) sfx.hold();
   }
   die() {
@@ -287,10 +288,11 @@ class Field {
         const sp = this.piece && this.piece.n === ev.n ? this.piece : null;
         const off = sp ? Math.max(0, ev.y - (sp.y + (sp.prog || 0))) : 0;
         this.lastLockN = ev.n;
-        this.piece = { x: ev.x, y: ev.y, o: ev.o, a: ev.a, b: ev.b, rx: sp ? sp.rx : ev.x, ang: sp ? sp.ang : ev.o * Math.PI / 2 };
+        this.piece = { x: ev.x, y: ev.y, o: ev.o, a: ev.a, b: ev.b, ia: ev.ia, ib: ev.ib, rx: sp ? sp.rx : ev.x, ang: sp ? sp.ang : ev.o * Math.PI / 2 };
         this.lock(off, !!ev.h);
       } else if (ev.t === 'garb') this.placeGarbage(ev.c);
       else if (ev.t === 'sw') { swapField(this); return; }
+      else if (ev.t === 'gs') { this.decode(ev.g); this.piece = null; this.phase = 'settle'; this.settleT = 0; }
       else if (ev.t === 'fv') { this.fv.on = !!ev.on; this.decode(ev.g, true); this.piece = null; this.phase = 'settle'; this.settleT = 0; }
     }
     if (this.phase === 'wait' && this.dieLater) { this.dieLater = false; this.die(); return; }
@@ -365,7 +367,7 @@ class Field {
     if (this.human) {
       const inp = game.inp[this.pi || 0];
       this.soft = inp.down;
-      const dir = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
+      const dir = ((inp.left ? -1 : 0) + (inp.right ? 1 : 0)) * (effOn(this, 'rev') ? -1 : 1);   // 파티: 조작 반전
       if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }
       else if (dir) { this.das += dt; if (this.das > 170) { this.rep += dt; while (this.rep >= 45) { this.rep -= 45; this.moveX(dir); } } }
     } else this.aiAct(dt);
@@ -399,8 +401,9 @@ class Field {
   lock(off = 0, hard = false) {
     const p = this.piece, sx = p.x + DX[p.o], sy = p.y + DY[p.o];
     this.lockAt = game.el;
-    if (!this.remote) emit(this, { t: 'lock', n: this.idx, x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, h: hard ? 1 : 0, g: this.encode() });
+    if (!this.remote) emit(this, { t: 'lock', n: this.idx, x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, h: hard ? 1 : 0, g: this.encode(), ia: p.ia, ib: p.ib });
     const m = this.mk(p.a, p.y, p.x, p.y - off), s = this.mk(p.b, sy, sx, sy - off);
+    if (p.ia) m.it = p.ia; if (p.ib) s.it = p.ib;
     if (hard) for (const q of [m, s]) { q.vy = 0.05; q.vmax = 0.09; q.hard = true; }
     this.grid[p.y][p.x] = m; this.grid[sy][sx] = s;
     this.piece = null; this.compact(); this.phase = 'settle'; this.settleT = 0; this.chain = 0;
@@ -474,10 +477,10 @@ class Field {
     let bonus = POW[Math.min(this.chain, POW.length - 1)]; const cols = new Set();
     if (this.chain === 1) this.fv.hit = false;
     for (const g of gs) { total += g.cells.length; bonus += groupBonus(g.cells.length); cols.add(g.c);
-      for (const p of g.cells) { this.popList.push(p); set.add(p); sx += p.col; sy += p.y; } }
+      for (const p of g.cells) { this.popList.push(p); set.add(p); sx += p.col; sy += p.y; if (p.it) (this.itemQ = this.itemQ || []).push(p.it); } }
     bonus += COLOR_BONUS[Math.min(cols.size, 5)];
     const step = 10 * total * clamp(bonus, 1, 999);
-    if (!this.remote) this.score += step;           // 원격 판(온라인 상대·리플레이) 점수는 받은 값만 씀
+    if (!this.remote) this.score += step * (effOn(this, 'dbl') ? 2 : 1);   // 원격 판(온라인 상대·리플레이) 점수는 받은 값만 씀
     this.pops += total;
     if (!game.vs) this.level = 1 + Math.floor(this.pops / 40);
     if (game.vs && !this.remote && (this.chain === 1 || !this.opp || this.opp.dead)) this.opp = pickTarget(this, this.chain === 1 ? null : this.opp && this.opp.kind);
@@ -583,6 +586,11 @@ class Field {
     }
     this.chain = 0;
     if (this.remote) { this.spawn(); return; }
+    if (this.itemQ && this.itemQ.length) {   // 파티: 터뜨린 ★아이템 발동(판 정리는 다시 내려앉은 뒤 이어짐)
+      const ks = this.itemQ; this.itemQ = [];
+      for (const k of ks) useItem(this, k);
+      if (this.phase === 'settle') return;
+    }
     if (this.bbOn()) {                        // 빅뱅: 연쇄가 나면 이번 라운드 끝, 아니면 계속 놓기
       if (ch > 0) { this.bbFinish(ch / this.bbN, this.lockAt); return; }   // 끝낸 시각은 트리거를 놓은 때(연쇄 연출 시간은 빼고)
       this.spawn(); return;
@@ -601,6 +609,18 @@ class Field {
     }
     if (this.pending > 0 && !this.noGarb) { this.dropGarbage(); return; }
     this.spawn();
+  }
+
+  /* ---------- 파티(party.js) ---------- */
+  cleanRows(n) {                             // 아래 n줄 없애기
+    for (let r = ROWS - n; r < ROWS; r++) for (let c = 0; c < COLS; c++) this.grid[r][c] = null;
+    this.compact(); emit(this, { t: 'gs', g: this.encode() });            // 위 뿌요들은 원래 자리(y)에서 내려앉음
+    this.piece = null; this.phase = 'settle'; this.settleT = 0;
+  }
+  clearBoard() {
+    this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    emit(this, { t: 'gs', g: this.encode() });
+    this.piece = null; this.phase = 'settle'; this.settleT = 0;
   }
 
   /* ---------- 빅뱅(bigbang.js) ---------- */
@@ -714,7 +734,7 @@ class Field {
 
   aiAct(dt) {
     this.aiT -= dt; if (this.aiT > 0 || !this.tgt) return;
-    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6);
+    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6) * (effOn(this, 'rev') ? 1.8 : 1);   // 조작 반전: CPU는 느려짐
     const p = this.piece, t = this.tgt;
     if (p.o !== t.o) { const d = (t.o - p.o + 4) % 4; this.rotate(d === 3 ? -1 : 1); }
     else if (p.x < t.x) this.moveX(1);
@@ -778,7 +798,7 @@ class Field {
           const k = s * (end < 120 ? 0.5 + 0.5 * end / 120 : 1); sx *= k; sy *= k;
         }
         if (cy < -CS * 1.5) continue;
-        const it = { cx: q * CS + CS / 2, cy, rx: R * sx, ry: R * sy, col: p.c, pop, flash: pop && Math.floor(this.popT / 70) % 2 === 1 };
+        const it = { cx: q * CS + CS / 2, cy, rx: R * sx, ry: R * sy, col: p.c, pop, flash: pop && Math.floor(this.popT / 70) % 2 === 1, star: p.it };
         items.push(it); map.set(p, it);
       }
     }
@@ -797,10 +817,11 @@ class Field {
       const canFall = this.fits({ ...pc, y: pc.y + 1 });
       const iv = this.soft ? 35 : this.fallIv(), prog = this.remote ? (pc.prog || 0) : canFall ? Math.min(1, this.acc / iv) : 0;
       const px = pc.rx * CS + CS / 2, py = (pc.y + prog - 1) * CS + CS / 2;
-      items.push({ cx: px, cy: py, rx: R, ry: R, col: pc.a },
-                 { cx: px + Math.sin(pc.ang) * CS, cy: py - Math.cos(pc.ang) * CS, rx: R, ry: R, col: pc.b });
+      items.push({ cx: px, cy: py, rx: R, ry: R, col: pc.a, star: pc.ia },
+                 { cx: px + Math.sin(pc.ang) * CS, cy: py - Math.cos(pc.ang) * CS, rx: R, ry: R, col: pc.b, star: pc.ib });
     }
     drawPuyos(c, items, links, quads);
+    for (const it of items) if (it.star) drawStar(c, it.cx, it.cy - R * 0.1, R * 0.6, ITEMS[it.star] ? ITEMS[it.star].col : '#ffe066');
 
     for (const q of this.particles) {
       c.globalAlpha = clamp(q.life / q.max, 0, 1); c.fillStyle = q.col;

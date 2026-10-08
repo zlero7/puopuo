@@ -36,6 +36,7 @@ function swapField(f) {
   ring(g.ox + g.fw / 2, OY + FH / 2, '#ffe066', 20, 220, 520, 8);
   if (f.human) sfx.margin();
   g.phase = 'none'; g.spawn();
+  if (f.dieLater) { f.dieLater = false; applyRemote(g, { t: 'dead' }); }   // 바뀌기 전에 받은 탈락은 새 판으로
 }
 // 조각을 받을 때 바꿀 차례인지
 const swapDue = f => game.rule === 'swap' && f.other && !f.remote && game.state === 'play' && (game.el || 0) >= f.swapAt;

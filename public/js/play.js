@@ -146,6 +146,7 @@ function update(dt) {
   }
   if (active && game.mode === 'replay') replayTick();
   if (active && game.rule === 'bigbang') bbTick(dt);
+  if (active && game.rule === 'party') partyTick();
   for (const f of game.fields) f.update(dt, active);
   updateFx(dt);
   if (active && (game.net || game.rec)) {         // 상태(조각 위치·점수 등): 온라인 전송 + 녹화, 초당 20번
@@ -243,7 +244,8 @@ function render(t) {
   ctx.fillStyle = '#fff'; ctx.fillRect(PX - 54, OY + 30, 108, 200);
   ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 34, 100, 192);
   outlined(ctx, '다음', PX, OY + 13, 22, '#fff', TONES.yellow.d, 6);
-  if (me.phase !== 'none' && !me.dead) {
+  if (effOn(me, 'blind')) outlined(ctx, '?', PX, OY + 130, 70, '#fff', TONES.purple.d, 10);    // 파티: 미리보기 가리기
+  else if (me.phase !== 'none' && !me.dead) {
     if (isT) {
       for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }
     } else {
@@ -308,6 +310,7 @@ function render(t) {
   ctx.restore();
   if (game.rule === 'bigbang') drawBigBang(ctx);
   if (game.rule === 'swap') drawSwap(ctx);
+  if (game.rule === 'party' && game.vs) drawParty(ctx);
   drawFx(ctx);
   if (game.mode === 'replay') drawReplayHud(ctx);
   if (game.state === 'intro') drawIntro(t);

@@ -41,7 +41,7 @@ const P2T = [210, 630, 1050, 1710, 3500, 7000, 14000];
 // 마진 타임: 대전 시작 96초 후부터 16초마다 공격력이 오름(뿌요: 목표 점수 감소 / 테트리스: 보내는 줄 배율)
 const MARGIN_START = 96000, MARGIN_STEP = 16000, TSU_TP = [70, 52, 35, 26, 17, 13, 8, 6, 4, 3, 2, 1];
 function marginLv() {
-  if (!game.vs || game.state === 'intro' || game.rule === 'bigbang') return 0;
+  if (!game.vs || game.state === 'intro' || game.rule === 'bigbang' || game.rule === 'party') return 0;
   const el = game.el || 0;
   return el < MARGIN_START ? 0 : Math.min(TSU_TP.length - 1, 1 + Math.floor((el - MARGIN_START) / MARGIN_STEP));
 }
@@ -184,6 +184,10 @@ class TField {
   encode() { return this.grid.map(r => r.join('')).join(''); }
   decode(g) { for (let r = 0; r < TH; r++) for (let c = 0; c < TW; c++) this.grid[r][c] = +g[r * TW + c] || 0; }
   fallIv() {
+    if (effOn(this, 'speed')) return this.baseFallIv() / 3;               // 파티: 속도 업
+    return this.baseFallIv();
+  }
+  baseFallIv() {
     if (!game.vs) return Math.max(20, Math.pow(0.8 - (this.level - 1) * 0.007, this.level - 1) * 1000);   // 가이드라인 낙하 속도
     const el = (game.el || 0) / 30000;
     return Math.max(80, 1000 * Math.pow(0.85, Math.floor(el)));
@@ -194,7 +198,8 @@ class TField {
   peekK(i) { return this.forceQ ? this.forceQ[i] : tPieceAt(this.idx + i); }   // 다음 조각(빅뱅 퍼즐이면 정해진 순서)
   spawnType(k) {
     const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 };
-    if (!this.valid(p)) { if (this.bbOn()) { this.bbFinish(); return; } this.die(); return; }
+    if (!this.valid(p)) { if (this.bbOn()) { this.bbFinish(); return; } if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
+    const item = nextItem(this); if (item) p.it = { i: rnd(4), k: item };      // 파티: 조각의 한 칸에 ★아이템
     if (this.valid({ ...p, y: 1 })) p.y = 1;
     this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.lowest = p.y; this.lastRot = false; this.soft = false;
     if (!this.human) this.planAI();
@@ -262,7 +267,7 @@ class TField {
     if (this.human) {
       const inp = game.inp[this.pi || 0];
       this.soft = inp.down;
-      const dir = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
+      const dir = ((inp.left ? -1 : 0) + (inp.right ? 1 : 0)) * (effOn(this, 'rev') ? -1 : 1);   // 파티: 조작 반전
       if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }
       else if (dir) { this.das += dt; if (this.das > 167) { this.rep += dt; while (this.rep >= 33) { this.rep -= 33; if (!this.moveX(dir)) { this.rep = 0; break; } } } }
     } else { this.aiAct(dt); if (this.phase !== 'drop') return; }
@@ -283,14 +288,22 @@ class TField {
   tspinType() { return tspinOf(this.grid, this.cur, this.lastRot, this.lastKick); }
   lock(hard) {
     const p = this.cur, ts = this.tspinType(), cells = this.cells(p);
-    if (cells.every(([, y]) => y < TH - TVIS)) { for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [] }); this.die(); return; }
+    if (cells.every(([, y]) => y < TH - TVIS)) {
+      if (game.rule === 'party') { this.cur = null; partyReset(this); return; }
+      for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [] }); this.die(); return;
+    }
     for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k);
+    if (p.it) (this.items = this.items || []).push({ x: cells[p.it.i][0], y: cells[p.it.i][1], k: p.it.k });
     this.cur = null; this.canHold = true;
     const rows = []; for (let r = 0; r < TH; r++) if (this.grid[r].every(v => v)) rows.push(r);
     const filledAfter = this.grid.reduce((a, row, r) => a + (rows.includes(r) ? 0 : row.filter(Boolean).length), 0);
     const pc = rows.length > 0 && filledAfter === 0;
     if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
     this.shake = Math.max(this.shake, hard ? 2.5 : 0);
+    if (rows.length && this.items && this.items.length) {   // 파티: 지운 줄에 있던 ★아이템 발동(줄이 다 지워진 뒤)
+      this.itemQ = (this.itemQ || []).concat(this.items.filter(t => rows.includes(t.y)).map(t => t.k));
+      this.items = this.items.filter(t => !rows.includes(t.y));          // 남은 아이템은 줄이 실제로 지워질 때 내려감
+    }
     if (rows.length) {
       this.ren++; this.maxChain = Math.max(this.maxChain, this.ren);
       const amt = this.attackAmount(rows.length, ts, pc);
@@ -332,7 +345,7 @@ class TField {
     let s = ts === 2 ? [400, 800, 1200, 1600][lines] : [0, 100, 300, 500, 800][lines] + (ts === 1 ? 100 : 0);
     if (this.b2bWas && (lines === 4 || ts)) s *= 1.5;
     s += 50 * Math.max(0, this.ren - 1); if (pc) s += [0, 800, 1000, 1800, 2000][lines];
-    this.score += Math.round(s * (game.vs ? 1 : this.level));
+    this.score += Math.round(s * (game.vs ? 1 : this.level) * (effOn(this, 'dbl') ? 2 : 1));
   }
   attackAmount(lines, ts, pc) {
     const vsP = this.vsPuyo();
@@ -384,6 +397,7 @@ class TField {
     }
     this.grid = this.grid.filter((_, r) => !rows.includes(r));
     while (this.grid.length < TH) this.grid.unshift(Array(TW).fill(0));
+    if (this.items) this.items = this.items.map(t => ({ ...t, y: t.y + rows.filter(r => r > t.y).length }));
     this.clearRows = []; this.flash = Math.min(0.4, 0.1 + rows.length * 0.07); this.shake = Math.max(this.shake, rows.length * 1.2);
     if (this.remote) { this.phase = 'wait'; return; }
     if (this.finishAfterClear) { this.finish(); return; }
@@ -391,6 +405,7 @@ class TField {
   }
   finish() { this.done = true; this.doneAt = game.el; this.phase = 'done'; this.cur = null; }
   afterLock() {
+    if (this.itemQ && this.itemQ.length) { const ks = this.itemQ; this.itemQ = []; for (const k of ks) useItem(this, k); }
     if (this.bbOn() && !this.forceQ.length) { this.bbFinish(); return; }   // 빅뱅: 조각을 다 썼으면 라운드 끝
     this.insertGarbage();
     if (this.dead) return;
@@ -399,7 +414,7 @@ class TField {
   insertGarbage() {
     const n = Math.min(7, this.pending); if (n <= 0) return;
     this.pending -= n;
-    for (let r = 0; r < n; r++) if (this.grid[r].some(Boolean)) { this.die(); return; }
+    for (let r = 0; r < n; r++) if (this.grid[r].some(Boolean)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (Math.random() < 0.9) this.holeCol = rnd(TW);
     const rows = [];
     for (let i = 0; i < n; i++) {
@@ -407,9 +422,22 @@ class TField {
       rows.push(Array.from({ length: TW }, (_, c) => c === this.holeCol ? 0 : 8));
     }
     this.grid = this.grid.slice(n).concat(rows);
+    if (this.items) this.items = this.items.map(t => ({ ...t, y: t.y - n })).filter(t => t.y >= 0);
     this.shake = Math.max(this.shake, 3 + n); sfx.garb();
     if (!this.remote) emit(this, { t: 'tgarb', g: this.encode() });
   }
+  /* ---------- 파티(party.js) ---------- */
+  cleanRows(n) {
+    this.grid = Array.from({ length: n }, () => Array(TW).fill(0)).concat(this.grid.slice(0, TH - n));
+    if (this.items) this.items = this.items.filter(t => t.y < TH - n).map(t => ({ ...t, y: t.y + n }));
+    this.shake = 5; emit(this, { t: 'tgarb', g: this.encode() });
+  }
+  clearBoard() {
+    this.grid = Array.from({ length: TH }, () => Array(TW).fill(0)); this.items = [];
+    emit(this, { t: 'tgarb', g: this.encode() });
+    this.cur = null; this.phase = 'are'; this.areT = 300;
+  }
+
   /* ---------- 빅뱅(bigbang.js) ---------- */
   bbOn() { return game.rule === 'bigbang' && !this.remote && !!this.forceQ; }
   bbLoad(p) {
@@ -506,7 +534,7 @@ class TField {
   }
   aiAct(dt) {
     this.aiT -= dt; if (this.aiT > 0 || !this.tgt) return;
-    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6);
+    this.aiT = this.ai.delay * (0.7 + Math.random() * 0.6) * (effOn(this, 'rev') ? 1.8 : 1);
     const t = this.tgt;
     if (t.hold && this.canHold) { const keep = { ...t, hold: false }; this.hold(); if (this.phase === 'drop') this.tgt = keep; return; }
     if (this.stuck > 4) { this.hardDrop(); return; }
@@ -572,6 +600,7 @@ class TField {
       const v = this.grid[r][q]; if (!v) continue;
       drawBlock(c, TGX + q * TC, sY(r), TC, TCOL[TKEYS[v]]);
     }
+    for (const t of this.items || []) if (t.y >= TH - TVIS && this.grid[t.y][t.x]) drawStar(c, TGX + (t.x + 0.5) * TC, sY(t.y) + TC / 2, TC * 0.4, ITEMS[t.k].col);
     if (this.phase === 'clear') {
       const k = this.clearT / 260;
       for (const r of this.clearRows) {
@@ -587,6 +616,7 @@ class TField {
         c.globalAlpha = 0.12; c.fillStyle = TCOL[p.k]; c.fill(); c.restore();
       }
       for (const [x, y] of this.cells(p)) if (y >= TH - TVIS - 1) drawBlock(c, TGX + x * TC, sY(y), TC, TCOL[p.k]);
+      if (p.it) { const [x, y] = this.cells(p)[p.it.i]; drawStar(c, TGX + (x + 0.5) * TC, sY(y) + TC / 2, TC * 0.4, ITEMS[p.it.k].col); }
     }
     for (const q of this.particles) { c.globalAlpha = clamp(q.life / q.max, 0, 1); c.fillStyle = q.col; c.beginPath(); c.arc(q.x, q.y, q.r, 0, Math.PI * 2); c.fill(); }
     c.globalAlpha = 1;

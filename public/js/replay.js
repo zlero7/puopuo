@@ -13,7 +13,7 @@ function emit(f, d) {
 function recEv(f, d) {
   const r = game.rec; if (!r || game.mode === 'replay') return;
   const pi = game.fields.indexOf(f); if (pi < 0) return;
-  if (f.kind === 'puyo' && d.g) { const { g, ...rest } = d; d = rest; }   // 뿌요는 결정적이라 격자 스냅샷 없이도 똑같이 재생됨
+  if (f.kind === 'puyo' && d.g && (d.t === 'lock' || d.t === 'garb')) { const { g, ...rest } = d; d = rest; }   // 뿌요 고정·방해는 결정적이라 격자 스냅샷 없이도 똑같이 재생됨(판 교체 이벤트는 격자 필요)
   else if (d.g) d = { ...d, g: d.g.replace(/^0+/, '') };                     // 테트리스 격자는 위쪽 빈칸을 빼고 저장
   r.ev.push([Math.round(game.el || 0), pi, d]);
 }
@@ -46,10 +46,20 @@ function applyRemote(f, d) {
     }
     case 'off': game.launch(f, f, d.n, f.ox + d.x, f.oy + d.y, 'offset', d.ch); break;
     case 'bb': bbReport(f, d.p, d.at, d.r); break;
+    case 'it': itemFx(f, d.k); break;
+    case 'pend': partyFinish(f, d.sc); break;
+    case 'gs': case 'fv':                    // 판 통째로 바꾸기(파티 정리·피버·빅뱅 씨앗판)
+      if (f.kind !== 'puyo') break;
+      if (typeof d.g === 'string' && d.g.length < ROWS * COLS) d = { ...d, g: d.g.padStart(ROWS * COLS, '0') };
+      f.queue.push(d); break;
     case 'dead':
       if (f.kind === 'tetris') {                                   // 남은 이벤트를 바로 적용해서 마지막으로 놓은 블록까지 보이게
         if (f.phase === 'clear') f.dropRows(f.clearRows);
-        while (f.queue.length) { const ev = f.queue.shift(); if (ev.g) { f.decode(ev.g); if (ev.rows && ev.rows.length) f.dropRows(ev.rows); } }
+        while (f.queue.length) {
+          const ev = f.queue.shift();
+          if (ev.t === 'sw') { swapField(f); applyRemote(f.other, d); return; }   // 스왑한 뒤에 탈락했으면 바뀐 판이 탈락
+          if (ev.g) { f.decode(ev.g); if (ev.rows && ev.rows.length) f.dropRows(ev.rows); }
+        }
       }
       if (game.state === 'play') f.die(); break;
   }
@@ -77,7 +87,7 @@ function finishRecording() {
   const r = game.rec; if (!r || game.mode === 'replay') return null;
   game.fields.forEach((f, pi) => { if (!f.remote) r.ev.push([Math.round(game.el || 0), pi, stateOf(f)]); });   // 마지막 점수까지
   game.rec = null;
-  r.players = game.fields.map(f => ({ name: f.name, style: f.kind }));
+  r.players.forEach((p, i) => { if (game.fields[i]) p.name = game.fields[i].name; });   // 이름만 갱신(스타일은 시작할 때 것 — 스왑이면 끝에 바뀌어 있음)
   r.len = Math.round(game.el || 0);
   return r.ev.length && saveReplay(r) ? r.id : null;
 }
@@ -116,6 +126,7 @@ function startReplay(rp) {
   game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
   game.seed = rp.seed; game.bb = null;
   if (game.rule === 'bigbang' && vs) bbInit();
+  game.party = null; if (game.rule === 'party' && vs) partyInit();
   game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 1600; game.introGo = false; overlay.classList.add('hidden'); bgmPlay('game'); sfx.ready();
   showGame();

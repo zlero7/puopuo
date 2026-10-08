@@ -164,7 +164,8 @@ function start(mode, seed, styles, board, rule) {
   seedSeq(sd); game.replay = null;
   build(mode); game.lastMode = mode; game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
   game.rec = newRecording(sd);           // 리플레이 녹화(판이 끝나면 저장)
-  game.seed = sd; game.bb = null;
+  game.seed = sd; game.bb = null; game.party = null;
+  if (game.rule === 'party' && game.vs) partyInit();
   if (game.rule === 'bigbang' && game.vs) { bbInit(); game.fields.forEach(f => { if (f.remote) f.spawn(); else f.phase = 'bbwait'; }); }   // 빅뱅: 첫 라운드에 퍼즐이 깔림
   else game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 2000; bgmPlay('game'); game.introGo = false; overlay.classList.add('hidden'); sfx.ready();
