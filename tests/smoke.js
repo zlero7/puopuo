@@ -15,7 +15,7 @@ window.__sim = (cfg) => {
   stats.board = cfg.board || 'wide'; stats.players = cfg.players || 2;
   stats.rule = cfg.rule || 'tsu';
   game.diff = cfg.diff == null ? 2 : cfg.diff; game.soloMode = cfg.solo || 'endless';
-  start(cfg.mode);
+  if (cfg.adv) advPlay(cfg.adv[1], true, cfg.adv[0]); else start(cfg.mode);
   if (cfg.pre) eval(cfg.pre);
   for (const f of game.fields) {          // 사람 자리도 CPU로 바꿔 자동 진행
     if (!f.human) continue;

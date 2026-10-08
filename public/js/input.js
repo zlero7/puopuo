@@ -5,6 +5,7 @@
 function human() { return game.state === 'play' ? game.fields.find(f => f.human && !(f.pi > 0)) || null : null; }
 window.addEventListener('keydown', e => {
   const k = e.key;
+  if (dlgOpen()) { dlgKey(e); return; }             // 어드벤처 대화창
   if (game.state === 'menu') { menuKey(e); return; }
   if (!overlay.classList.contains('hidden')) {           // 일시정지·결과 창
     if (k === ' ' || (k === 'Enter' && performance.now() - game.ovAt < 600)) { e.preventDefault(); return; }
@@ -61,12 +62,17 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => { for (const i of game.inp) i.left = i.right = i.down = false; if (game.state === 'play' && !game.net) openPause(); });
 window.addEventListener('resize', fit);
-$('bRetry').addEventListener('click', () => { if (game.mode === 'replay') { startReplay(game.replay.data); return; } game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle, ops: game.cpuStyles }, BOARD, game.rule); });
+$('bRetry').addEventListener('click', () => {
+  if (game.adv && game.ovKind === 'adv') { if (game.advResult > 0) advNext(); else advPlay(game.adv.s, true, game.adv.c); return; }
+  if (game.adv && game.ovKind === 'pause') { advPlay(game.adv.s, true, game.adv.c); return; }
+  if (game.mode === 'replay') { startReplay(game.replay.data); return; } game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle, ops: game.cpuStyles }, BOARD, game.rule); });
 $('bResume').addEventListener('click', resume);
+$('dlg').addEventListener('click', () => dlgNext());
 $('bForfeit').addEventListener('click', forfeit);
 $('bMenu').addEventListener('click', () => {
   if (game.net) { nsend({ t: 'leave' }); game.net = false; }
   if (game.mode === 'replay') { game.replay = null; openMenu('stats'); return; }
+  if (game.adv) { advToMenu(game.ovKind === 'adv' && game.advResult > 0); return; }
   if (game.mode === 'solo' && game.myStyle === 'tetris') { openMenu('solo', 't-' + (game.soloMode || 'endless')); return; }
   if (game.mode === 'solo') { openMenu('psolo', 't-p' + (game.soloMode || 'endless')); return; }
   if (game.mode === 'local') { openMenu('vs', 't-local'); return; }

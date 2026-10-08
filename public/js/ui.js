@@ -73,6 +73,7 @@ function showScreen(id, focusId) {
   cur = id; $('bandTitle').textContent = TITLES[id];
   renderRecords();
   if (id === 'stats') renderStats();
+  if (id === 'adv') { renderAdv(); focusId = focusId || 'adv-0'; }
   if (id === 'chars') { renderChars(); focusId = focusId || 'ch-' + (stats.char || 'lumi'); }
   if (id === 'vs') showLan();
   setHints('menu');
@@ -91,6 +92,7 @@ function openMenu(id = 'main', focusId) {
 function showGame() {
   document.body.classList.add('ingame');
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
+  if (game.adv) { $('bandTitle').textContent = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1}`; setHints('game'); fit(); return; }
   const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
   $('bandTitle').textContent = (game.mode === 'replay' ? '리플레이' : game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : game.soloMode === 'efever' ? '엔드리스 피버' : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전') + rl;
   setHints('game'); fit();
@@ -125,6 +127,8 @@ function act(a) {
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
   else if (k === 'rtab') { recTab = v; renderStats(); }
+  else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
+  else if (k === 'adv') advPlay(+v);
   else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); }
   else if (k === 'rule') { stats = loadStats(); stats.rule = v; saveStats(); renderStyle(); }
   else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
@@ -233,6 +237,10 @@ function drawArts() {
     } else if (kind === 'chars') {
       const ids = [stats.char || 'lumi', ...CHARS.map(c => c.id).filter(i => i !== (stats.char || 'lumi'))].slice(0, 3);
       [1, 2, 0].forEach(i => drawChar(x, ids[i], w * (0.5 + (i === 0 ? 0 : i === 1 ? -0.3 : 0.3)), h * (i ? 0.58 : 0.5), Math.min(w * 0.36, h * (i ? 0.7 : 0.9)), 'happy'));   // 가운데(내 캐릭터)를 맨 위에
+    } else if (kind === 'adv') {
+      const ids = ['toto', 'lumi', 'kuro'];
+      x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(0, h * 0.62, w, h * 0.38);
+      [0, 2, 1].forEach(i => drawChar(x, ids[i], w * (0.2 + i * 0.3), h * (i === 1 ? 0.48 : 0.56), Math.min(w * 0.3, h * (i === 1 ? 0.85 : 0.7)), 'happy'));
     } else if (kind === 'stats') {
       x.fillStyle = '#f4f2fb'; x.fillRect(0, 0, w, h);
       const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0'];

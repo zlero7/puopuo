@@ -105,7 +105,7 @@ const AI_TETRIS = [
 // 판 배치: 내 판 · 가운데 패널 · 상대 판들(3~4인이면 오른쪽으로 이어 붙이고 화면 전체를 줄여서 맞춤)
 const slotX = i => i === 0 ? OX1 : OX2 + (i - 1) * (SW + 20);
 const PLAYER_TONES = [TONES.red, TONES.blue, TONES.green, TONES.orange];
-const playersOf = mode => mode === 'vs' || mode === 'local' ? Math.max(2, Math.min(4, stats.players || 2)) : mode === 'solo' ? 1 : game.netN || 2;
+const playersOf = mode => mode === 'vs' && game.adv ? game.adv.st.players || 2 : mode === 'vs' || mode === 'local' ? Math.max(2, Math.min(4, stats.players || 2)) : mode === 'solo' ? 1 : game.netN || 2;
 const AI_FUSION = [                     // 퓨전 CPU — noise: 평가 흔들림 · miss: 실수 확률 · atk: 공격 배율
   { delay: 420, noise: 6,   miss: 0.2,  atk: 0.4 },
   { delay: 220, noise: 2,   miss: 0.06, atk: 0.6 },
@@ -154,6 +154,8 @@ function pickTarget(f, kind) {
   return alive.reduce((a, b) => (b.score > a.score ? b : a));
 }
 function start(mode, seed, styles, board, rule) {
+  if (!game.advGo && !(game.keepSeries && game.adv)) { game.adv = null; game.cpuChars = null; }   // 어드벤처가 아니면 정리
+  game.advGo = false;
   audio(); game.net = mode === 'online'; game.oppLeft = false;
   applyBoard(board || stats.board || 'wide');
   game.rule = mode === 'solo' ? (game.soloMode === 'efever' ? 'fever' : 'tsu') : RULES[rule] ? rule : RULES[stats.rule] ? stats.rule : 'tsu';
@@ -164,7 +166,7 @@ function start(mode, seed, styles, board, rule) {
   game.cpuStyles = styles && styles.ops ? styles.ops : [cpuSt(), cpuSt()];      // 3~4인일 때 나머지 CPU
   game.startArgs = [mode, null, styles, board, rule];
   if ((mode === 'vs' || mode === 'local') && playersOf(mode) > 2) game.series = null;      // 3~4인은 한 판 승부
-  else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
+  else if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: game.adv ? game.adv.st.ft || 1 : stats.firstTo || 2 }; }
   else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
@@ -183,4 +185,4 @@ function start(mode, seed, styles, board, rule) {
 }
 const $ = id => document.getElementById(id);
 const DIFF = ['쉬움', '보통', '어려움'];
-const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습', chars: '캐릭터' };
+const TITLES = { main: '메인 메뉴', ai: 'AI 대전', vs: '대전', stats: '내 정보', solo: '테트리스 연습', psolo: '뿌요뿌요 연습', chars: '캐릭터', adv: '어드벤처' };

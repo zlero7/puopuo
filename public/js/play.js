@@ -2,12 +2,12 @@
 'use strict';
 
 /* ================= 결과 창 ================= */
-const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit | replay
+const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit | replay | adv
   game.ovKind = kind;
-  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next', 'replay'], bRematch: ['online'], bLeave: ['online'], bMenu: ['offline', 'menu', 'pause', 'next', 'replay'], bForfeit: ['forfeit'] };
+  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next', 'replay', 'adv'], bRematch: ['online'], bLeave: ['online'], bMenu: ['offline', 'menu', 'pause', 'next', 'replay', 'adv'], bForfeit: ['forfeit'] };
   for (const [id, ks] of Object.entries(show)) $(id).classList.toggle('hidden', !ks.includes(kind));
   $('bRetry').textContent = kind === 'pause' ? '처음부터' : kind === 'replay' ? '다시 보기' : '다시 하기';
-  $('bMenu').textContent = kind === 'pause' ? '메뉴로 나가기' : '메뉴로';
+  $('bMenu').textContent = kind === 'pause' ? '메뉴로 나가기' : game.adv ? '어드벤처로' : '메뉴로';
 };
 // Esc / P: 일시정지 창(연습·AI 대전) 또는 기권 확인(온라인 — 게임은 멈추지 않음)
 function openPause() {
@@ -207,6 +207,13 @@ function update(dt) {
           (many ? ` · ${game.fields.length}인 대전` : ` · ${STYLE_KO[me.kind]} vs ${STYLE_KO[game.fields[1].kind]}`);
         if (many) chips[3] = ['순위', `${me.place || 1}위 / ${game.fields.length}명`];
         const sr = game.series, done = sr && sr.to > 1 && (sr.me >= sr.to || sr.op >= sr.to), mid = sr && sr.to > 1 && !done;
+        if (game.adv && !mid) {                  // 어드벤처: 별 저장 후 다음 스테이지 / 다시 도전
+          const st = game.advResult = advFinish(), last = game.adv.c === ADV.length - 1 && game.adv.s === ADV[game.adv.c].stages.length - 1;
+          showResult(st > 0 ? 'yellow' : 'blue', st > 0 ? `스테이지 클리어! ${'★'.repeat(st)}${'☆'.repeat(3 - st)}` : '패배…',
+            `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1} · ★ 클리어 / ${me.kind === 'tetris' ? 'REN' : '연쇄'} ${game.adv.st.chain} 이상 / ${Math.round(game.adv.st.time / 1000)}초 안에`, chips, 'adv');
+          $('bRetry').textContent = st > 0 ? (last ? '엔딩 보기' : '다음 스테이지') : '다시 도전';
+          return;
+        }
         const winner = game.fields.find(f => f.won);
         const title = local && many ? `${winner ? winner.name : ''} 승리!`
           : local ? `${done ? '최종 ' : ''}${(done ? sr.me > sr.op : me.won) ? '1P' : '2P'} 승리!`

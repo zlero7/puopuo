@@ -54,4 +54,8 @@ module.exports = [
     probe: 'game.fields.map(f => ({ k: f.kind, lines: f.lines, pops: f.pops, sent: f.sent, mc: f.maxChain }))', expect: r => r.state === 'over' && r.kinds.every(k => k === 'fusion') && r.extra.some(f => f.lines > 0) },
   { name: '퓨전 4인', mode: 'vs', my: 'puyo', op: 'puyo', players: 4, rule: 'fusion', steps: 80000, expect: r => r.state === 'over' },
   { name: '퓨전 리플레이', mode: 'vs', my: 'puyo', op: 'puyo', rule: 'fusion', steps: 60000, replay: true, expect: r => r.same },
+  { name: '어드벤처 1-1', adv: [0, 0], my: 'puyo', op: 'puyo', steps: 40000,
+    probe: '({ adv: stats.adv, title: $("bandTitle").textContent, hist: stats.history[0].m })', expect: r => r.state === 'over' && /어드벤처 1-1/.test(r.extra.hist) },
+  { name: '어드벤처 4-3 파티 3인', adv: [3, 2], my: 'puyo', op: 'puyo', steps: 12000, expect: r => r.state === 'over' && r.kinds.length === 3 },
+  { name: '어드벤처 5-3 최종(2선승)', adv: [4, 2], my: 'puyo', op: 'puyo', steps: 40000, probe: 'game.series', expect: r => r.state === 'over' && r.extra.to === 2 },
 ];

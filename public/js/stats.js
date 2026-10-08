@@ -47,6 +47,7 @@ function recordGame() {
     r = 'p'; mode = `연습 · ${STYLE_KO[me.kind]}${isT ? ' ' + SOLO_KO[sm] : sm === 'efever' ? ' 엔드리스 피버' : ''}`;
   }
   else if (game.mode === 'local') { r = me.won ? 'w' : 'l'; mode = `로컬 대전 · ${STYLE_KO[me.kind]}${opLab}`; }
+  else if (game.mode === 'vs' && game.adv) { r = me.won ? 'w' : 'l'; mode = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1} · ${STYLE_KO[me.kind]}${opLab}`; }
   else if (game.mode === 'vs') { const a = stats.ai[game.diff]; me.won ? a.w++ : a.l++; r = me.won ? 'w' : 'l'; mode = `AI ${DIFF[game.diff]} · ${STYLE_KO[me.kind]}${opLab}`; }
   else { me.won ? stats.online.w++ : stats.online.l++; r = me.won ? 'w' : 'l'; mode = `대전 · ${many ? `${game.fields.length}인` : game.fields[1].name} · ${STYLE_KO[me.kind]}${opLab}`; }
   if (BOARD !== 'wide' && !isT) mode += ` · ${BOARDS[BOARD].ko}`;
@@ -112,4 +113,6 @@ function renderRecords() {
   $('recPEfever').textContent = pr.fBest ? `최고 ${pr.fBest.toLocaleString()}점 · ${pr.fChain || 0}연쇄` : '기록 없음';
   $('recOnline').textContent = `${stats.online.w}승 ${stats.online.l}패`;
   $('mainRec').textContent = `${stats.games}판 플레이`;
+  const advSt = Object.values(stats.adv || {}).reduce((a, b) => a + b, 0);
+  $('advRec').textContent = advSt ? `★ ${advSt}` : '처음부터';
 }
