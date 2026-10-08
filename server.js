@@ -54,7 +54,8 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 const rooms = new Map();      // code -> { code, players: [ws, ws], ready: [bool, bool] }
-let quickWaiting = null;      // 빠른 매칭 대기자
+const quickWaiting = new Map(); // 판 크기별 빠른 매칭 대기자
+const BOARD_KEYS = ['wide', 'classic'];
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newCode() {
@@ -69,12 +70,13 @@ function startRoom(room) {
   room.ready = [false, false];
   const seed = Math.floor(Math.random() * 2 ** 32);
   const styles = room.players.map(p => p.style || 'puyo');        // 각자 고른 스타일(뿌요뿌요/테트리스)
-  room.players.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles }));
+  const board = room.board || 'wide';                              // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
+  room.players.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board }));
 }
 
 // 방을 떠나면 방을 없애고 남은 사람에게 알린다
 function leave(ws) {
-  if (quickWaiting === ws) quickWaiting = null;
+  for (const [k, w] of quickWaiting) if (w === ws) quickWaiting.delete(k);
   const room = ws.room;
   if (!room) return;
   rooms.delete(room.code);
@@ -93,11 +95,12 @@ wss.on('connection', ws => {
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
     if (m.style === 'puyo' || m.style === 'tetris') ws.style = m.style;
+    if (BOARD_KEYS.includes(m.board)) ws.board = m.board;
 
     switch (m.t) {
       case 'create': {
         leave(ws);
-        const room = { code: newCode(), players: [ws], ready: [false, false] };
+        const room = { code: newCode(), players: [ws], ready: [false, false], board: ws.board };
         rooms.set(room.code, room); ws.room = room;
         send(ws, { t: 'created', code: room.code });
         break;
@@ -114,13 +117,14 @@ wss.on('connection', ws => {
       }
       case 'quick': {
         leave(ws);
-        if (quickWaiting && quickWaiting !== ws && quickWaiting.readyState === 1) {
-          const room = { code: newCode(), players: [quickWaiting, ws], ready: [false, false] };
+        const bk = ws.board || 'wide', other = quickWaiting.get(bk);
+        if (other && other !== ws && other.readyState === 1) {
+          const room = { code: newCode(), players: [other, ws], ready: [false, false], board: bk };
           rooms.set(room.code, room);
-          quickWaiting.room = room; ws.room = room; quickWaiting = null;
+          other.room = room; ws.room = room; quickWaiting.delete(bk);
           startRoom(room);
         } else {
-          quickWaiting = ws;
+          quickWaiting.set(bk, ws);
           send(ws, { t: 'waiting' });
         }
         break;

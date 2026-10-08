@@ -61,7 +61,7 @@ CASES.push(...extra);
       await page.goto(`http://127.0.0.1:${PORT}/`);
       await page.evaluate(SIM);
       let res = null;
-      try { res = await page.evaluate(cfg => window.__sim(cfg), c); } catch (e) { errs.push(e.message); }
+      try { const { expect, ...cfg } = c; res = await page.evaluate(cfg => window.__sim(cfg), cfg); } catch (e) { errs.push(e.message); }
       const bad = errs.length || !res || (c.expect && !c.expect(res));
       if (bad) fail++;
       console.log(`${bad ? '✗' : '✓'} ${c.name}  ${res ? JSON.stringify(res) : ''}`);

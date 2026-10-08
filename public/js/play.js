@@ -45,7 +45,7 @@ const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const
 // 공격 구슬: 연쇄 위치에서 출발해 크게 호를 그리며 상대 방해뿌요 칸으로 날아감(상쇄는 내 칸으로 짧게)
 game.launch = (from, to, n, x, y, kind, ch) => {
   const col = kind === 'offset' ? '#8fd0ff' : CH_COL[Math.max(0, (ch == null ? from.chain : ch) - 1) % CH_COL.length];
-  const tx = to.ox + FW / 2, ty = to.oy - 32;
+  const tx = to.ox + to.fw / 2, ty = to.oy - 32;
   game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind === 'attack' ? 720 : 420, n, to, kind, col,
     size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind === 'attack' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
   ring(x, y, col, 8, 46, 320, 6); burst(x, y, col, 10, 0.25);
@@ -121,7 +121,7 @@ function update(dt) {
     const lv = marginLv();
     if (lv > (game.marginLv || 0)) {
       game.marginLv = lv; sfx.margin();
-      for (const f of game.fields) f.texts.push({ txt: lv === 1 ? '마진 타임!' : '공격력 UP!', x: FW / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#ff9a3d', size: 34 });
+      for (const f of game.fields) f.texts.push({ txt: lv === 1 ? '마진 타임!' : '공격력 UP!', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#ff9a3d', size: 34 });
     }
   }
   for (const f of game.fields) f.update(dt, active);
@@ -277,10 +277,10 @@ function drawIntro(t) {
   ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(0, 0, W, CANVAS_H);
   if (!go) {
     for (const f of game.fields) {
-      const cx = f.ox + FW / 2, cy = OY + FH * 0.36, tone = f.tone || TONES.red;
+      const cx = f.ox + f.fw / 2, cy = OY + FH * 0.36, tone = f.tone || TONES.red;
       const e = Math.min(1, (2000 - k) / 260), off = (1 - e) * (f.ox < W / 2 ? -80 : 80);
       ctx.save(); ctx.translate(cx + off, cy); ctx.rotate(-0.05); ctx.globalAlpha = e;
-      slab(ctx, -FW / 2 - 6, -54, FW + 12, 108, tone, 6);
+      slab(ctx, -f.fw / 2 - 6, -54, f.fw + 12, 108, tone, 6);
       outlined(ctx, f.name, 0, -18, 26, '#fff', tone.d, 7);
       outlined(ctx, STYLE_KO[f.kind], 0, 22, 34, '#ffe066', tone.d, 8);
       ctx.restore();

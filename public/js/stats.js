@@ -45,6 +45,7 @@ function recordGame() {
   else if (game.mode === 'local') { r = me.won ? 'w' : 'l'; mode = `로컬 대전 · ${STYLE_KO[me.kind]}${opLab}`; }
   else if (game.mode === 'vs') { const a = stats.ai[game.diff]; me.won ? a.w++ : a.l++; r = me.won ? 'w' : 'l'; mode = `AI ${DIFF[game.diff]} · ${STYLE_KO[me.kind]}${opLab}`; }
   else { me.won ? stats.online.w++ : stats.online.l++; r = me.won ? 'w' : 'l'; mode = `대전 · ${game.fields[1].name} · ${STYLE_KO[me.kind]}${opLab}`; }
+  if (BOARD !== 'wide' && !isT) mode += ` · ${BOARDS[BOARD].ko}`;
   stats.history.unshift({ d: Date.now(), m: mode, r, sc: me.score, ch: me.maxChain, k: isT ? 't' : 'p' });
   stats.history = stats.history.slice(0, 12);
   saveStats();

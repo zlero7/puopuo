@@ -55,7 +55,7 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => { for (const i of game.inp) i.left = i.right = i.down = false; if (game.state === 'play' && !game.net) openPause(); });
 window.addEventListener('resize', fit);
-$('bRetry').addEventListener('click', () => { game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle }); });
+$('bRetry').addEventListener('click', () => { game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle }, BOARD); });
 $('bResume').addEventListener('click', resume);
 $('bForfeit').addEventListener('click', forfeit);
 $('bMenu').addEventListener('click', () => {

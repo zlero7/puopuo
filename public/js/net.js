@@ -33,7 +33,7 @@ function onNet(m) {
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
-      start('online', m.seed, { me: m.styles[m.you], op: m.styles[1 - m.you] }); break;
+      start('online', m.seed, { me: m.styles[m.you], op: m.styles[1 - m.you] }, m.board); break;
     case 'oppReady': $('ovSub').textContent = '상대가 다시 하기를 눌렀습니다.'; break;
     case 'left':
       game.oppLeft = true; game.resetOnline = true;

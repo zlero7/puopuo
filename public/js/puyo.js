@@ -219,7 +219,9 @@ function trayIcon(c, k, x, y, r) {
 
 /* ================= 필드 ================= */
 class Field {
-  constructor(ox, oy, human, name) { this.kind = 'puyo'; this.ox = ox; this.oy = oy; this.human = human; this.name = name; this.opp = null; this.ai = { delay: 170, noise: 400, pot: 0.6, miss: 0.12, greedy: 0, atk: 0.6, soft: true }; this.reset(); }
+  constructor(ox, oy, human, name) { this.kind = 'puyo'; this.sx = ox; this.ox = ox + (SW - FW) / 2; this.oy = oy; this.human = human; this.name = name; this.opp = null; this.ai = { delay: 170, noise: 400, pot: 0.6, miss: 0.12, greedy: 0, atk: 0.6, soft: true }; this.reset(); }
+
+  get fw() { return FW; }
 
   reset() {
     this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));

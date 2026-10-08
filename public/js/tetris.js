@@ -10,7 +10,7 @@
    - 뿌요의 공격을 테트리스가 받을 때: 연쇄 한 단계 점수가 210·630·1050·1710·3500·7000·14000점에 닿을 때마다 1~7줄,
      연쇄가 끝나면 한 번에 아래에서 구멍 한 칸짜리 줄로 올라옴(한 번에 최대 7줄) */
 const TW = 10, TH = 22, TVIS = 20, TC = 28;
-const TGX = (FW - TW * TC) / 2, TGY = FH - TVIS * TC;
+const TGX = (SW - TW * TC) / 2, TGY = FH - TVIS * TC;
 const TKEYS = ['', 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'G'];
 const TCOL = { I: '#22cfee', O: '#ffd22e', T: '#b35af0', S: '#46d457', Z: '#ff4658', J: '#2f68f0', L: '#ff9324', G: '#a9a6bd' };
 const TSHAPE = { I: ['....', 'XXXX', '....', '....'], O: ['XX', 'XX'], T: ['.X.', 'XXX', '...'], S: ['.XX', 'XX.', '...'],
@@ -82,6 +82,8 @@ class TField {
     this.reset();
   }
   get chain() { return this.ren; }
+  get fw() { return SW; }
+  get sx() { return this.ox; }
   reset() {
     this.grid = Array.from({ length: TH }, () => Array(TW).fill(0));
     this.idx = 0; this.holdK = null; this.canHold = true; this.cur = null;
@@ -225,7 +227,7 @@ class TField {
       if (rows.length === 4) this.chains2++; if (ts) this.doubles++; if (pc) this.allClears++;
       this.showLockFx(this.lockFx(rows.length, ts, pc, false));
       const cy = TGY + (rows.reduce((a, r) => a + r, 0) / rows.length - (TH - TVIS) + 0.5) * TC;
-      this.deliver(amt, this.ox + FW / 2, this.oy + cy);
+      this.deliver(amt, this.ox + SW / 2, this.oy + cy);
       this.clearRows = rows; this.clearT = 0; this.phase = 'clear';
       sfx.tclear(rows.length, ts);
     } else {
@@ -246,7 +248,7 @@ class TField {
   }
   showLockFx(fx) {
     let y = FH * 0.42;
-    const push = (txt, col, size) => { this.texts.push({ txt, x: FW / 2, y, age: 0, dur: 1300, col, size }); y += size + 6; };
+    const push = (txt, col, size) => { this.texts.push({ txt, x: SW / 2, y, age: 0, dur: 1300, col, size }); y += size + 6; };
     if (fx.pc) push('퍼펙트 클리어!', '#ffd93d', 34);
     for (const l of fx.labs) push(l, l.startsWith('T') ? '#d8a6ff' : '#7ff0ff', 32);
     if (fx.b2b) push('백투백', '#ffb347', 24);
@@ -392,7 +394,7 @@ class TField {
     c.save();
     const GW = TW * TC, gx = this.ox + TGX;
     slab(c, gx + 4, 2, GW - 8, 32, tone, 4);
-    outlined(c, this.name, this.ox + FW / 2, 19, 20, '#fff', tone.d, 6);
+    outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6);
     const sy = this.oy + FH + 16;
     slab(c, gx - 8, sy, GW + 16, 50, TONES.white, 4);
     c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#6d6b80'; c.font = '15px ' + FONT();
@@ -460,7 +462,7 @@ class TField {
     if (this.dead || this.won) {
       c.fillStyle = 'rgba(20,16,50,0.45)'; c.fillRect(TGX, 0, GW, FH);
       const bt = this.won ? TONES.yellow : game.vs ? TONES.blue : TONES.green;
-      c.save(); c.translate(FW / 2, FH / 2); c.rotate(-0.06);
+      c.save(); c.translate(SW / 2, FH / 2); c.rotate(-0.06);
       slab(c, -GW / 2 - 20, -42, GW + 40, 84, bt, 6);
       outlined(c, this.won ? '승리!' : game.vs ? '패배' : '게임 오버', 0, 2, 50, '#fff', bt.d, 9);
       c.restore();

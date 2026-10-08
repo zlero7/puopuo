@@ -105,7 +105,7 @@ const AI_TETRIS = [
 function build(mode) {
   const vs = mode !== 'solo';
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? OX2 + FW + 20 : OX1 + FW + PANEL_W);
+  setSize(vs ? OX2 + SW + 20 : OX1 + SW + PANEL_W);
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
   f1.tone = vs ? TONES.red : TONES.green;
@@ -124,12 +124,13 @@ function build(mode) {
   }
   game.fields.push(f2);
 }
-function start(mode, seed, styles) {
+function start(mode, seed, styles, board) {
   audio(); game.net = mode === 'online'; game.oppLeft = false;
+  applyBoard(board || stats.board || 'wide');
   game.myStyle = styles ? styles.me : stats.style || 'puyo';
   const cs = stats.cpuStyle || 'puyo';
   game.oppStyle = styles ? styles.op : mode === 'local' ? stats.p2Style || 'puyo' : cs === 'random' ? (Math.random() < 0.5 ? 'puyo' : 'tetris') : cs;
-  game.startArgs = [mode, null, styles];
+  game.startArgs = [mode, null, styles, board];
   if (mode === 'vs' || mode === 'local') { if (!game.keepSeries || !game.series) game.series = { me: 0, op: 0, to: stats.firstTo || 2 }; }
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;

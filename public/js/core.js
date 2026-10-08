@@ -2,11 +2,24 @@
 'use strict';
 
 /* ================= 상수 ================= */
-const COLS = 8, VIS = 14, ROWS = VIS + 1, CS = 40;   // 맨 위 1줄은 숨김 줄
-const SP = Math.floor((COLS - 1) / 2);              // 등장·사망 칸(✕) 열
-const FW = COLS * CS, FH = VIS * CS;
-const OX1 = 20, OY = 84, PANEL_W = 160, PX = OX1 + FW + PANEL_W / 2, OX2 = OX1 + FW + PANEL_W;
-const R = CS * 0.46, BW = R * 1.5;
+// 판 크기 — 한 판(대전) 안의 뿌요 판은 모두 같은 크기. applyBoard() 로 바꿈
+// 화면에서 판이 차지하는 칸(SW×FH)은 고정이고, 뿌요 격자(FW×FH)는 그 안에 가운데 정렬
+const BOARDS = {
+  wide:    { cols: 8,  vis: 14, ko: '넓게 8×14' },
+  classic: { cols: 6,  vis: 12, ko: '원작 6×12' },
+};
+const SW = 320, FH = 560;                        // 판 한 칸의 폭(테트리스 판 폭) · 높이
+let BOARD = 'wide', COLS, VIS, ROWS, CS, SP, FW, R, BW;
+function applyBoard(key) {
+  const b = BOARDS[key] || BOARDS.wide;
+  BOARD = BOARDS[key] ? key : 'wide';
+  COLS = b.cols; VIS = b.vis; ROWS = VIS + 1;    // 맨 위 1줄은 숨김 줄
+  CS = FH / VIS; FW = COLS * CS;
+  SP = Math.floor((COLS - 1) / 2);               // 등장·사망 칸(✕) 열
+  R = CS * 0.46; BW = R * 1.5;
+}
+applyBoard('wide');
+const OX1 = 20, OY = 84, PANEL_W = 160, PX = OX1 + SW + PANEL_W / 2, OX2 = OX1 + SW + PANEL_W;
 const OJ = 6;                                   // 방해뿌요
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];   // 위 오른 아래 왼
 const PAL = [null,
