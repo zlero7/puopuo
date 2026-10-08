@@ -31,6 +31,16 @@ window.__sim = (cfg) => {
     if (game.state === 'over' && game.recorded) break;
   }
   render(t);
+  if (cfg.replay) {
+    const orig = game.fields.map(f => ({ score: f.score, dead: f.dead, grid: f.encode() }));
+    const rp = findReplay(stats.history[0].rp) || null;
+    if (!rp) return { state: 'no-replay' };
+    startReplay(JSON.parse(JSON.stringify(rp)));
+    let k = 0; while (k++ < 60000 && !(game.state === 'over' && game.overT > 2000)) { t += 16; update(16); if (k % 50 === 0) render(t); }
+    render(t);
+    const now = game.fields.map(f => ({ score: f.score, dead: f.dead, grid: f.encode() }));
+    return { state: game.state, steps: k, events: rp.ev.length, size: JSON.stringify(rp).length, same: JSON.stringify(orig) === JSON.stringify(now), orig, now };
+  }
   return { state: game.state, steps, kinds: game.fields.map(f => f.kind), dead: game.fields.map(f => f.dead),
     scores: game.fields.map(f => f.score), maxChain: game.fields.map(f => f.maxChain), extra: cfg.probe ? eval(cfg.probe) : null };
 };`;

@@ -2,11 +2,11 @@
 'use strict';
 
 /* ================= 결과 창 ================= */
-const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit
+const overlayBtns = kind => {           // offline | next | online | menu | pause | forfeit | replay
   game.ovKind = kind;
-  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next'], bRematch: ['online'], bLeave: ['online'], bMenu: ['offline', 'menu', 'pause', 'next'], bForfeit: ['forfeit'] };
+  const show = { bResume: ['pause', 'forfeit'], bRetry: ['offline', 'pause', 'next', 'replay'], bRematch: ['online'], bLeave: ['online'], bMenu: ['offline', 'menu', 'pause', 'next', 'replay'], bForfeit: ['forfeit'] };
   for (const [id, ks] of Object.entries(show)) $(id).classList.toggle('hidden', !ks.includes(kind));
-  $('bRetry').textContent = kind === 'pause' ? '처음부터' : '다시 하기';
+  $('bRetry').textContent = kind === 'pause' ? '처음부터' : kind === 'replay' ? '다시 보기' : '다시 하기';
   $('bMenu').textContent = kind === 'pause' ? '메뉴로 나가기' : '메뉴로';
 };
 // Esc / P: 일시정지 창(연습·AI 대전) 또는 기권 확인(온라인 — 게임은 멈추지 않음)
@@ -14,7 +14,7 @@ function openPause() {
   if (game.state !== 'play' || !overlay.classList.contains('hidden')) return;
   if (game.net) { showResult('purple', '대전 중', '지금 나가면 패배로 기록돼요. 게임은 계속 진행 중이에요.', [], 'forfeit'); return; }
   game.state = 'pause';
-  showResult('purple', '일시정지', game.mode === 'solo' ? '연습' : `AI 대전 · ${DIFF[game.diff]}`, [], 'pause');
+  showResult('purple', '일시정지', game.mode === 'replay' ? '리플레이' : game.mode === 'solo' ? '연습' : game.mode === 'local' ? '로컬 대전' : `AI 대전 · ${DIFF[game.diff]}`, [], 'pause');
 }
 function resume() {
   overlay.classList.add('hidden');
@@ -110,13 +110,26 @@ function togglePause() {
   if (game.state === 'play') game.state = 'pause'; else if (game.state === 'pause') game.state = 'play';
 }
 
+function stateOf(f) {
+  if (f.kind === 'tetris') {
+    const q = f.phase === 'drop' && f.cur ? { k: f.cur.k, x: f.cur.x, y: f.cur.y, r: f.cur.r } : null;
+    return { t: 'st', n: f.idx, pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain };
+  }
+  const p = f.piece; let pc = null;
+  if (p && f.phase === 'drop') {
+    const cf = f.fits({ ...p, y: p.y + 1 });
+    pc = { x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, p: cf ? Math.round(Math.min(1, f.acc / (f.soft ? 35 : f.fallIv())) * 100) / 100 : 0 };
+  }
+  return { t: 'st', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
+}
 function update(dt) {
   if (game.state === 'intro') {
     game.introT -= dt;
     if (!game.introGo && game.introT <= 650) { game.introGo = true; sfx.go(); }
-    if (game.introT <= 0) { game.state = 'play'; game.t0 = performance.now(); }
+    if (game.introT <= 0) { game.state = 'play'; game.t0 = performance.now(); game.el = 0; }
   }
   const active = game.state === 'play';
+  if (active) game.el += dt;                // 게임 진행 시간(일시정지·인트로 제외). 시간 규칙은 모두 이 값을 씀
   if (active && game.vs) {
     const lv = marginLv();
     if (lv > (game.marginLv || 0)) {
@@ -124,22 +137,17 @@ function update(dt) {
       for (const f of game.fields) f.texts.push({ txt: lv === 1 ? '마진 타임!' : '공격력 UP!', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 1500, col: '#ff9a3d', size: 34 });
     }
   }
+  if (active && game.mode === 'replay') replayTick();
   for (const f of game.fields) f.update(dt, active);
   updateFx(dt);
-  if (active && game.net) {
+  if (active && (game.net || game.rec)) {         // 상태(조각 위치·점수 등): 온라인 전송 + 녹화, 초당 20번
     game.stT += dt;
     if (game.stT >= 50) {
       game.stT = 0;
-      const f = game.fields[0], p = f.piece; let pc = null;
-      if (f.kind === 'tetris') {
-        const q = f.phase === 'drop' && f.cur ? { k: f.cur.k, x: f.cur.x, y: f.cur.y, r: f.cur.r } : null;
-        gsend({ t: 'st', pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain });
-      } else {
-        if (p && f.phase === 'drop') {
-          const cf = f.fits({ ...p, y: p.y + 1 });
-          pc = { x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, p: cf ? Math.min(1, f.acc / (f.soft ? 35 : f.fallIv())) : 0 };
-        }
-        gsend({ t: 'st', n: f.idx, pc, pe: f.pending, sc: f.score, mc: f.maxChain });
+      for (const f of game.fields) if (!f.remote) {
+        const d = stateOf(f);
+        if (game.net && f === game.fields[0]) gsend(d);
+        recState(f, d);
       }
     }
   }
@@ -151,7 +159,7 @@ function update(dt) {
       game.state = 'over'; game.overT = 0;
       if (game.vs) {
         const w = dead.opp; w.won = true; w.piece = null; (dead.human ? sfx.lose : sfx.win)();
-        if (game.series) { if (w === game.fields[0]) game.series.me++; else game.series.op++; }
+        if (game.series && game.mode !== 'replay') { if (w === game.fields[0]) game.series.me++; else game.series.op++; }
       }
       else sfx.lose();
       recordGame();                          // 승패(won)가 정해진 뒤에 기록해야 함
@@ -164,11 +172,17 @@ function update(dt) {
       if (game.autoNextT <= 0) $('bRetry').click();
     }
     if (game.ovKind === 'forfeit' && !overlay.classList.contains('hidden')) overlay.classList.add('hidden');
-    if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded) {
+    if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && game.mode === 'replay') {
+      const rp = game.replay.data, f = game.fields, d = new Date(rp.d);
+      const who = f.length > 1 ? `${f[0].name} vs ${f[1].name}` : f[0].name;
+      const win = f.find(x => x.won);
+      showResult('purple', '리플레이 끝', `${d.getMonth() + 1}/${d.getDate()} 경기 · ${who}${win ? ` · ${win.name} 승리` : ''}`,
+        f.map(x => [x.name, `${x.score.toLocaleString()}점 · ${x.kind === 'tetris' ? `${x.maxChain} REN` : `${x.maxChain}연쇄`}`]), 'replay');
+    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded) {
       const me = game.fields[0], online = game.mode === 'online';
       const isT = me.kind === 'tetris';
       const chips = [['점수', me.score.toLocaleString()], isT ? ['최고 REN', `${me.maxChain} REN`] : ['최고 연쇄', `${me.maxChain}연쇄`],
-        [game.vs ? '보낸 공격' : isT ? '지운 줄' : '터뜨린 뿌요', game.vs ? me.sent : me.pops], ['플레이 시간', performance.now() - game.t0 < 60000 ? '1분 미만' : fmtTime(performance.now() - game.t0)]];
+        [game.vs ? '보낸 공격' : isT ? '지운 줄' : '터뜨린 뿌요', game.vs ? me.sent : me.pops], ['플레이 시간', game.el < 60000 ? '1분 미만' : fmtTime(game.el)]];
       if (game.vs) {
         const local = game.mode === 'local';
         const who = (online ? `${game.fields[1].name} 님과의 대전` : local ? '로컬 대전' : `AI ${DIFF[game.diff]}`) + ` · ${STYLE_KO[me.kind]} vs ${STYLE_KO[game.fields[1].kind]}`;
@@ -181,7 +195,7 @@ function update(dt) {
       } else {
         const sm = isT ? game.soloMode || 'endless' : 'endless', fin = me.done;
         const rec = !isT ? `뿌요뿌요 연습 최고 ${(stats.practice.best || 0).toLocaleString()}점`
-          : sm === 'sprint' ? (fin ? `기록 ${fmtClock(me.doneAt - game.t0)} · 최고 ${fmtClock(stats.tRec.sprint)}` : `40줄을 채우지 못했어요 · 최고 ${stats.tRec.sprint ? fmtClock(stats.tRec.sprint) : '-'}`)
+          : sm === 'sprint' ? (fin ? `기록 ${fmtClock(me.doneAt)} · 최고 ${fmtClock(stats.tRec.sprint)}` : `40줄을 채우지 못했어요 · 최고 ${stats.tRec.sprint ? fmtClock(stats.tRec.sprint) : '-'}`)
           : sm === 'endless' ? `테트리스 끝없이 최고 ${(stats.practice.tBest || 0).toLocaleString()}점`
           : `${SOLO_KO[sm]} 최고 ${(stats.tRec[sm] || 0).toLocaleString()}점`;
         const title = fin ? (sm === 'ultra' ? '시간 종료!' : '완주!') : '게임 오버';
@@ -258,7 +272,7 @@ function render(t) {
     slab(ctx, PX - 70, ly, 140, 62, TONES.green, 5);
     outlined(ctx, isT && sm !== 'endless' ? SOLO_KO[sm] : '레벨 ' + me.level, PX, ly + 32, isT && sm !== 'endless' ? 24 : 26, '#fff', TONES.green.d, 6);
     if (isT) {
-      const el = game.state === 'play' || game.state === 'over' || game.state === 'pause' ? (me.doneAt || performance.now()) - game.t0 : 0;
+      const el = game.state === 'play' || game.state === 'over' || game.state === 'pause' ? (me.doneAt || game.el) : 0;
       const lines = [
         sm === 'sprint' ? `남은 줄 ${Math.max(0, 40 - me.lines)}` : sm === 'marathon' ? `${me.lines} / 150줄` : `${me.lines}줄`,
         sm === 'ultra' ? `남은 시간 ${fmtClock(Math.max(0, 180000 - el))}` : sm === 'marathon' ? `레벨 ${me.level}` : fmtClock(el),
@@ -268,6 +282,7 @@ function render(t) {
   }
   ctx.restore();
   drawFx(ctx);
+  if (game.mode === 'replay') drawReplayHud(ctx);
   if (game.state === 'intro') drawIntro(t);
 }
 // 시작 연출: 각자 고른 스타일(뿌요뿌요/테트리스)과 VS, 준비→시작

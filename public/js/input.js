@@ -25,6 +25,12 @@ window.addEventListener('keydown', e => {
   if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(k)) e.preventDefault();
   if ((k === 'm' || k === 'M') && !e.repeat) { muted = !muted; applyVolume(); return; }
   const lk = k.toLowerCase();
+  if (game.mode === 'replay') {                         // 리플레이: ← → 배속, Esc 일시정지
+    if ((lk === 'escape' || lk === 'p') && !e.repeat) openPause();
+    else if (k === 'ArrowLeft' || k === 'ArrowDown') replaySpeed(-1);
+    else if (k === 'ArrowRight' || k === 'ArrowUp') replaySpeed(1);
+    return;
+  }
   if (game.mode === 'local') {
     if ((lk === 'escape' || lk === 'p') && !e.repeat) { openPause(); return; }
     for (let pi = 0; pi < 2; pi++) { const a = LOCAL_KEYS[pi][lk]; if (a) { e.preventDefault(); playerAction(pi, a, true, e.repeat); return; } }
@@ -55,11 +61,12 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => { for (const i of game.inp) i.left = i.right = i.down = false; if (game.state === 'play' && !game.net) openPause(); });
 window.addEventListener('resize', fit);
-$('bRetry').addEventListener('click', () => { game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle }, BOARD); });
+$('bRetry').addEventListener('click', () => { if (game.mode === 'replay') { startReplay(game.replay.data); return; } game.keepSeries = game.ovKind === 'next'; start(game.lastMode, null, game.lastMode === 'solo' ? null : { me: game.myStyle, op: game.oppStyle }, BOARD); });
 $('bResume').addEventListener('click', resume);
 $('bForfeit').addEventListener('click', forfeit);
 $('bMenu').addEventListener('click', () => {
   if (game.net) { nsend({ t: 'leave' }); game.net = false; }
+  if (game.mode === 'replay') { game.replay = null; openMenu('stats'); return; }
   if (game.mode === 'solo' && game.myStyle === 'tetris') { openMenu('solo', 't-' + (game.soloMode || 'endless')); return; }
   if (game.mode === 'local') { openMenu('vs', 't-local'); return; }
   openMenu(game.mode === 'online' ? 'vs' : 'ai', game.mode === 'solo' ? 't-solo' : game.mode === 'vs' ? ['t-easy', 't-normal', 't-hard'][game.diff] : 't-quick');

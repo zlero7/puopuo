@@ -198,10 +198,12 @@
   .hist { width: 100%; border-collapse: collapse; font-size: 15px; }
   .hist td { padding: 6px 6px; border-bottom: 1px dashed #dfe0e8; white-space: nowrap; }
   .hist td:first-child { color: var(--muted); }
+  .hist .rp { padding: 2px 9px; margin-left: 4px; font-size: 13px; }
   .res { display: inline-block; min-width: 44px; text-align: center; border-radius: 999px; padding: 1px 10px; color: #fff; }
   .res.w { background: #f2a900; } .res.l { background: #2f78f0; } .res.p { background: #2fb043; }
   .empty { color: var(--muted); padding: 10px 0; }
   .reset { position: absolute; top: 10px; right: 14px; }
+  #bLoadRp { right: 124px; }
 
 
   /* 탭(타일) 안에 표시되는 설명 */
@@ -480,7 +482,7 @@
           </div>
           <div class="chips big-chips" id="chips"></div>
         </div>
-        <div class="card"><h3>최근 경기</h3><button class="ghostbtn reset" id="bReset">기록 초기화</button><table class="hist" id="hist"></table></div>
+        <div class="card"><h3>최근 경기</h3><button class="ghostbtn reset" id="bReset">기록 초기화</button><button class="ghostbtn reset" id="bLoadRp" title="파일로 저장한 리플레이를 불러와서 봐">리플레이 불러오기</button><input type="file" id="rpFile" accept=".json,application/json" class="hidden"><table class="hist" id="hist"></table></div>
       </section>
     </div>
     <div class="mdesc" id="mDesc"></div>
@@ -528,6 +530,7 @@
 <script src="js/play.js"></script>
 <script src="js/input.js"></script>
 <script src="js/net.js"></script>
+<script src="js/replay.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

@@ -262,7 +262,7 @@ class Field {
   die() {
     if (this.dead) return;
     this.dead = true; this.phase = 'dead'; this.piece = null;
-    if (game.net && !this.remote) gsend({ t: 'dead' });
+    if (!this.remote) emit(this, { t: 'dead' });
   }
 
   /* ---------- 온라인: 상대 화면 재현 ----------
@@ -389,7 +389,7 @@ class Field {
 
   lock(off = 0, hard = false) {
     const p = this.piece, sx = p.x + DX[p.o], sy = p.y + DY[p.o];
-    if (game.net && !this.remote) gsend({ t: 'lock', n: this.idx, x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, h: hard ? 1 : 0, g: this.encode() });
+    if (!this.remote) emit(this, { t: 'lock', n: this.idx, x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, h: hard ? 1 : 0, g: this.encode() });
     const m = this.mk(p.a, p.y, p.x, p.y - off), s = this.mk(p.b, sy, sx, sy - off);
     if (hard) for (const q of [m, s]) { q.vy = 0.05; q.vmax = 0.09; q.hard = true; }
     this.grid[p.y][p.x] = m; this.grid[sy][sx] = s;
@@ -526,8 +526,8 @@ class Field {
     this.sent += n;
     const c = Math.min(this.pending, n);
     const rx = x - this.ox, ry = y - this.oy;
-    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); if (game.net) gsend({ t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
-    if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); if (game.net) gsend({ t: 'atk', n, x: rx, y: ry, ch: this.chain }); }
+    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
+    if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', n, x: rx, y: ry, ch: this.chain }); }
   }
 
   // 테트리스 상대: 연쇄 단계 점수(+이월)가 210·630·1050·1710·3500·7000·14000점에 닿으면 1~7줄.
@@ -541,7 +541,7 @@ class Field {
     if (this.pending > 0) {
       const before = this.pending, c = Math.min(this.pending, Math.max(1, units));
       this.pending -= c; game.launch(this, this, c, x, y, 'offset');
-      if (game.net) gsend({ t: 'off', n: c, x: x - this.ox, y: y - this.oy, ch: this.chain });
+      emit(this, { t: 'off', n: c, x: x - this.ox, y: y - this.oy, ch: this.chain });
       if (units <= before) lines = 0;
     }
     if (!this.human) { this.lineAtk += lines * this.ai.atk; lines = Math.floor(this.lineAtk); this.lineAtk -= lines; }
@@ -553,7 +553,7 @@ class Field {
       if (this.lineOut > 0 && game.vs) {
         const [x, y] = this.lastAtkXY || [this.ox + FW / 2, this.oy + FH / 2];
         game.launch(this, this.opp, this.lineOut, x, y, 'attack');
-        if (game.net) gsend({ t: 'atk', n: this.lineOut, x: x - this.ox, y: y - this.oy, ch: this.chain });
+        emit(this, { t: 'atk', n: this.lineOut, x: x - this.ox, y: y - this.oy, ch: this.chain });
       }
       this.lineOut = 0; this.lineCarry = 0;
     }
@@ -576,7 +576,7 @@ class Field {
     const n = Math.min(30, this.pending); this.pending -= n; this.noGarb = true;
     const counts = Array(COLS).fill(Math.floor(n / COLS)); const order = [...Array(COLS).keys()].sort(() => Math.random() - 0.5);
     for (let i = 0; i < n % COLS; i++) counts[order[i]]++;
-    if (game.net && !this.remote) gsend({ t: 'garb', c: counts, g: this.encode() });
+    if (!this.remote) emit(this, { t: 'garb', c: counts, g: this.encode() });
     this.placeGarbage(counts);
   }
 

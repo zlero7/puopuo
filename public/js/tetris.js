@@ -41,8 +41,8 @@ const P2T = [210, 630, 1050, 1710, 3500, 7000, 14000];
 // 마진 타임: 대전 시작 96초 후부터 16초마다 공격력이 오름(뿌요: 목표 점수 감소 / 테트리스: 보내는 줄 배율)
 const MARGIN_START = 96000, MARGIN_STEP = 16000, TSU_TP = [70, 52, 35, 26, 17, 13, 8, 6, 4, 3, 2, 1];
 function marginLv() {
-  if (!game.vs || !game.t0 || game.state === 'intro') return 0;
-  const el = performance.now() - game.t0;
+  if (!game.vs || game.state === 'intro') return 0;
+  const el = game.el || 0;
   return el < MARGIN_START ? 0 : Math.min(TSU_TP.length - 1, 1 + Math.floor((el - MARGIN_START) / MARGIN_STEP));
 }
 const targetPt = () => TSU_TP[marginLv()];
@@ -185,7 +185,7 @@ class TField {
   decode(g) { for (let r = 0; r < TH; r++) for (let c = 0; c < TW; c++) this.grid[r][c] = +g[r * TW + c] || 0; }
   fallIv() {
     if (!game.vs) return Math.max(20, Math.pow(0.8 - (this.level - 1) * 0.007, this.level - 1) * 1000);   // 가이드라인 낙하 속도
-    const el = (performance.now() - (game.t0 || 0)) / 30000;
+    const el = (game.el || 0) / 30000;
     return Math.max(80, 1000 * Math.pow(0.85, Math.floor(el)));
   }
   vsPuyo() { return this.opp && this.opp.kind === 'puyo'; }
@@ -201,7 +201,7 @@ class TField {
   die() {
     if (this.dead) return;
     this.dead = true; this.phase = 'dead'; this.cur = null;
-    if (game.net && !this.remote) gsend({ t: 'dead' });
+    if (!this.remote) emit(this, { t: 'dead' });
   }
   hold() {
     if (this.phase !== 'drop' || !this.canHold) return;
@@ -242,7 +242,7 @@ class TField {
       if (this.phase === 'wait' && this.queue.length) this.applyEvent(this.queue.shift());
       return;
     }
-    if (!game.vs && game.soloMode === 'ultra' && performance.now() - game.t0 >= 180000 && !this.done) { this.finish(); return; }
+    if (!game.vs && game.soloMode === 'ultra' && game.el >= 180000 && !this.done) { this.finish(); return; }
     if (this.phase === 'drop') this.updateDrop(dt);
     else if (this.phase === 'clear') this.updateClear(dt);
     else if (this.phase === 'are') { this.areT -= dt; if (this.areT <= 0) this.spawn(); }
@@ -282,13 +282,13 @@ class TField {
   tspinType() { return tspinOf(this.grid, this.cur, this.lastRot, this.lastKick); }
   lock(hard) {
     const p = this.cur, ts = this.tspinType(), cells = this.cells(p);
-    if (cells.every(([, y]) => y < TH - TVIS)) { for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); this.die(); return; }
+    if (cells.every(([, y]) => y < TH - TVIS)) { for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [] }); this.die(); return; }
     for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k);
     this.cur = null; this.canHold = true;
     const rows = []; for (let r = 0; r < TH; r++) if (this.grid[r].every(v => v)) rows.push(r);
     const filledAfter = this.grid.reduce((a, row, r) => a + (rows.includes(r) ? 0 : row.filter(Boolean).length), 0);
     const pc = rows.length > 0 && filledAfter === 0;
-    if (game.net && !this.remote) gsend({ t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
+    if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
     this.shake = Math.max(this.shake, hard ? 2.5 : 0);
     if (rows.length) {
       this.ren++; this.maxChain = Math.max(this.maxChain, this.ren);
@@ -353,10 +353,10 @@ class TField {
     if (n <= 0) return;
     this.sent += n;
     const c = Math.min(this.pending, n), rx = x - this.ox, ry = y - this.oy;
-    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); if (game.net) gsend({ t: 'off', n: c, x: rx, y: ry, ch: this.ren }); }
+    if (c > 0) { this.pending -= c; n -= c; game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.ren }); }
     if (n <= 0) return;
     if (this.vsPuyo()) { this.gauge = Math.min(60, this.gauge + n); sfx.gauge(); }
-    else { game.launch(this, this.opp, n, x, y, 'attack'); if (game.net) gsend({ t: 'atk', n, x: rx, y: ry, ch: this.ren }); }
+    else { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', n, x: rx, y: ry, ch: this.ren }); }
   }
   releaseGauge() {
     if (!this.gauge) return;
@@ -365,7 +365,7 @@ class TField {
     if (g <= 0) return;
     const n = T2P[Math.min(g, 60)], x = this.ox + TGX / 2, y = this.oy + FH / 2;
     game.launch(this, this.opp, n, x, y, 'attack', Math.min(8, Math.ceil(g / 3)));
-    if (game.net) gsend({ t: 'atk', n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
+    emit(this, { t: 'atk', n, x: x - this.ox, y: y - this.oy, ch: Math.min(8, Math.ceil(g / 3)) });
   }
   updateClear(dt) {
     this.clearT += dt;
@@ -386,7 +386,7 @@ class TField {
     if (this.finishAfterClear) { this.finish(); return; }
     this.afterLock();
   }
-  finish() { this.done = true; this.doneAt = performance.now(); this.phase = 'done'; this.cur = null; }
+  finish() { this.done = true; this.doneAt = game.el; this.phase = 'done'; this.cur = null; }
   afterLock() {
     this.insertGarbage();
     if (this.dead) return;
@@ -404,7 +404,7 @@ class TField {
     }
     this.grid = this.grid.slice(n).concat(rows);
     this.shake = Math.max(this.shake, 3 + n); sfx.garb();
-    if (game.net && !this.remote) gsend({ t: 'tgarb', g: this.encode() });
+    if (!this.remote) emit(this, { t: 'tgarb', g: this.encode() });
   }
   // 온라인: 상대 테트리스 화면 재현
   applyEvent(ev) {

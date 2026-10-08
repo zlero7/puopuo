@@ -46,20 +46,11 @@ function onNet(m) {
   }
 }
 function onGame(d) {
-  const me = game.fields[0], op = game.fields[1];
+  const op = game.fields[1];
   if (!op || !op.remote || game.mode !== 'online') return;
-  switch (d.t) {
-    case 'st':
-      op.pending = d.pe; op.score = d.sc; op.maxChain = d.mc;
-      if (op.kind === 'tetris') { op.net = d.pc; op.holdK = d.ho; op.gauge = d.gg || 0; }
-      else { op.net = d.pc ? { ...d.pc, n: d.n } : null; if (op.phase === 'wait') op.applyNet(); }
-      break;
-    case 'lock': case 'garb': case 'tlock': case 'tgarb': op.queue.push(d); break;
-    case 'atk': if (game.state === 'play') game.launch(op, me, d.n, op.ox + d.x, op.oy + d.y, 'attack', d.ch); break;
-    case 'off': game.launch(op, op, d.n, op.ox + d.x, op.oy + d.y, 'offset', d.ch); break;
-    case 'dead': if (game.state === 'play') op.die(); break;
-    case 'hi': op.name = String(d.name || '상대').slice(0, 10); break;
-  }
+  if (d.t === 'hi') { op.name = String(d.name || '상대').slice(0, 10); return; }
+  if (d.t === 'st') recState(op, d); else recEv(op, d);         // 상대 판도 리플레이에 기록
+  applyRemote(op, d);
 }
 // 서버가 알려주는 내부망 주소를 표시 — 다른 사람은 이 주소로 접속하면 된다
 function showLan() {

@@ -135,8 +135,10 @@ function start(mode, seed, styles, board) {
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
   game.keepSeries = false;
-  seedSeq(seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed);
-  build(mode); game.lastMode = mode; game.stT = 0; game.t0 = performance.now(); game.recorded = false;
+  const sd = seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed;
+  seedSeq(sd); game.replay = null;
+  build(mode); game.lastMode = mode; game.stT = 0; game.t0 = performance.now(); game.el = 0; game.recorded = false;
+  game.rec = newRecording(sd);           // 리플레이 녹화(판이 끝나면 저장)
   game.fields.forEach(f => f.spawn());
   game.marginLv = 0; game.state = 'intro'; game.introT = 2000; bgmPlay('game'); game.introGo = false; overlay.classList.add('hidden'); sfx.ready();
   showGame();

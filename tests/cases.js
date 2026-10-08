@@ -11,4 +11,7 @@ module.exports = [
   { name: 'T스핀 CPU 테트리스 연습(끝없이)', mode: 'solo', my: 'tetris', op: 'puyo', solo: 'endless', steps: 30000,
     probe: 'game.fields.map(f => ({ spins: f.doubles, lines: f.lines, tetris: f.chains2 }))',
     expect: r => r.extra[0].spins > 0 },
+  { name: '리플레이: 뿌요 vs 뿌요 다시 보기', mode: 'vs', my: 'puyo', op: 'puyo', replay: true, expect: r => r.same },
+  { name: '리플레이: 뿌요 vs 테트리스 다시 보기', mode: 'vs', my: 'puyo', op: 'tetris', replay: true, expect: r => r.same },
+  { name: '리플레이: 테트리스 vs 테트리스 다시 보기', mode: 'vs', my: 'tetris', op: 'tetris', replay: true, expect: r => r.same },
 ];

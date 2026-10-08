@@ -45,6 +45,7 @@ let cur = 'main';
 function setHints(kind) {
   $('hints').innerHTML = kind === 'menu'
     ? '<span><kbd>Esc</kbd> 뒤로</span><span><kbd>Enter</kbd> 결정</span>'
+    : game.mode === 'replay' ? '<span><kbd>← →</kbd> 배속</span><span><kbd>Esc</kbd> 일시정지</span>'
     : game.mode === 'local' ? '<span>1P <kbd>WASD</kbd> <kbd>Q E</kbd> 회전 <kbd>R</kbd> 홀드</span><span>2P <kbd>방향키</kbd> <kbd>. /</kbd> 회전 <kbd>,</kbd> 홀드</span><span><kbd>Esc</kbd> 일시정지</span>'
     : (() => { const b = { ...DEF_KEYS, ...(stats.keys || {}) }, n = a => keyName(b[a][0]).replace('방향키 ', '');
       return `<span><kbd>${n('left')} ${n('right')}</kbd> 이동</span><span><kbd>${n('ccw')} ${n('cw')}</kbd> 회전</span><span><kbd>${n('hard')}</kbd> 하드드롭</span>` +
@@ -72,7 +73,7 @@ function openMenu(id = 'main', focusId) {
 function showGame() {
   document.body.classList.add('ingame');
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
-  $('bandTitle').textContent = game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전';
+  $('bandTitle').textContent = game.mode === 'replay' ? '리플레이' : game.mode === 'local' ? '로컬 대전' : game.mode === 'solo' ? (game.myStyle === 'tetris' ? `연습 · ${SOLO_KO[game.soloMode || 'endless']}` : '연습') : game.mode === 'vs' ? `AI 대전 · ${DIFF[game.diff]}` : '대전';
   setHints('game'); fit();
 }
 function menuBack() {
@@ -141,6 +142,21 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
   t.addEventListener('focus', () => { const d = t.querySelector('.td'); $('mDesc').textContent = d && getComputedStyle(d).display === 'none' ? t.dataset.desc : ''; });
 });
 $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = $('pName').value.trim().slice(0, 10) || '플레이어'; $('pName').value = stats.name; saveStats(); });
+$('hist').addEventListener('click', e => {           // 최근 경기: ▶ 다시 보기 · ⤓ 파일로 저장
+  const b = e.target.closest('button.rp'); if (!b) return;
+  const rp = findReplay(b.dataset.rp || b.dataset.rpx);
+  if (!rp) { renderStats(); return; }
+  if (b.dataset.rp) startReplay(rp); else exportReplay(rp);
+});
+$('bLoadRp').addEventListener('click', () => $('rpFile').click());
+$('rpFile').addEventListener('change', () => {
+  const file = $('rpFile').files[0]; $('rpFile').value = '';
+  if (!file) return;
+  file.text().then(t => {
+    let rp = null; try { rp = checkReplay(JSON.parse(t)); } catch (e) {}
+    if (rp) startReplay(rp); else alert('리플레이 파일이 아니거나 손상된 파일이에요.');
+  });
+});
 $('bReset').addEventListener('click', () => {
   if (!confirm('지금까지의 기록을 모두 지울까요? 닉네임은 유지돼요.')) return;
   const name = loadStats().name; stats = defStats(); stats.name = name; saveStats(); renderStats(); renderRecords();

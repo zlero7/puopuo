@@ -15,8 +15,10 @@ function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stat
 let stats = loadStats();
 function recordGame() {
   if (game.recorded) return; game.recorded = true;
+  if (game.mode === 'replay') return;
+  const rp = finishRecording();
   stats = loadStats();                   // 다른 탭이 저장한 기록 위에 더함
-  const me = game.fields[0], ms = performance.now() - game.t0;
+  const me = game.fields[0], ms = game.el;
   stats.games++; stats.playMs += ms;
   const isT = me.kind === 'tetris';
   stats.practice = { games: 0, best: 0, tBest: 0, ...stats.practice };
@@ -38,7 +40,7 @@ function recordGame() {
     game.newRecord = false;
     if (!isT) { game.newRecord = me.score > stats.practice.best; stats.practice.best = Math.max(stats.practice.best, me.score); }
     else if (sm === 'endless') { game.newRecord = me.score > stats.practice.tBest; stats.practice.tBest = Math.max(stats.practice.tBest, me.score); }
-    else if (sm === 'sprint') { if (me.done) { const t = me.doneAt - game.t0; game.newRecord = !stats.tRec.sprint || t < stats.tRec.sprint; if (game.newRecord) stats.tRec.sprint = Math.round(t); } }
+    else if (sm === 'sprint') { if (me.done) { const t = me.doneAt; game.newRecord = !stats.tRec.sprint || t < stats.tRec.sprint; if (game.newRecord) stats.tRec.sprint = Math.round(t); } }
     else { game.newRecord = me.score > stats.tRec[sm]; stats.tRec[sm] = Math.max(stats.tRec[sm], me.score); }
     r = 'p'; mode = `연습 · ${STYLE_KO[me.kind]}${isT ? ' ' + SOLO_KO[sm] : ''}`;
   }
@@ -46,7 +48,7 @@ function recordGame() {
   else if (game.mode === 'vs') { const a = stats.ai[game.diff]; me.won ? a.w++ : a.l++; r = me.won ? 'w' : 'l'; mode = `AI ${DIFF[game.diff]} · ${STYLE_KO[me.kind]}${opLab}`; }
   else { me.won ? stats.online.w++ : stats.online.l++; r = me.won ? 'w' : 'l'; mode = `대전 · ${game.fields[1].name} · ${STYLE_KO[me.kind]}${opLab}`; }
   if (BOARD !== 'wide' && !isT) mode += ` · ${BOARDS[BOARD].ko}`;
-  stats.history.unshift({ d: Date.now(), m: mode, r, sc: me.score, ch: me.maxChain, k: isT ? 't' : 'p' });
+  stats.history.unshift({ d: Date.now(), m: mode, r, sc: me.score, ch: me.maxChain, k: isT ? 't' : 'p', rp });
   stats.history = stats.history.slice(0, 12);
   saveStats();
 }
@@ -83,11 +85,12 @@ function renderStats() {
   };
   document.querySelectorAll('.rtabs .seg').forEach(b => b.classList.toggle('on', b.dataset.act === 'rtab:' + recTab));
   $('chips').innerHTML = TABS[recTab].map(([k, v, sub], i) => `<div class="chip" style="--c:${C[i % C.length]}"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`).join('');
-  const pad2 = n => String(n).padStart(2, '0');
+  const pad2 = n => String(n).padStart(2, '0'), rpIds = new Set(loadReplays().map(x => x.id));
   $('hist').innerHTML = stats.history.length ? stats.history.map(h => {
     const d = new Date(h.d), lab = { w: '승리', l: '패배', p: '연습' }[h.r];
     return `<tr><td>${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}</td><td>${esc(h.m)}</td>` +
-      `<td><span class="res ${h.r}">${lab}</span></td><td>${h.sc.toLocaleString()}점</td><td>${h.ch}${h.k === 't' ? ' REN' : '연쇄'}</td></tr>`;
+      `<td><span class="res ${h.r}">${lab}</span></td><td>${h.sc.toLocaleString()}점</td><td>${h.ch}${h.k === 't' ? ' REN' : '연쇄'}</td>` +
+      `<td>${h.rp && rpIds.has(h.rp) ? `<button class="mini rp" data-rp="${esc(h.rp)}" title="다시 보기">▶</button><button class="mini rp" data-rpx="${esc(h.rp)}" title="파일로 저장">⤓</button>` : ''}</td></tr>`;
   }).join('') : '<tr><td class="empty">아직 기록이 없어요. AI 대전이나 대전으로 첫 판을 시작해 보세요.</td></tr>';
 }
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
