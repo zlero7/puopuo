@@ -130,7 +130,7 @@ const rankLine = m => {
   const ev = { promote: ' · 승급!', master: ' · 마스터 달성!', demote: ' · 강등', shield: ' · 강등 보호' }[m.event] || '';
   return `${sc}${m.d >= 0 ? '+' : ''}${m.d} RP → ${m.text}${ev}`;
 };
-const rankTitle = m => m.event === 'placed' ? `배치 완료! ${m.label === '마스터' ? '마스터' : m.label}` : m.event === 'promote' ? `승급! ${m.label}` : m.event === 'master' ? '마스터 달성!' : m.event === 'demote' ? `강등… ${m.label}` : null;
+const rankTitle = m => m.event === 'placed' ? `배치 완료! ${m.label === '마스터' ? '마스터' : m.label}` : m.event === 'promote' ? `승급! ${m.label}` : m.event === 'master' ? '마스터 달성!' : m.event === 'demote' ? `강등… ${m.label}` : m.event === 'shield' ? `강등 보호! ${m.label}` : null;
 // 랭크전 결과 패널: 왼쪽 내 티어와 RP 변화, 오른쪽 상대 이름·티어
 function showRankRes(m) {
   const box = $('ovRank');
