@@ -31,10 +31,10 @@ function onNet(m) {
       status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
     case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
     case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
-    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… 내 레이팅 ${m.r} (${m.tier}) · 기다릴수록 범위가 넓어져요`); break;
+    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요`); break;
     case 'rdone':                          // 랭크전 끝: 레이팅 변화
       game.rankRes = m;
-      if (!overlay.classList.contains('hidden') && game.ranked) $('ovSub').textContent = rankLine(m);
+      if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); }
       break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
@@ -90,7 +90,7 @@ const rankToken = (() => {
 const rankUrl = (p, style) => `/rank/${p}?style=${style}&token=${rankToken}`;
 function showRankRec() {
   if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
-  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { $('recRank').textContent = `${m.r} · ${m.tier}${m.w + m.l ? ` · ${m.w}승 ${m.l}패` : ''}`; }).catch(() => {});
+  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(() => {});
 }
 function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); }
 $('bCancel').addEventListener('click', cancelWait);
@@ -118,4 +118,12 @@ document.querySelectorAll('#pad button').forEach(btn => {
   const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
-const rankLine = m => `랭크전 ${m.win ? '승리' : '패배'} ${m.score ? `${Math.max(...m.score)} : ${Math.min(...m.score)} · ` : ''}레이팅 ${m.r} (${m.d >= 0 ? '+' : ''}${m.d}) · ${m.tier}`;
+// 랭크전 결과 문구: 배치 진행 / 배치 완료 / RP 변화와 승급·강등
+const rankLine = m => {
+  const sc = m.score ? `${m.score[0]} : ${m.score[1]} · ` : '';
+  if (m.event === 'placed') return `${sc}배치 완료(${m.pw}승 ${m.pl}패) → ${m.text}`;
+  if (m.placing) return `${sc}배치 ${m.placed}/${m.need} (${m.pw}승 ${m.pl}패)`;
+  const ev = { promote: ' · 승급!', master: ' · 마스터 달성!', demote: ' · 강등', shield: ' · 강등 보호' }[m.event] || '';
+  return `${sc}${m.d >= 0 ? '+' : ''}${m.d} RP → ${m.text}${ev}`;
+};
+const rankTitle = m => m.event === 'placed' ? `배치 완료! ${m.label === '마스터' ? '마스터' : m.label}` : m.event === 'promote' ? `승급! ${m.label}` : m.event === 'master' ? '마스터 달성!' : m.event === 'demote' ? `강등… ${m.label}` : null;

@@ -39,11 +39,11 @@ const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4
       res = await Promise.all(pages.map(p => p.evaluate(() => ({ state: game.state, mode: game.mode, n: game.fields.length,
         names: game.fields.map(f => f.name), dead: game.fields.map(f => f.dead), won: (game.fields.find(f => f.won) || {}).name || null,
         series: game.series, rank: game.rankRes, sub: $('ovSub').textContent }))));
-      if (RANKED ? res.every(r => r.rank && /레이팅/.test(r.sub)) : res.every(r => r.state === 'over' && r.won)) break;
+      if (RANKED ? res.every(r => r.rank && /배치|RP/.test(r.sub)) : res.every(r => r.state === 'over' && r.won)) break;
       if (Date.now() - t0 > 240000) break;
     }
     for (const r of res) console.log(JSON.stringify(r));
-    const ok = RANKED ? !errs.length && res.every(r => r.rank && /레이팅/.test(r.sub)) && res.filter(r => r.rank.win).length === 1
+    const ok = RANKED ? !errs.length && res.every(r => r.rank && /배치|RP/.test(r.sub)) && res.filter(r => r.rank.win).length === 1
       : !errs.length && res.every(r => r.mode === 'online' && r.n === N && r.state === 'over') && new Set(res.map(r => r.won)).size === 1;
     errs.forEach(e => console.log('  ' + e));
     console.log(ok ? (RANKED ? `✓ 랭크전: ${res.map(r => r.sub).join(' / ')}` : `✓ 온라인 ${N}인 대전: 모두 같은 승자 ${res[0].won}`) : `✗ 온라인 ${RANKED ? '랭크전' : N + '인 대전'} 실패`);

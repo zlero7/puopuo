@@ -118,16 +118,20 @@ function renderRecords() {
   const advSt = Object.values(stats.adv || {}).reduce((a, b) => a + b, 0);
   $('advRec').textContent = advSt ? `★ ${advSt}` : '처음부터';
 }
-// 내 정보 → 랭크: 내 레이팅(스타일별)과 순위표(서버에서 받아옴)
+// 내 정보 → 랭크: 이번 시즌 내 티어(스타일별)·지난 시즌 기록·순위표(서버에서 받아옴)
 function renderRankTab(C) {
   document.querySelectorAll('.rtabs .seg').forEach(b => b.classList.toggle('on', b.dataset.act === 'rtab:rank'));
   const box = $('chips');
   if (!location.protocol.startsWith('http')) { box.innerHTML = '<div class="chip" style="--c:#6d6b80"><span>랭크</span><b>서버 필요</b><small>서버에 접속한 주소로 열면 보여요</small></div>'; return; }
   box.innerHTML = '<div class="chip" style="--c:#6d6b80"><span>랭크</span><b>불러오는 중…</b></div>';
-  const st = stats.style || 'puyo';
+  const st = stats.style || 'puyo', col = g => (TIER_COL[g] || ['#9a98ad', '#55507a'])[1];
   Promise.all([fetch(rankUrl('me', 'puyo')).then(r => r.json()), fetch(rankUrl('me', 'tetris')).then(r => r.json()), fetch(rankUrl('top', st)).then(r => r.json())]).then(([p, t, top]) => {
-    const mine = [['뿌요뿌요 레이팅', `${p.r}`, `${p.tier} · ${p.w}승 ${p.l}패${p.rank ? ` · ${p.rank}위` : ''}`], ['테트리스 레이팅', `${t.r}`, `${t.tier} · ${t.w}승 ${t.l}패${t.rank ? ` · ${t.rank}위` : ''}`]];
-    const list = top.slice(0, 10).map((q, i) => [`${STYLE_KO[st]} ${i + 1}위`, esc(q.name), `${q.r} · ${q.tier} · ${q.w}승 ${q.l}패`]);
-    box.innerHTML = mine.concat(list.length ? list : [['순위표', '아직 없음', '첫 랭크전의 주인공이 되어 보세요']]).map(([k, v, sub], i) => `<div class="chip" style="--c:${i < 2 ? '#5e2399' : C[i % C.length]}"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
+    const s = p.season, mine = [[`${STYLE_KO.puyo}`, p], [`${STYLE_KO.tetris}`, t]].map(([k, m]) => [m.group, `${k} 랭크`, esc(m.text),
+      m.placing ? `배치 ${m.placed}/${m.need} · ${m.pw}승 ${m.pl}패` : `이번 시즌 ${m.sw}승 ${m.sl}패 · 최고 ${m.peak}`]);
+    const info = [[-1, '시즌', esc(s.name), `${s.months} · ${s.daysLeft}일 남음`]];
+    const hist = (p.hist || []).concat(t.hist || []).slice(0, 4).map(h => [-1, `지난 시즌 ${esc(h.name)}`, esc(h.finalRank ? `마스터 #${h.finalRank}` : h.final), `최고 ${esc(h.peak)}`]);
+    const list = top.slice(0, 10).map(q => [q.group, `${STYLE_KO[st]} ${q.place}위`, esc(q.name), `${esc(q.text)} · ${q.sw}승 ${q.sl}패`]);
+    box.innerHTML = mine.concat(info, hist, list.length ? list : [[-1, '순위표', '아직 없음', '배치를 끝낸 사람이 여기에 올라와요']])
+      .map(([g, k, v, sub]) => `<div class="chip" style="--c:${col(g)}"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`).join('');
   }).catch(() => { box.innerHTML = '<div class="chip" style="--c:#6d6b80"><span>랭크</span><b>불러오지 못함</b></div>'; });
 }

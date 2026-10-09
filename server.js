@@ -115,15 +115,20 @@ function leave(ws) {
 }
 
 /* ---------- 랭크전 ----------
-   1:1 · 원작 6×12 판 · 통상 규칙 · 2선승. 기다린 시간만큼 레이팅 허용 범위가 넓어짐(±100에서 10초마다 +50, 최대 ±600) */
+   1:1 · 원작 6×12 판 · 통상 규칙 · 2선승. 기다린 시간만큼 숨은 실력 점수 허용 범위가 넓어짐 */
 const rankQ = new Set();
-const rankWindow = ws => Math.min(600, 100 + 50 * Math.floor((Date.now() - ws.rank.since) / 10000));
+// 숨은 실력 점수 차이 허용 범위: ±100에서 10초마다 +50, 배치 중이면 +150, 30초 넘게 기다리면(또는 RANK_OPEN=1) 제한 없음
+const rankWindow = ws => {
+  const waited = Date.now() - ws.rank.since;
+  if (process.env.RANK_OPEN === '1' || waited > 30000) return Infinity;
+  return 100 + 50 * Math.floor(waited / 10000) + (rank.placing(ws.rank.rec) ? 150 : 0);
+};
 function matchRanked() {
   const list = [...rankQ].filter(w => w.readyState === 1).sort((a, b) => a.rank.since - b.rank.since);
   for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
     const a = list[i], b = list[j];
     if (!rankQ.has(a) || !rankQ.has(b) || a.rank.token === b.rank.token) continue;
-    const d = Math.abs(a.rank.rec.r - b.rank.rec.r);
+    const d = Math.abs(rank.mmr(a.rank.rec) - rank.mmr(b.rank.rec));
     if (d > rankWindow(a) || d > rankWindow(b)) continue;
     rankQ.delete(a); rankQ.delete(b);
     const room = newRoom(a, 2, 'classic'); room.rule = 'tsu';
@@ -139,8 +144,9 @@ function rankedEnd(room, w) {
   R.ended = true;
   const W = room.seats[w], L = room.seats[1 - w];
   if (!W || !W.rank || !L || !L.rank) return;
-  const [dw, dl] = rank.report(W.rank.rec, L.rank.rec);
-  for (const [p, win, d] of [[W, true, dw], [L, false, dl]]) send(p, { t: 'rdone', win, r: Math.round(p.rank.rec.r), d, tier: rank.tierOf(p.rank.rec.r), score: R.score });
+  const score = [Math.max(2, R.score[w]), R.score[1 - w]];          // 상대가 나가서 끝났으면 2승으로 침
+  const res = rank.report(W.rank.rec, L.rank.rec, score);
+  [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, d: r.d, event: r.event, score: win ? score : [score[1], score[0]], ...v, text: rank.labelOf(v) }); });
 }
 
 wss.on('connection', ws => {
@@ -186,7 +192,7 @@ wss.on('connection', ws => {
         leave(ws);
         ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name), since: Date.now() };
         rankQ.add(ws);
-        send(ws, { t: 'rwait', r: Math.round(ws.rank.rec.r), tier: rank.tierOf(ws.rank.rec.r) });
+        send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)) });
         matchRanked();
         break;
       }

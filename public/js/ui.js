@@ -192,6 +192,19 @@ $('bReset').addEventListener('click', () => {
   const name = loadStats().name; stats = defStats(); stats.name = name; saveStats(); renderStats(); renderRecords();
 });
 
+// 랭크 티어 엠블럼: 브론즈·실버·골드·플래티넘·다이아·마스터(-1은 배치 중). div: 세부 티어 1~3(별 개수)
+const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
+function drawTierEmblem(c, x, y, size, group, div) {
+  const [col, dk] = TIER_COL[group] || ['#cfd1dc', '#6d6b80'], r = size / 2;
+  c.save(); c.translate(x, y);
+  c.beginPath(); c.moveTo(0, -r); c.lineTo(r * 0.85, -r * 0.55); c.lineTo(r * 0.7, r * 0.45); c.lineTo(0, r); c.lineTo(-r * 0.7, r * 0.45); c.lineTo(-r * 0.85, -r * 0.55); c.closePath();
+  const g = c.createLinearGradient(0, -r, 0, r); g.addColorStop(0, mixW(col, 0.35)); g.addColorStop(1, col);
+  c.fillStyle = g; c.fill(); c.lineWidth = r * 0.1; c.strokeStyle = dk; c.stroke();
+  if (group === 5) drawStar(c, 0, -r * 0.05, r * 0.45, '#fff6c2');
+  else if (group < 0) outlined(c, '?', 0, 2, r * 0.9, '#fff', dk, r * 0.12);
+  else for (let i = 0; i < div; i++) drawStar(c, (i - (div - 1) / 2) * r * 0.42, r * 0.05, r * 0.2, '#fff');
+  c.restore();
+}
 /* 타일 그림: 게임과 같은 뿌요 렌더러로 그림 */
 const SCENES = {
   ai:     { rows: ['000000', '000040', '300440', '331240', '312222', '111322'] },
@@ -242,11 +255,9 @@ function drawArts() {
       const ids = ['toto', 'lumi', 'kuro'];
       x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(0, h * 0.62, w, h * 0.38);
       [0, 2, 1].forEach(i => drawChar(x, ids[i], w * (0.2 + i * 0.3), h * (i === 1 ? 0.48 : 0.56), Math.min(w * 0.3, h * (i === 1 ? 0.85 : 0.7)), 'happy'));
-    } else if (kind === 'rank') {
-      const C = ['#c47dff', '#ffdc3a', '#cfd1dc'], H = [0.9, 0.65, 0.5];
-      [1, 0, 2].forEach(i => { const bw = w * 0.26, bx = w * (0.37 + (i === 1 ? -0.3 : i === 2 ? 0.3 : 0)) , bh = h * H[i] * 0.7;
-        x.fillStyle = C[i]; x.fillRect(bx, h - bh, bw, bh); x.fillStyle = 'rgba(0,0,0,0.15)'; x.fillRect(bx, h - bh, bw, 6); });
-      drawStar(x, w * 0.5, h * 0.18, Math.min(w, h) * 0.16, '#ffe066');
+    } else if (kind === 'rank') {               // 내 티어 엠블럼(서버에서 받아온 뒤 다시 그림)
+      const m = game.myRank;
+      drawTierEmblem(x, w / 2, h / 2, Math.min(w, h) * 0.9, m ? m.group : -1, m && !m.placing ? m.div : 0);
     } else if (kind === 'stats') {
       x.fillStyle = '#f4f2fb'; x.fillRect(0, 0, w, h);
       const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0'];
