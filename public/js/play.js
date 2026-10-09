@@ -179,6 +179,7 @@ function update(dt) {
         w.won = true; w.place = 1; w.piece = null;
         (F[0].won || !F[0].human ? sfx.win : sfx.lose)();
         if (game.series && game.mode !== 'replay') { if (w === F[0]) game.series.me++; else game.series.op++; }
+        if (game.ranked && game.rjudge) syncSeries();
         recordGame();                        // 승패(won)가 정해진 뒤에 기록해야 함
       }
     }

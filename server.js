@@ -7,6 +7,9 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const rank = require('./rank');
+const { newMatch } = require('./verify');
+// 랭크전은 서버가 기록을 다시 계산해서 승패를 정함. RANK_TRUST=1이면(테스트용) 예전처럼 두 사람 보고로 정함
+const VERIFY = process.env.RANK_TRUST !== '1';
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   // 모든 네트워크 카드에서 접속 허용
@@ -97,6 +100,10 @@ function startRoom(room) {
   const bot = room.seats.find(p => p.bot);         // AI 상대: 상대 판은 각자 브라우저에서 CPU로 돌림
   const botInfo = bot ? { name: bot.rank.rec.name, char: bot.rank.rec.char, lv: rank.botLevel(bot.rank.rec) } : undefined;
   room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks, bot: botInfo }));
+  if (room.ranked && VERIFY && !bot) {             // 이번 판 검증 시작(준비 연출 2초 뒤부터 진행 시간이 흐름)
+    const R = room.ranked, now = Date.now();
+    R.match = newMatch({ seed, styles, rule: room.rule, board }); R.t0 = now + 2000; R.judged = false; R.lastAct = [now + 2000, now + 2000];
+  }
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
@@ -153,6 +160,22 @@ function botMatch(a) {
   startRoom(room);
 }
 setInterval(matchRanked, 2000);
+// 한 판 판정(서버 기준): 진 자리 · 이유. 두 사람에게 알리고, 2승이면 랭크전 끝
+function judge(room, loser, reason) {
+  const R = room.ranked; if (!R || R.judged || R.ended) return;
+  R.judged = true; const w = 1 - loser;
+  if (process.env.VDEBUG) console.log('[판정]', room.code, '진 자리', loser, reason);
+  R.score[w]++;
+  for (const p of room.players) send(p, { t: 'rjudge', loser, reason, score: R.score });
+  if (R.score[w] >= 2) rankedEnd(room, w);
+}
+// 오래 두지 않으면(60초) 그 판 패배
+setInterval(() => {
+  for (const room of rooms.values()) {
+    const R = room.ranked; if (!R || !R.match || R.judged || R.ended) continue;
+    for (const i of [0, 1]) if (Date.now() - R.lastAct[i] > 60000) { judge(room, i, '오래 두지 않음'); break; }
+  }
+}, 5000);
 // 랭크전 끝: 레이팅 계산 후 두 사람에게 결과
 function rankedEnd(room, w) {
   const R = room.ranked; if (!R || R.ended) return;
@@ -213,7 +236,7 @@ wss.on('connection', ws => {
       }
       case 'rres': {         // 랭크전 한 판 결과: 두 사람 보고가 맞을 때만 인정
         const room = ws.room, R = room && room.ranked;
-        if (!R || R.ended || !room.started) return;
+        if (!R || R.ended || !room.started || R.match) return;      // 검증하는 랭크전은 서버가 정함(보고는 무시)
         const i = room.seats.indexOf(ws); if (i < 0) return;
         R.rep[i] = !!m.win;
         if (R.bot) R.rep[1 - i] = !m.win;                  // AI 상대: 사람 쪽 보고로 정함
@@ -239,7 +262,16 @@ wss.on('connection', ws => {
         const room = ws.room;
         if (!room || !room.started) return;
         const f = room.seats.indexOf(ws);
-        for (const p of room.players) if (p !== ws) send(p, { t: 'g', d: m.d, f });
+        let d = m.d;
+        const R = room.ranked;
+        if (R && R.match && !R.judged && d && typeof d === 'object') {   // 랭크전: 서버가 다시 계산해 보고 맞는 것만 상대에게
+          const res = R.match.feed(f, d, Date.now() - R.t0);
+          if (/lock|hold|garb/.test(d.t)) R.lastAct[f] = Date.now();
+          if (R.match.loser != null) judge(room, R.match.loser, R.match.reason);
+          if (!res.relay) return;
+          d = res.relay;
+        }
+        for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
         break;
       }
     }

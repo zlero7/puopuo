@@ -40,6 +40,17 @@ function onNet(m) {
       }
       if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); showRankRes(m); rankFx(m); }
       break;
+    case 'rjudge': {                     // 랭크전: 서버가 정한 이번 판 승패(규칙 위반·시간 초과면 그쪽을 탈락시킴)
+      game.rjudge = m;
+      const f = game.seatField && game.seatField[m.loser];
+      if (f && game.state === 'play' && !f.dead) {
+        if (m.reason !== '탈락') f.texts.push({ txt: m.reason === '오래 두지 않음' ? '시간 초과' : '규칙 위반', x: f.fw / 2, y: FH * 0.3, age: 0, dur: 4000, col: '#ff8a9a', size: 30 });
+        if (f === game.fields[0]) game.net = false;   // 내 판: 더 보내지 않음
+        f.dieLater = false; f.queue = []; f.remote = false; f.die();
+      }
+      if (game.state === 'over') syncSeries();
+      break;
+    }
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
@@ -48,6 +59,7 @@ function onNet(m) {
         const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
         game.netN = m.styles.length;
         if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
+        game.mySeat = m.you; game.rjudge = null;
         game.botOpp = m.bot && CHARS.some(c => c.id === m.bot.char) ? { name: String(m.bot.name).slice(0, 10), char: m.bot.char, lv: +m.bot.lv || 0 } : null;
         start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
         game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; game.fields[i].rankEm = m.ranks ? m.ranks[s] : null; });
@@ -123,6 +135,11 @@ document.querySelectorAll('#pad button').forEach(btn => {
   const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
+// 랭크전 시리즈 점수는 서버 판정에 맞춤(거의 동시에 탈락해서 화면 판정이 다를 때)
+function syncSeries() {
+  const j = game.rjudge; if (!j || !game.series || !game.ranked || game.mySeat == null) return;
+  game.series.me = j.score[game.mySeat]; game.series.op = j.score[1 - game.mySeat];
+}
 // 랭크전 결과 문구: 배치 진행 / 배치 완료 / RP 변화와 승급·강등
 const rankLine = m => {
   const sc = m.score ? `${m.score[0]} : ${m.score[1]} · ` : '';
