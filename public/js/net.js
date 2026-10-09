@@ -34,6 +34,10 @@ function onNet(m) {
     case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요`); break;
     case 'rdone':                          // 랭크전 끝: 레이팅 변화
       game.rankRes = m;
+      {                                    // 내 기록의 마지막 랭크전 줄에 RP 변화 · 상대 티어를 붙임
+        stats = loadStats(); const h = stats.history.find(x => x.cat === 'ranked');
+        if (h && !h.rk) { h.rk = { d: m.d, event: m.event, placing: m.event === 'placed' || m.placing, after: m.text, group: m.group, div: m.div, opp: m.opp, score: m.score }; saveStats(); }
+      }
       if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); }
       break;
     case 'error': status(m.msg); break;
@@ -120,7 +124,7 @@ document.querySelectorAll('#pad button').forEach(btn => {
 });
 // 랭크전 결과 문구: 배치 진행 / 배치 완료 / RP 변화와 승급·강등
 const rankLine = m => {
-  const sc = m.score ? `${m.score[0]} : ${m.score[1]} · ` : '';
+  const sc = (m.score ? `${m.score[0]} : ${m.score[1]} · ` : '') + (m.opp ? `상대 ${m.opp.name} ${m.opp.text} · ` : '');
   if (m.event === 'placed') return `${sc}배치 완료(${m.pw}승 ${m.pl}패) → ${m.text}`;
   if (m.placing) return `${sc}배치 ${m.placed}/${m.need} (${m.pw}승 ${m.pl}패)`;
   const ev = { promote: ' · 승급!', master: ' · 마스터 달성!', demote: ' · 강등', shield: ' · 강등 보호' }[m.event] || '';

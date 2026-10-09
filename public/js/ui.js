@@ -105,9 +105,10 @@ function menuBack() {
 }
 function renderStyle() {
   document.querySelectorAll('.seg').forEach(b => {
+    if (!b.dataset.act) return;
     const [kind, who, st] = b.dataset.act.split(':');
+    if (kind === 'itab') { b.classList.toggle('on', who === infoTab); return; }
     if (kind === 'ft') { b.classList.toggle('on', +who === (stats.firstTo || 2)); return; }
-    if (kind === 'rtab') { b.classList.toggle('on', who === recTab); return; }
     if (kind === 'rule') { b.classList.toggle('on', who === (stats.rule || 'tsu')); return; }
     if (kind === 'pl') { b.classList.toggle('on', +who === (stats.players || 2)); return; }
     if (kind === 'board') { b.classList.toggle('on', who === (stats.board || 'wide')); return; }
@@ -126,7 +127,6 @@ function act(a) {
   else if (k === 'psolo') { game.soloMode = v; start('solo'); }
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
-  else if (k === 'rtab') { recTab = v; renderStats(); }
   else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
   else if (k === 'adv') advPlay(+v);
   else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); }
@@ -134,8 +134,9 @@ function act(a) {
   else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
+  else if (k === 'itab') { infoTab = v; renderInfo(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name })); }
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi' })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
@@ -172,26 +173,6 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
   t.addEventListener('focus', () => { const d = t.querySelector('.td'); $('mDesc').textContent = d && getComputedStyle(d).display === 'none' ? t.dataset.desc : ''; });
 });
 $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = $('pName').value.trim().slice(0, 10) || '플레이어'; $('pName').value = stats.name; saveStats(); });
-$('hist').addEventListener('click', e => {           // 최근 경기: ▶ 다시 보기 · ⤓ 파일로 저장
-  const b = e.target.closest('button.rp'); if (!b) return;
-  const rp = findReplay(b.dataset.rp || b.dataset.rpx);
-  if (!rp) { renderStats(); return; }
-  if (b.dataset.rp) startReplay(rp); else exportReplay(rp);
-});
-$('bLoadRp').addEventListener('click', () => $('rpFile').click());
-$('rpFile').addEventListener('change', () => {
-  const file = $('rpFile').files[0]; $('rpFile').value = '';
-  if (!file) return;
-  file.text().then(t => {
-    let rp = null; try { rp = checkReplay(JSON.parse(t)); } catch (e) {}
-    if (rp) startReplay(rp); else alert('리플레이 파일이 아니거나 손상된 파일이에요.');
-  });
-});
-$('bReset').addEventListener('click', () => {
-  if (!confirm('지금까지의 기록을 모두 지울까요? 닉네임은 유지돼요.')) return;
-  const name = loadStats().name; stats = defStats(); stats.name = name; saveStats(); renderStats(); renderRecords();
-});
-
 // 랭크 티어 엠블럼: 브론즈·실버·골드·플래티넘·다이아·마스터(-1은 배치 중). div: 세부 티어 1~3(별 개수)
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 function drawTierEmblem(c, x, y, size, group, div) {

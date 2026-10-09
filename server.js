@@ -45,7 +45,7 @@ const server = http.createServer((req, res) => {
   } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
     let body;
-    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20));
+    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), rank.validToken(q.get('token')) ? q.get('token') : '');
     else if (!rank.validToken(q.get('token'))) { res.writeHead(400); res.end(); return; }
     else body = rank.me(q.get('token'), style);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });

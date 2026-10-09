@@ -214,7 +214,7 @@ function boardRows(list) {
   });
 }
 // 순위표: 시즌(지난 시즌은 저장해 둔 것) · 플래티넘 이상 · 이름 검색 · 페이지
-function top(style, season, page = 1, q = '') {
+function top(style, season, page = 1, q = '', token = '') {
   ensureSeason();
   const cur = seasonOf(), s = season && season < cur ? season : cur;
   let rows = s === cur ? boardRows(live().filter(p => p.style === style && p.season === cur && doneThisSeason(p) && p.total >= BOARD_MIN))
@@ -223,7 +223,7 @@ function top(style, season, page = 1, q = '') {
   if (q) rows = rows.filter(r => r.name.toLowerCase().includes(String(q).toLowerCase()));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE)), pg = Math.max(1, Math.min(pages, +page || 1));
   const seasons = [cur, ...Object.keys(db.boards).map(Number).filter(n => n < cur).sort((a, b) => b - a)].map(n => ({ n, name: seasonInfo(n).name }));
-  return { season: seasonInfo(s), seasons, total, page: pg, pages, rows: rows.slice((pg - 1) * PAGE, pg * PAGE).map(({ key, ...r }) => r) };
+  return { season: seasonInfo(s), seasons, total, page: pg, pages, rows: rows.slice((pg - 1) * PAGE, pg * PAGE).map(({ key, ...r }) => ({ ...r, me: !!token && key === `${token}:${style}` })) };
 }
 const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
