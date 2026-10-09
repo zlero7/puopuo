@@ -7,7 +7,7 @@ const rkTier = total => {
   const i = Math.max(0, Math.floor(total / RK_DIV));
   return { group: Math.floor(i / 3), div: i % 3 + 1, rp: total - i * RK_DIV, label: `${RK_GROUPS[Math.floor(i / 3)]} ${i % 3 + 1}` };
 };
-const RK_LEN = { promote: 3900, master: 4200, demote: 3500, shield: 3300 };
+const RK_LEN = { promote: 3900, master: 4200, demote: 3500, shield: 3300, placed: 4600 };
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
 const easeBack = v => { v = clamp01(v); const s = 1.7; return 1 + (s + 1) * Math.pow(v - 1, 3) + s * Math.pow(v - 1, 2); };
@@ -19,12 +19,13 @@ function rankFx(m, opt = {}) {
   rkfxLast = m;
   const after = m.total, before = after - m.d;
   const a = rkTier(before), b = rkTier(after);
-  if (m.event === 'master') b.label = m.text || '마스터';
+  if (m.event === 'master' || (m.event === 'placed' && b.group === 5)) b.label = m.text || '마스터';
+  if (m.event === 'placed') a.group = -1;
   let s = 7;                                          // 조각·금은 매번 같은 모양(시드 고정)
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
   const frags = Array.from({ length: 18 }, () => ({ a: rnd() * Math.PI * 2, v: 0.5 + rnd(), r: (rnd() - 0.5) * 8, s: 0.12 + rnd() * 0.16 }));
   const cracks = Array.from({ length: 6 }, (_, i) => { const p = [[0, 0]]; let ang = i / 6 * Math.PI * 2 + rnd() * 0.5, d = 0; while (d < 0.5) { d += 0.08 + rnd() * 0.08; ang += (rnd() - 0.5) * 0.7; p.push([Math.cos(ang) * d, Math.sin(ang) * d]); } return p; });
-  rkfx = { kind: m.event, a, b, t0: performance.now() - (opt.at || 0), at: opt.at || null, frags, cracks, snd: {} };
+  rkfx = { kind: m.event, a, b, t0: performance.now() - (opt.at || 0), at: opt.at || null, frags, cracks, snd: {}, pw: m.pw || 0, pl: m.pl || 0, need: m.need || (m.pw || 0) + (m.pl || 0) };
   const cv = $('rkfx'); cv.classList.remove('hidden');
   if (!opt.at) requestAnimationFrame(rankFxLoop); else rankFxDraw(opt.at);
   return true;
@@ -43,6 +44,11 @@ function rankFxSound(t) {
     once('charge', 300, () => { tone(220, 1.0, 'sawtooth', 0.03, 4); tone(440, 1.0, 'triangle', 0.03, 3); });
     once('burst', 1300, () => { noise(0.4, 0.09, 'sfx', null, 600); tone(130, 0.5, 'sine', 0.16, 0.5); });
     once('fan', 1700, () => k === 'master' ? [0, 4, 7, 12, 16, 19, 24].forEach((st, i) => tone(392 * Math.pow(2, st / 12), 0.35, 'triangle', 0.09, 1, i * 0.09)) : sfx.win());
+  } else if (k === 'placed') {
+    for (let i = 0; i < rkfx.need; i++) once('pip' + i, 300 + i * (1100 / rkfx.need), () => i < rkfx.pw ? tone(660 + i * 30, 0.09, 'triangle', 0.06) : tone(220, 0.1, 'square', 0.04));
+    once('spin', 1500, () => { tone(200, 0.9, 'sawtooth', 0.03, 5); tone(400, 0.9, 'triangle', 0.03, 4); });
+    once('burst', 2400, () => { noise(0.4, 0.09, 'sfx', null, 600); tone(130, 0.5, 'sine', 0.16, 0.5); });
+    once('fan', 2700, () => sfx.win());
   } else if (k === 'demote') {
     once('drain', 300, () => tone(520, 0.8, 'sawtooth', 0.03, 0.4));
     once('crack', 1100, () => { noise(0.08, 0.08); noise(0.1, 0.06, 'sfx', audio() && audio().currentTime + 0.18); });
@@ -84,7 +90,56 @@ function rankFxDraw(t) {
   bg.addColorStop(0, up ? colB + '55' : k === 'shield' ? '#4fd1ff33' : '#ff455922'); bg.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = bg; c.fillRect(0, 0, W, H);
 
-  if (up) {
+  if (k === 'placed') {                               // 배치 완료: 배치 결과 칸이 하나씩 켜지고, ? 엠블럼이 돌다 티어가 드러남
+    const rev = 2400, n = f.need, ringR = S * 0.78;
+    if (t < rev) {
+      const sp = clamp01((t - 1500) / 900), ang = sp * sp * Math.PI * 10;   // 점점 빨라지는 회전(가로로 뒤집힘)
+      c.save(); c.translate(cx, cy); c.scale(Math.max(0.06, Math.abs(Math.cos(ang))), 1);
+      c.shadowColor = '#fff'; c.shadowBlur = 10 + sp * 60;
+      drawTierEmblem(c, 0, 0, S * (0.85 + 0.15 * easeOut(t / 300)), -1, 0); c.restore();
+      outlined(c, '배치 결과', cx, cy - S * 0.98, S * 0.14, '#fff', '#2b2450', S * 0.03);
+    }
+    for (let i = 0; i < n; i++) {                     // 배치 칸: 이긴 판 초록, 진 판 빨강
+      const on = clamp01((t - 300 - i * (1100 / n)) / 150), a = -Math.PI / 2 + (i + 0.5) / n * Math.PI * 2;
+      const fadeRing = t < rev ? 1 : clamp01(1 - (t - rev) / 300), x = cx + Math.cos(a) * ringR, y = cy + Math.sin(a) * ringR, r = S * 0.065;
+      c.globalAlpha = fade * fadeRing;
+      c.fillStyle = 'rgba(255,255,255,0.15)'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+      if (on > 0) { c.fillStyle = i < f.pw ? '#39e65a' : '#ff4f66'; c.beginPath(); c.arc(x, y, r * (0.6 + 0.4 * easeBack(on)), 0, Math.PI * 2); c.fill(); }
+    }
+    c.globalAlpha = fade;
+    if (t < rev) outlined(c, `${f.pw}승 ${f.pl}패`, cx, barY + S * 0.16, S * 0.13, '#fff', '#2b2450', S * 0.03);
+    else {
+      const e = t - rev;
+      c.save(); c.translate(cx, cy); c.rotate(t / 2600);
+      const ra = clamp01(e / 400) * 0.4;
+      for (let i = 0; i < 14; i++) {
+        c.rotate(Math.PI * 2 / 14);
+        const g = c.createLinearGradient(0, 0, 0, -S * 2.4); g.addColorStop(0, mixW(colB, 0.5)); g.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = g; c.globalAlpha = fade * ra; c.beginPath(); c.moveTo(0, 0); c.lineTo(-S * 0.16, -S * 2.4); c.lineTo(S * 0.16, -S * 2.4); c.closePath(); c.fill();
+      }
+      c.restore(); c.globalAlpha = fade;
+      for (const dl of [0, 160]) {
+        const q = clamp01((e - dl) / 650); if (q <= 0 || q >= 1) continue;
+        c.strokeStyle = mixW(colB, 0.5); c.lineWidth = S * 0.06 * (1 - q); c.globalAlpha = fade * (1 - q);
+        c.beginPath(); c.arc(cx, cy, S * (0.4 + q * 1.6), 0, Math.PI * 2); c.stroke();
+      }
+      c.globalAlpha = fade;
+      rkEmblem(c, cx, cy, S * (1.7 - 0.7 * easeBack(e / 520)), f.b, { alpha: clamp01(e / 200), glow: 50, glowCol: mixW(colB, 0.4) });
+      const tq = clamp01((e - 350) / 300);
+      if (tq > 0) {
+        c.save(); c.globalAlpha = fade * tq; const ts = 1 + 0.5 * (1 - easeOut(tq));
+        c.translate(cx, cy - S * 0.86); c.scale(ts, ts);
+        outlined(c, '배치 완료', 0, 0, S * 0.28, '#ffe066', '#2b2450', S * 0.05);
+        c.restore();
+        c.globalAlpha = fade * tq;
+        outlined(c, f.b.label, cx, barY - S * 0.02, S * 0.17, '#fff', '#2b2450', S * 0.03);
+        if (f.b.group !== 5) rkBar(c, cx, barY + S * 0.22, barW, f.b.rp * easeOut((e - 500) / 600), '#ffe066');
+        c.font = Math.round(S * 0.09) + 'px ' + FONT(); c.textAlign = 'center'; c.textBaseline = 'top'; c.fillStyle = 'rgba(255,255,255,0.85)';
+        c.fillText(`배치 ${f.pw}승 ${f.pl}패`, cx, barY + S * (f.b.group !== 5 ? 0.62 : 0.2));
+      }
+      const fl = clamp01(1 - e / 380); if (fl > 0) { c.globalAlpha = fade * fl * 0.85; c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); }
+    }
+  } else if (up) {
     const burst = 1300, pre = t < burst;
     if (pre) {                                        // 모으기: RP가 100까지 차고 엠블럼이 떨리며 빛남
       const ch = clamp01((t - 300) / 1000), shake = t > 900 ? (t - 900) / 400 * S * 0.03 : 0;
