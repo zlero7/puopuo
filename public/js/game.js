@@ -136,7 +136,7 @@ function build(mode) {
     const f = mkField(st, slotX(i), human, mode === 'online' ? '상대' : human ? '2P' : n > 2 ? `CPU ${cpuNo}` : 'CPU');
     f.tone = PLAYER_TONES[i];
     if (human) f.pi = 1;
-    else if (mode === 'online' && !game.botOpp) f.remote = true;
+    else if (mode === 'online') f.remote = true;
     // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
     // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
     else f.ai = aiPreset(f.kind, lv);
@@ -146,7 +146,7 @@ function build(mode) {
   // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
   const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
   game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
-  if (mode === 'online' && game.botOpp) { const b = game.fields[1]; b.char = game.botOpp.char; b.name = game.botOpp.name; b.isBot = true; b.ai = botAi(b.kind, game.botOpp.lv); }   // 랭크전 AI 상대(세기는 서버가 정함)
+  if (mode === 'online' && game.botOpp) { const b = game.fields[1]; b.char = game.botOpp.char; b.name = game.botOpp.name; b.isBot = true; }   // 랭크전 AI 상대: 판은 서버가 돌리고 이름·캐릭터만 여기서
   for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
 }

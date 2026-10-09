@@ -41,6 +41,19 @@ function createEngine() {
     function emit(f, d) { __events.push([f, d]); }
     function recEv() {} function recState() {}
     function itemFx() {} function routeKind(f) { return f; }
+    // play.js의 stateOf와 같음(서버에서 돌리는 AI 판의 조각 위치·점수를 상대 화면에 보냄)
+    function stateOf(f) {
+      if (f.kind === 'tetris') {
+        const q = f.phase === 'drop' && f.cur ? { k: f.cur.k, x: f.cur.x, y: f.cur.y, r: f.cur.r } : null;
+        return { t: 'st', k: 't', n: f.idx, pc: q, ho: f.holdK, gg: f.gauge, pe: f.pending, sc: f.score, mc: f.maxChain };
+      }
+      const p = f.piece; let pc = null;
+      if (p && f.phase === 'drop') {
+        const cf = f.fits({ ...p, y: p.y + 1 });
+        pc = { x: p.x, y: p.y, o: p.o, a: p.a, b: p.b, p: cf ? Math.round(Math.min(1, f.acc / (f.soft ? 35 : f.fallIv())) * 100) / 100 : 0 };
+      }
+      return { t: 'st', k: 'p', n: f.idx, pc, hp: f.holdP, pe: f.pending, sc: f.score, mc: f.maxChain };
+    }
   `, ctx);
   for (const s of SRC) s.runInContext(ctx);
   vm.runInContext(`
@@ -50,4 +63,20 @@ function createEngine() {
   return ctx;
 }
 
-module.exports = { createEngine };
+// 서버에서 돌리는 AI 상대 한 판: 내 판(AI)과 상대 자리(원격, 스타일만 맞춤)
+function createBot({ seed, style, oppStyle, board = 'classic', rule = 'tsu', lv }) {
+  const E = createEngine(), run = c => vm.runInContext(c, E);
+  run(`applyBoard(${JSON.stringify(board)}); seedSeq(${seed >>> 0}); game.vs = true; game.rule = ${JSON.stringify(rule)};
+    game.state = 'play'; game.mode = 'online'; game.el = 0; game.marginLv = 0;`);
+  const f = run(`(st, ost, lv) => { const b = mkField(st, 0, false, 'AI'); b.ai = botAi(b.kind, lv);
+    const o = mkField(ost, 0, false, 'P'); o.remote = true; b.opp = o; o.opp = b; game.fields = [b, o]; b.spawn(); return b; }`)(style, oppStyle, lv);
+  const game = run('game'), stateOf = run('stateOf');
+  return {
+    f,
+    step(dt, el) { game.el = el; f.update(dt, true); run('__launch.length = 0'); return run('__events.splice(0)').filter(e => e[0] === f).map(e => e[1]); },
+    state: () => stateOf(f),
+    hit(n) { f.pending += n; },               // 상대 공격이 도착함
+  };
+}
+
+module.exports = { createEngine, createBot };

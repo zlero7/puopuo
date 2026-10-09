@@ -8,6 +8,7 @@ const os = require('os');
 const { WebSocketServer } = require('ws');
 const rank = require('./rank');
 const { newMatch } = require('./verify');
+const { createBot } = require('./sim');
 // 랭크전은 서버가 기록을 다시 계산해서 승패를 정함. RANK_TRUST=1이면(테스트용) 예전처럼 두 사람 보고로 정함
 const VERIFY = process.env.RANK_TRUST !== '1';
 
@@ -100,9 +101,10 @@ function startRoom(room) {
   const bot = room.seats.find(p => p.bot);         // AI 상대: 상대 판은 각자 브라우저에서 CPU로 돌림
   const botInfo = bot ? { name: bot.rank.rec.name, char: bot.rank.rec.char, lv: rank.botLevel(bot.rank.rec) } : undefined;
   room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks, bot: botInfo }));
-  if (room.ranked && VERIFY && !bot) {             // 이번 판 검증 시작(준비 연출 2초 뒤부터 진행 시간이 흐름)
+  if (room.ranked && VERIFY) {                     // 이번 판 검증 시작(준비 연출 2초 뒤부터 진행 시간이 흐름)
     const R = room.ranked, now = Date.now();
     R.match = newMatch({ seed, styles, rule: room.rule, board }); R.t0 = now + 2000; R.judged = false; R.lastAct = [now + 2000, now + 2000];
+    if (bot) startBot(room, seed, styles, board, botInfo.lv);
   }
 }
 
@@ -160,11 +162,34 @@ function botMatch(a) {
   startRoom(room);
 }
 setInterval(matchRanked, 2000);
+// AI 상대를 서버에서 돌림: 16ms마다 한 걸음, 생긴 기록은 검증기에 넣고 사람에게 중계(사람 상대와 똑같이 보임)
+function startBot(room, seed, styles, board, lv) {
+  const R = room.ranked, bs = room.seats.findIndex(p => p.bot), hs = 1 - bs;
+  if (R.botLoop) clearInterval(R.botLoop.t);
+  const bot = createBot({ seed, style: styles[bs], oppStyle: styles[hs], board, rule: room.rule, lv });
+  const L = R.botLoop = { bot, inbox: [], last: R.t0, stT: 0 };
+  L.t = setInterval(() => {
+    const now = Date.now();
+    if (R.judged || R.ended || !rooms.has(room.code) || R.botLoop !== L) { clearInterval(L.t); return; }
+    if (now < R.t0) return;
+    const dt = Math.min(100, now - L.last); L.last = now;
+    for (let i = L.inbox.length - 1; i >= 0; i--) if (L.inbox[i].at <= now) { bot.hit(L.inbox[i].n); L.inbox.splice(i, 1); }
+    const el = now - R.t0, out = bot.step(dt, el);
+    L.stT += dt; if (L.stT >= 50) { L.stT = 0; out.push(bot.state()); }
+    const human = room.seats[hs];
+    for (const d0 of out) {
+      const d = { ...d0, to: d0.to != null ? hs : undefined, at: Math.round(el) };
+      if (d.t !== 'st') { R.match.feed(bs, d, el); if (/lock|hold|garb/.test(d.t)) R.lastAct[bs] = now; }
+      send(human, { t: 'g', d, f: bs });
+      if (R.match.loser != null) { judge(room, R.match.loser, R.match.reason); break; }
+    }
+  }, 16);
+}
 // 한 판 판정(서버 기준): 진 자리 · 이유. 두 사람에게 알리고, 2승이면 랭크전 끝
 function judge(room, loser, reason) {
   const R = room.ranked; if (!R || R.judged || R.ended) return;
   R.judged = true; const w = 1 - loser;
-  if (process.env.VDEBUG) console.log('[판정]', room.code, '진 자리', loser, reason);
+  if (process.env.VDEBUG) console.log('[판정]', room.code, '진 자리', loser, reason, R.match ? JSON.stringify(R.match.seats.map(s => ({ locks: s.locks.length, lastAt: s.lastAt, phase: s.f.phase, dead: s.dead, idle: Date.now() - R.lastAct[s.i] }))) : '');
   R.score[w]++;
   for (const p of room.players) send(p, { t: 'rjudge', loser, reason, score: R.score });
   if (R.score[w] >= 2) rankedEnd(room, w);
@@ -239,7 +264,7 @@ wss.on('connection', ws => {
         if (!R || R.ended || !room.started || R.match) return;      // 검증하는 랭크전은 서버가 정함(보고는 무시)
         const i = room.seats.indexOf(ws); if (i < 0) return;
         R.rep[i] = !!m.win;
-        if (R.bot) R.rep[1 - i] = !m.win;                  // AI 상대: 사람 쪽 보고로 정함
+        if (R.bot) R.rep[1 - i] = !m.win;                  // AI 상대(RANK_TRUST 테스트용): 사람 쪽 보고로 정함
         if (Object.keys(R.rep).length < 2) return;
         const wins = [0, 1].filter(k => R.rep[k]);
         R.rep = {};
@@ -270,6 +295,7 @@ wss.on('connection', ws => {
           if (R.match.loser != null) judge(room, R.match.loser, R.match.reason);
           if (!res.relay) return;
           d = res.relay;
+          if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500 });   // AI에게 공격이 날아가는 시간
         }
         for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
         break;
