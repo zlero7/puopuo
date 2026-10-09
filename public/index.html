@@ -30,6 +30,10 @@
     border: 0; border-radius: 999px; padding: 6px 14px; background: #2f78f0; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #1747b0; }
   .modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(26,20,60,0.5); padding: 16px; }
   .setcard { width: min(560px, 100%); max-height: 90vh; }
+  .setchk { display: flex; align-items: center; gap: 10px; font-size: 16px; margin-bottom: 8px; cursor: pointer; }
+  .setchk input { width: 20px; height: 20px; accent-color: #2f78f0; flex: none; }
+  .setchk small { display: block; font-size: 13px; color: var(--muted); }
+  #rkfx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 18; cursor: pointer; backdrop-filter: blur(6px); }
   .setcard h3 small { font-family: var(--font); font-size: 13px; color: var(--muted); }
   .setrow { display: grid; grid-template-columns: 90px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 16px; }
   .keylist { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 8px; align-items: center; font-size: 15px; margin-bottom: 8px; }
@@ -416,6 +420,8 @@
       <h3>설정</h3>
       <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
       <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
+      <h3>게임</h3>
+      <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
       <h3>키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h3>
       <div id="keyList" class="keylist"></div>
       <p class="padinfo" id="padInfo"></p>
@@ -423,6 +429,7 @@
     </div>
   </div>
   <div class="band-bot" id="hints"></div>
+  <canvas id="rkfx" class="hidden"></canvas>
 
   <!-- ================= 메뉴 ================= -->
   <div id="menu">
@@ -715,6 +722,7 @@
 <script src="js/fusion.js"></script>
 <script src="js/chars.js"></script>
 <script src="js/adventure.js"></script>
+<script src="js/rankfx.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

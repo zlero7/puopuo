@@ -93,7 +93,8 @@ function startRoom(room) {
   const seed = Math.floor(Math.random() * 2 ** 32);
   const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
   const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
-  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0 }));
+  const ranks = room.ranked ? room.seats.map(p => { if (!p.rank) return null; const v = rank.view(p.rank.rec); return { group: v.group, div: v.div, text: v.text }; }) : null;   // 랭크전: 게임 중 이름표에 띄울 티어
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks }));
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰

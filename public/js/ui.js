@@ -5,7 +5,7 @@
 let keyWait = null;
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
-  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; showVol(); renderKeys();
+  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
@@ -35,6 +35,7 @@ window.addEventListener('keydown', e => {          // 키 설정 입력(다른 �
   keys[keyWait[0]] = keys[keyWait[0]].slice(); keys[keyWait[0]][keyWait[1]] = k;
   stats.keys = keys; saveStats(); keyWait = null; renderKeys();
 }, true);
+$('oppRank').addEventListener('change', () => { stats = loadStats(); stats.oppRank = $('oppRank').checked; saveStats(); });
 $('bKeyReset').addEventListener('click', () => { stats = loadStats(); stats.keys = null; saveStats(); keyWait = null; renderKeys(); });
 $('bSetClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });

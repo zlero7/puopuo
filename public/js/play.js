@@ -210,7 +210,7 @@ function update(dt) {
         if (game.ranked && online) {             // 랭크전: 판 사이엔 자동으로 다음 판, 끝나면 레이팅 변화
           showResult(me.won ? 'yellow' : 'blue', done && game.rankRes && rankTitle(game.rankRes) || (done ? (sr.me > sr.op ? '랭크전 승리!' : '랭크전 패배') : me.won ? '승리!' : '패배'),
             done || game.oppLeft ? (game.rankRes ? rankLine(game.rankRes) : '레이팅 계산 중…') : `시리즈 ${sr.me} : ${sr.op} (2선승) · 랭크전`, chips, done || game.oppLeft || !net.ws ? 'menu' : 'rnext');
-          if ((done || game.oppLeft) && game.rankRes) showRankRes(game.rankRes);
+          if ((done || game.oppLeft) && game.rankRes) { showRankRes(game.rankRes); rankFx(game.rankRes); }
           if (!done && !game.oppLeft) game.autoNextT = 3500;
           return;
         }

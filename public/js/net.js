@@ -38,7 +38,7 @@ function onNet(m) {
         stats = loadStats(); const h = stats.history.find(x => x.cat === 'ranked');
         if (h && !h.rk) { h.rk = { d: m.d, event: m.event, placing: m.event === 'placed' || m.placing, after: m.text, group: m.group, div: m.div, opp: m.opp, score: m.score }; saveStats(); }
       }
-      if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); showRankRes(m); }
+      if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); showRankRes(m); rankFx(m); }
       break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
@@ -49,7 +49,7 @@ function onNet(m) {
         game.netN = m.styles.length;
         if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
         start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
-        game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; });
+        game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; game.fields[i].rankEm = m.ranks ? m.ranks[s] : null; });
       }
       break;
     case 'oppReady': $('ovSub').textContent = m.size > 2 ? `${m.have}/${m.size}명이 다시 하기를 눌렀습니다.` : '상대가 다시 하기를 눌렀습니다.'; break;
