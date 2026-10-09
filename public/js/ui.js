@@ -138,7 +138,7 @@ function act(a) {
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'itab') { infoTab = v; renderInfo(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } if (needLogin(() => act('ranked'))) return; game.resetOnline = true; connect(() => nsend({ t: 'rq', style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
@@ -161,7 +161,7 @@ function moveSel(dx, dy) {
   if (best) best.focus();
 }
 document.querySelectorAll('.seg').forEach(b => {
-  b.addEventListener('click', () => act(b.dataset.act));
+  b.addEventListener('click', () => { if (b.dataset.act) act(b.dataset.act); });
   b.addEventListener('focus', () => { $('mDesc').textContent = b.dataset.desc || ''; });
 });
 document.addEventListener('pointerdown', () => { if (!AC) { audio(); applyVolume(); if (game.state === 'menu') bgmPlay('menu'); } }, { once: true });

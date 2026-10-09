@@ -65,5 +65,10 @@ at(2027, 7);                                                 // 2027 시즌 4
 const g3 = R.get(tok(8), 'puyo');
 ok(g3.need === 10 && g3.r === 1500 && g3.rd === 350 && g3.total === 0 && R.view(g3).text === '배치 0/10', '새해(2027 시즌 4에 처음): 숨은 점수 완전 초기화, 10배치');
 
+// 브라우저 토큰 기록을 계정 열쇠로 옮기기(계정에 그 스타일 기록이 없을 때만)
+const old = R.get(tok(20), 'tetris', 'O'); R.report(old, R.get(tok(21), 'tetris'), [2, 0]);
+ok(R.adopt(tok(20), tok(22)) === 1 && R.me(tok(22), 'tetris').w === 1 && R.me(tok(20), 'tetris').w === 0, '토큰 기록을 계정으로 옮김');
+R.get(tok(23), 'tetris'); R.get(tok(24), 'tetris');
+ok(R.adopt(tok(23), tok(24)) === 0, '계정에 이미 기록이 있으면 덮어쓰지 않음');
 R.flush(); try { fs.unlinkSync(process.env.RANK_FILE); } catch {}
 console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exitCode = fail ? 1 : 0;

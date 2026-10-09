@@ -4,12 +4,21 @@ const { spawn } = require('child_process');
 const path = require('path'), os = require('os'), fs = require('fs'), http = require('http');
 const WebSocket = require('ws');
 const PORT = 4900 + Math.floor(Math.random() * 90), FILE = path.join(os.tmpdir(), `ranks-${PORT}.json`);
-const get = p => new Promise(r => http.get(`http://127.0.0.1:${PORT}${p}`, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => r(JSON.parse(b))); }));
-function client(token, style) {
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}`), box = [];
+const get = (p, cookie) => new Promise(r => http.get(`http://127.0.0.1:${PORT}${p}`, { headers: cookie ? { cookie } : {} }, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => r(JSON.parse(b))); }));
+// 계정 만들기: 이름은 토큰의 6번째 글자(A, B, …). 돌려주는 값은 로그인 쿠키
+const cookies = {};
+function account(token) {
+  if (cookies[token]) return Promise.resolve(cookies[token]);
+  const body = JSON.stringify({ id: 'user_' + token.slice(5, 6).toLowerCase(), pw: 'pass1234', name: token.slice(5, 6) });
+  return new Promise(r => { const q = http.request({ host: '127.0.0.1', port: PORT, path: '/auth/signup', method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => {
+    res.resume(); res.on('end', () => r(cookies[token] = String(res.headers['set-cookie'] || '').split(';')[0])); }); q.end(body); });
+}
+async function client(token, style) {
+  const cookie = await account(token);
+  const ws = new WebSocket(`ws://127.0.0.1:${PORT}`, { headers: { cookie } }), box = [];
   ws.on('message', m => box.push(JSON.parse(m)));
   const wait = (t, ms = 5000) => new Promise((res, rej) => { const t0 = Date.now(); (function poll() { const i = box.findIndex(x => x.t === t); if (i >= 0) return res(box.splice(i, 1)[0]); if (Date.now() - t0 > ms) return rej(new Error('대기 시간 초과: ' + t)); setTimeout(poll, 10); })(); });
-  return new Promise(r => ws.on('open', () => r({ ws, send: o => ws.send(JSON.stringify(o)), wait, token, style })));
+  return new Promise(r => ws.on('open', () => r({ ws, send: o => ws.send(JSON.stringify(o)), wait, token, style, cookie })));
 }
 const ok = (c, msg) => { console.log(`${c ? '✓' : '✗'} ${msg}`); if (!c) process.exitCode = 1; };
 // 한 시리즈: winner가 2승(중간에 loser가 1승 할 수도)
@@ -24,7 +33,7 @@ async function series(W, L, oneLoss) {
   return [await W.wait('rdone'), await L.wait('rdone')];
 }
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1', RANK_BOT_WAIT: '300', RANK_TRUST: '1' }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1', RANK_BOT_WAIT: '300', RANK_TRUST: '1', SIGNUP_LIMIT: '100', ACCOUNT_FILE: FILE + '.acc' }, stdio: 'pipe' });
   await new Promise(r => setTimeout(r, 600));
   try {
     const A = await client('tokenAAAAAAAAAAAAAAAA', 'puyo'), B = await client('tokenBBBBBBBBBBBBBBBB', 'tetris');
@@ -45,7 +54,7 @@ async function series(W, L, oneLoss) {
     ok(after[0].d > 0 && after[1].d < 0 && /RP/.test(after[0].text), `배치 후 시리즈: A ${after[0].d > 0 ? '+' : ''}${after[0].d} RP → ${after[0].text} · B ${after[1].d} RP → ${after[1].text}`);
     ok(after[0].opp && after[0].opp.name === 'B' && after[0].opp.char === 'kuro' && /RP/.test(after[0].opp.text), `결과에 상대 정보: ${after[0].opp.name} · ${after[0].opp.text}`);
     await new Promise(r => setTimeout(r, 500));
-    const top = await get('/rank/top?style=puyo'), me = await get('/rank/me?style=tetris&token=tokenBBBBBBBBBBBBBBBB');
+    const top = await get('/rank/top?style=puyo'), me = await get('/rank/me?style=tetris', await account('tokenBBBBBBBBBBBBBBBB'));
     ok(top.rows.length === 1 && top.rows[0].name === 'A' && top.rows[0].place === 1, `순위표(뿌요, 플래티넘 이상): 1위 ${top.rows[0] && top.rows[0].name} ${top.rows[0] && top.rows[0].label} ${top.rows[0] && top.rows[0].rp} RP`);
     ok(me.text === after[1].text && /시즌/.test(me.season.name) && me.matches.length === 11 && me.matches[0].opp.name === 'A', `내 정보(B 테트리스): ${me.text} · ${me.season.name} · 랭크 기록 ${me.matches.length}경기`);
     ok(fs.existsSync(FILE), '파일로 저장');
@@ -74,6 +83,25 @@ async function series(W, L, oneLoss) {
     const tt = await get('/rank/top?style=tetris&q=AI');
     ok(tt.total === 0 || tt.rows.every(r => !/^AI /.test(r.name)), 'AI는 순위표·기록에 저장되지 않음');
     E.ws.close(); F.ws.close();
+    // 계정: 로그인 안 하면 랭크전 불가 · 비밀번호 틀림 · 한 계정으로 두 곳 동시 대기 불가
+    const anon = new WebSocket(`ws://127.0.0.1:${PORT}`), abox = [];
+    anon.on('message', x => abox.push(JSON.parse(x))); await new Promise(r => anon.on('open', r));
+    anon.send(JSON.stringify({ t: 'rq', style: 'puyo' })); await new Promise(r => setTimeout(r, 300));
+    ok(abox.some(x => x.t === 'error' && x.login), '로그인 안 하면 랭크전 불가');
+    anon.close();
+    const post = (path, body) => new Promise(r => { const q = http.request({ host: '127.0.0.1', port: PORT, path, method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => r({ code: res.statusCode, body: JSON.parse(b), cookie: res.headers['set-cookie'] })); }); q.end(JSON.stringify(body)); });
+    const bad = await post('/auth/login', { id: 'user_a', pw: 'wrong' }), good = await post('/auth/login', { id: 'user_a', pw: 'pass1234' });
+    ok(bad.code === 400 && !bad.cookie && good.code === 200 && good.body.user.name === 'A' && !good.body.user.hash, '로그인: 틀린 비밀번호 거부 · 맞으면 쿠키(비밀번호 해시는 안 보냄)');
+    const dup = await post('/auth/signup', { id: 'user_a', pw: 'xxxx' });
+    ok(dup.code === 400 && /이미/.test(dup.body.error), '같은 아이디로 가입 불가');
+    const G1 = await client('tokenGGGGGGGGGGGGGGGG', 'puyo'), G2 = await client('tokenGGGGGGGGGGGGGGGG', 'puyo');
+    G1.send({ t: 'rq', style: 'puyo' }); await new Promise(r => setTimeout(r, 200)); G2.send({ t: 'rq', style: 'puyo' });
+    const e2 = await G2.wait('error');
+    ok(/이미 다른 곳/.test(e2.msg), '한 계정으로 두 곳에서 동시에 랭크전 불가');
+    G1.ws.close(); G2.ws.close();
+    // 브라우저 토큰 기록을 계정으로 옮기기
+    const H = await post('/auth/signup', { id: 'user_h', pw: 'pass1234', name: 'H', old: 'tokenAAAAAAAAAAAAAAAA' });
+    ok(H.body.moved === 0, '다른 계정 열쇠는 브라우저 토큰이 아니라서 옮길 기록 없음');
   } catch (e) { ok(false, e.message); }
-  finally { srv.kill(); try { fs.unlinkSync(FILE); } catch {} }
+  finally { srv.kill(); for (const f of [FILE, FILE + '.acc']) try { fs.unlinkSync(f); } catch {} }
 })();

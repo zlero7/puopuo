@@ -100,9 +100,11 @@ function infoHist() {
 function infoRank(seq) {
   const bar = styleBox(rkStyle);
   if (!httpOk()) { setInfo(bar, '<div class="empty">랭크는 서버에 접속한 주소(http://…)로 열어야 볼 수 있어요.</div>'); return; }
+  if (!acct) { setInfo(bar, '<div class="empty">로그인하면 내 랭크를 볼 수 있어요.<br><br><button class="mini" data-ib="login">로그인 · 회원가입</button></div>'); return; }
   setInfo(bar, '<div class="empty">불러오는 중…</div>');
   fetch(rankUrl('me', rkStyle)).then(r => r.json()).then(m => {
     if (seq !== infoSeq) return;
+    if (!m || m.error) { setInfo(bar, `<div class="empty">${esc((m && m.error) || '불러오지 못했어요.')}</div>`); return; }
     const s = m.season, master = !m.placing && m.group === 5;
     const sub = m.placing ? `배치 ${m.placed}/${m.need} · ${m.pw}승 ${m.pl}패` : master ? `${m.rp} RP` : `${m.rp} / 100 RP`;
     const note = m.placing ? (m.need >= 10 ? '첫 배치 · 해가 바뀐 첫 배치는 10판이에요(MMR 초기화).' : '같은 해 새 시즌은 5판 배치 · 아주 잘하거나 못하지 않으면 지난 티어를 그대로 이어가요.')
@@ -147,6 +149,7 @@ $('infoCard').addEventListener('click', e => {
   const d = b.dataset;
   if (d.ist) { if (infoTab === 'rank') rkStyle = d.ist; else { board.style = d.ist; board.page = 1; } renderInfo(); }
   else if (d.ib === 'load') $('rpFile').click();
+  else if (d.ib === 'login') openLogin('login', '', () => renderInfo());
   else if (d.ib === 'reset') {
     if (!confirm('지금까지의 기록을 모두 지울까요? 닉네임은 유지돼요.')) return;
     const name = loadStats().name; stats = defStats(); stats.name = name; saveStats(); renderStats(); renderRecords();

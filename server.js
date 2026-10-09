@@ -7,6 +7,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const rank = require('./rank');
+const accounts = require('./accounts');
 const { newMatch } = require('./verify');
 const { createBot } = require('./sim');
 // 랭크전은 서버가 기록을 다시 계산해서 승패를 정함. RANK_TRUST=1이면(테스트용) 예전처럼 두 사람 보고로 정함
@@ -46,14 +47,16 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       res.end(data);
     });
-  } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
+  } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅(로그인한 계정 기준)
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
+    const u = accounts.userOf(accounts.sidOf(req));
     let body;
-    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), rank.validToken(q.get('token')) ? q.get('token') : '');
-    else if (!rank.validToken(q.get('token'))) { res.writeHead(400); res.end(); return; }
-    else body = rank.me(q.get('token'), style);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(body));
+    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), u ? u.rk : '');
+    else if (!u) { json(res, 401, { error: '로그인이 필요해요.' }); return; }
+    else body = rank.me(u.rk, style);
+    json(res, 200, body);
+  } else if (url.startsWith('/auth/')) {                       // 계정: 가입 · 로그인 · 로그아웃 · 내 정보 · 닉네임 · 비밀번호
+    auth(req, res, url.slice(6));
   } else if (url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ port: PORT, lan: lanAddresses().map(a => a.url) }));
@@ -64,6 +67,36 @@ const server = http.createServer((req, res) => {
     res.writeHead(404); res.end();
   }
 });
+
+function json(res, code, body, headers = {}) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers }); res.end(JSON.stringify(body)); }
+const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+const secureOf = req => req.headers['x-forwarded-proto'] === 'https' || !!req.socket.encrypted;
+function readBody(req) {
+  return new Promise(resolve => {
+    let b = ''; req.on('data', d => { b += d; if (b.length > 4096) req.destroy(); });
+    req.on('end', () => { try { resolve(JSON.parse(b || '{}')); } catch { resolve({}); } });
+  });
+}
+async function auth(req, res, what) {
+  const sid = accounts.sidOf(req), u = accounts.userOf(sid);
+  if (what === 'me') { json(res, 200, { user: u ? accounts.view(u) : null }); return; }
+  if (req.method !== 'POST') { json(res, 405, { error: 'POST로 보내 주세요.' }); return; }
+  const b = await readBody(req);
+  let r;
+  if (what === 'signup' || what === 'login') {
+    r = what === 'signup' ? accounts.signup(b, ipOf(req)) : accounts.login(b, ipOf(req));
+    if (r.error) { json(res, 400, r); return; }
+    const moved = rank.adopt(b.old, r.rk);              // 이 브라우저에 쌓인 랭크 기록을 계정으로
+    json(res, 200, { user: r.user, moved }, { 'Set-Cookie': accounts.cookie(r.sid, secureOf(req)) });
+    return;
+  }
+  if (what === 'logout') { if (sid) accounts.logout(sid); json(res, 200, { ok: true }, { 'Set-Cookie': accounts.cookie('', secureOf(req)) }); return; }
+  if (!u) { json(res, 401, { error: '로그인이 필요해요.' }); return; }
+  if (what === 'name') r = accounts.rename(u, b.name);
+  else if (what === 'pw') r = accounts.changePw(u, b);
+  else { json(res, 404, { error: '없는 요청' }); return; }
+  json(res, r.error ? 400 : 200, r);
+}
 
 const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 const rooms = new Map();        // code -> { code, size, board, players: [ws], seats: [ws], ready: Set, started }
@@ -212,7 +245,8 @@ function rankedEnd(room, w) {
   [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, d: r.d, event: r.event, opp: r.opp, score: win ? score : [score[1], score[0]], ...v }); });
 }
 
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
+  ws.sid = accounts.sidOf(req);                  // 로그인 쿠키(랭크전은 계정으로)
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
@@ -251,9 +285,14 @@ wss.on('connection', ws => {
         break;
       }
       case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
-        if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
+        const u = accounts.userOf(ws.sid);
+        if (!u) { send(ws, { t: 'error', msg: '랭크전은 로그인해야 할 수 있어요.', login: 1 }); return; }
+        if (!rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
+        if ([...rankQ].some(w => w !== ws && w.rank.token === u.rk) || [...rooms.values()].some(r => r.ranked && !r.ranked.ended && r.players.some(p => p !== ws && p.rank && p.rank.token === u.rk))) {
+          send(ws, { t: 'error', msg: '이 계정은 이미 다른 곳에서 랭크전 중이에요.' }); return;
+        }
         leave(ws);
-        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name, m.char), since: Date.now(), bot: !!m.bot };
+        ws.rank = { token: u.rk, style: m.style, rec: rank.get(u.rk, m.style, u.name, m.char), since: Date.now(), bot: !!m.bot };
         rankQ.add(ws);
         send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });
         matchRanked();

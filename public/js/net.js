@@ -51,7 +51,7 @@ function onNet(m) {
       if (game.state === 'over') syncSeries();
       break;
     }
-    case 'error': status(m.msg); break;
+    case 'error': status(m.msg); if (m.login) { acct = null; renderAcct(); openLogin('login', m.msg, () => act('ranked')); } break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
       {
@@ -107,7 +107,8 @@ const rankToken = (() => {
 const rankUrl = (p, style) => `/rank/${p}?style=${style}&token=${rankToken}`;
 function showRankRec() {
   if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
-  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(() => {});
+  if (!acct) { $('recRank').textContent = '로그인 필요'; game.myRank = null; drawArts(); return; }
+  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { if (!m || m.error) return; game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(() => {});
 }
 function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); }
 $('bCancel').addEventListener('click', cancelWait);

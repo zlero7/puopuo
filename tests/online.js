@@ -8,7 +8,7 @@ catch { ({ chromium } = require(path.join(execSync('npm root -g').toString().tri
 const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4600 + Math.floor(Math.random() * 300);
 
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: require('os').tmpdir() + `/ranks-${PORT}.json` }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: require('os').tmpdir() + `/ranks-${PORT}.json`, ACCOUNT_FILE: require('os').tmpdir() + `/acc-${PORT}.json`, SIGNUP_LIMIT: '100' }, stdio: 'pipe' });
   if (process.env.VDEBUG) srv.stdout.on('data', b => String(b).split('\n').filter(l => l.includes('[판정]')).forEach(l => console.log(l)));
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch();
@@ -32,6 +32,11 @@ const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4
       }, [i, N, process.env.STYLE || '']);
       pages.push(p);
     }
+    // 랭크전은 계정이 필요: 사람마다 가입하고 로그인한 상태로
+    if (RANKED) for (let i = 0; i < pages.length; i++) await pages[i].evaluate(async i => {
+      const r = await post('/auth/signup', { id: 'player' + i + '_' + Math.floor(Math.random() * 1e6), pw: 'pass1234', name: 'P' + i });
+      acct = r.user; acctSync();
+    }, i);
     // CHEAT=1: 첫 번째 사람이 공격량을 몰래 부풀려 보냄(서버 검증이 잡아야 함)
     if (process.env.CHEAT) await pages[0].evaluate(() => { const orig = gsend; gsend = d => orig(d && d.t === 'atk' ? { ...d, n: d.n + 20 } : d); });
     for (const p of pages) { await p.evaluate(r => act(r ? 'ranked' : 'quick'), RANKED); await new Promise(r => setTimeout(r, 200)); }

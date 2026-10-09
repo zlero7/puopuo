@@ -1,5 +1,5 @@
 // 랭크전: 연도 · 시즌 · 배치 · 티어(RP) · 숨은 실력 점수(MMR, Glicko-2) · 순위표 · 파일 저장
-// 플레이어는 브라우저가 만든 토큰으로 구분(계정·비밀번호 없음). 스타일(뿌요/테트리스)마다 기록이 따로 있음
+// 플레이어는 계정의 랭크 열쇠(accounts.js의 rk)로 구분. 스타일(뿌요/테트리스)마다 기록이 따로 있음
 const fs = require('fs');
 const path = require('path');
 
@@ -236,8 +236,22 @@ function bot(p) {
 }
 // AI 세기(0~1): 숨은 실력 점수 1000(브론즈 1) → 0, 2050(마스터) → 1
 const botLevel = p => Math.max(0, Math.min(1.15, (p.r - 1000) / 1050));
+// 브라우저 토큰으로 쌓인 기록을 계정 열쇠로 옮김(그 스타일 기록이 계정에 아직 없을 때만). 옮긴 스타일 수
+function adopt(oldToken, newToken) {
+  if (!validToken(oldToken) || !validToken(newToken) || oldToken === newToken) return 0;
+  let n = 0;
+  for (const st of STYLES) {
+    const a = `${oldToken}:${st}`, b = `${newToken}:${st}`;
+    if (!db.players[a] || db.players[b]) continue;
+    db.players[b] = db.players[a]; db.players[b].key = b; delete db.players[a];
+    for (const s of Object.values(db.boards)) for (const row of (s[st] || [])) if (row.key === a) row.key = b;
+    n++;
+  }
+  if (n) save();
+  return n;
+}
 const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { adopt, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };

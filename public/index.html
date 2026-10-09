@@ -263,6 +263,19 @@
   .roomcode { font-family: var(--head); font-size: 34px; letter-spacing: 8px; color: #ff6a1f; }
   .lan { color: var(--muted); user-select: text; -webkit-user-select: text; }
   .lan b { color: var(--ink); font-weight: 400; }
+  /* 계정 */
+  .acct { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+  .acct b { font-family: var(--head); font-weight: 400; }
+  .acct button { font-family: var(--font); font-size: 14px; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; background: #fff; color: #5e2399; box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
+  .logcard { width: min(400px, 100%); display: flex; flex-direction: column; gap: 10px; padding: 18px 22px; }
+  .logcard label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; color: var(--muted); }
+  .logcard input { font-family: var(--font); font-size: 17px; border: 2px solid #cfd1dc; border-radius: 6px; padding: 7px 10px; color: var(--ink); }
+  .logcard input:focus { border-color: #2f78f0; outline: none; }
+  .logcard .btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  .logcard.in .su { display: none; }
+  .lognote { margin: 0; font-size: 14px; color: #5e2399; min-height: 0; }
+  .lognote:empty, .logerr:empty { display: none; }
+  .logerr { margin: 0; color: #d4280a; font-size: 14px; }
   .ghostbtn { font-family: var(--font); font-size: 15px; border: 2px solid #cfd1dc; background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; color: var(--ink); }
 
   /* 내 정보 */
@@ -427,6 +440,18 @@
       <div id="keyList" class="keylist"></div>
       <p class="padinfo" id="padInfo"></p>
       <div class="btns"><button class="ghostbtn" id="bKeyReset">기본값으로</button><button class="mini" id="bSetClose" style="--d:#1747b0">닫기</button></div>
+    </div>
+  </div>
+  <div id="login" class="modal hidden" role="dialog" aria-label="로그인">
+    <div class="card logcard">
+      <div class="segs logtabs"><button class="seg on" style="--c:#2f78f0" data-lt="login">로그인</button><button class="seg" style="--c:#39c63c" data-lt="signup">회원가입</button></div>
+      <p class="lognote" id="logNote"></p>
+      <label>아이디<input id="lgId" maxlength="16" autocomplete="username" spellcheck="false" placeholder="영문 소문자·숫자·_ 3~16자"></label>
+      <label>비밀번호<input id="lgPw" type="password" maxlength="64" autocomplete="current-password" placeholder="4자 이상"></label>
+      <label class="su">비밀번호 확인<input id="lgPw2" type="password" maxlength="64" autocomplete="new-password"></label>
+      <label class="su">닉네임<input id="lgName" maxlength="10" spellcheck="false" placeholder="순위표·대전에 보이는 이름"></label>
+      <p class="logerr" id="logErr"></p>
+      <div class="btns"><button class="ghostbtn" id="bLogClose">닫기</button><button class="mini" id="bLogGo" style="--d:#1747b0">로그인</button></div>
     </div>
   </div>
   <div class="band-bot" id="hints"></div>
@@ -596,7 +621,7 @@
           <span class="tt" style="left:9%;top:24%"><small>한 컴퓨터에서 둘이</small>로컬 대전</span>
           <canvas class="ico" data-col="2" style="right:5%;bottom:8%"></canvas>
         </button>
-        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12 판·통상 규칙·2선승). 시즌마다 처음 10번은 배치, 그다음부터 RP를 모아 브론즈 1부터 마스터까지 올라가. 도중에 나가면 패배야.">
+        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12 판·통상 규칙·2선승). 로그인해야 할 수 있고, 처음과 해마다 첫 시즌은 10번, 같은 해 다음 시즌은 5번 배치를 봐. 승패는 서버가 기록을 다시 계산해서 정해.">
           <span class="in"></span>
           <canvas class="art" data-art="rank" style="left:14%;top:8%;width:72%;height:40%"></canvas>
           <span class="tt" style="left:12%;bottom:30%">랭크전</span>
@@ -643,6 +668,7 @@
           <div class="profile">
             <label for="pName">닉네임</label>
             <input id="pName" maxlength="10" spellcheck="false">
+            <div class="acct" id="acctBox"></div>
             <div class="big">
               <div><b id="pGames">0</b><span>플레이 횟수</span></div>
               <div><b id="pRate">-</b><span>승률</span></div>
@@ -716,6 +742,7 @@
 <script src="js/play.js"></script>
 <script src="js/input.js"></script>
 <script src="js/net.js"></script>
+<script src="js/account.js"></script>
 <script src="js/replay.js"></script>
 <script src="js/bigbang.js"></script>
 <script src="js/swap.js"></script>
