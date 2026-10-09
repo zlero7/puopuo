@@ -7,7 +7,7 @@
     "start": "node server.js",
     "test": "node tests/smoke.js",
     "test:online": "node tests/online.js 3 && node tests/online.js 2 ranked",
-    "test:rank": "node tests/rank.js"
+    "test:rank": "node tests/rank-rules.js && node tests/rank.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

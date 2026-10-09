@@ -70,14 +70,25 @@ function applyRemote(f, d) {
 /* ================= 저장 ================= */
 const RP_KEY = 'puyo-replays-v1', RP_MAX = 12;
 function loadReplays() { try { const v = JSON.parse(localStorage.getItem(RP_KEY)); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
-// 최근 12판까지. 저장 공간이 모자라면 오래된 것부터 지움
-function saveReplay(rp) {
-  const list = loadReplays().filter(x => x.id !== rp.id); list.unshift(rp);
-  while (list.length > RP_MAX) list.pop();
+// 자동 녹화는 최근 12판까지, ⤓로 '받은'(keep) 리플레이는 지우지 않음. 저장 공간이 모자라면 받지 않은 것 중 오래된 것부터 지움
+function writeReplays(list) {
   for (;;) {
     try { localStorage.setItem(RP_KEY, JSON.stringify(list)); return true; }
-    catch (e) { if (list.length <= 1) return false; list.pop(); }
+    catch (e) { const i = list.map(x => !x.keep).lastIndexOf(true); if (i < 0) return false; list.splice(i, 1); }
   }
+}
+function saveReplay(rp) {
+  const list = loadReplays().filter(x => x.id !== rp.id); list.unshift(rp);
+  let auto = 0; for (let i = 0; i < list.length; i++) if (!list[i].keep && ++auto > RP_MAX) list.splice(i--, 1);
+  return writeReplays(list);
+}
+// 기록의 ⤓: 그 경기 리플레이를 보관함으로(자동 삭제 안 됨). 성공하면 true
+function keepReplay(id) {
+  const list = loadReplays(), r = list.find(x => x.id === id);
+  if (!r) return false;
+  r.keep = true;
+  if (writeReplays(list)) return true;
+  r.keep = false; return false;
 }
 const findReplay = id => loadReplays().find(x => x.id === id) || null;
 function newRecording(seed) {
