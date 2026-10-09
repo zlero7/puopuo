@@ -31,7 +31,7 @@ function onNet(m) {
       status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
     case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
     case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
-    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요`); break;
+    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요${m.botIn ? ` · ${m.botIn}초 안에 못 찾으면 비슷한 실력의 AI와 대전` : ''}`); break;
     case 'rdone':                          // 랭크전 끝: 레이팅 변화
       game.rankRes = m;
       {                                    // 내 기록의 마지막 랭크전 줄에 RP 변화 · 상대 티어를 붙임
@@ -48,6 +48,7 @@ function onNet(m) {
         const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
         game.netN = m.styles.length;
         if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
+        game.botOpp = m.bot && CHARS.some(c => c.id === m.bot.char) ? { name: String(m.bot.name).slice(0, 10), char: m.bot.char, lv: +m.bot.lv || 0 } : null;
         start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
         game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; game.fields[i].rankEm = m.ranks ? m.ranks[s] : null; });
       }

@@ -24,7 +24,7 @@ async function series(W, L, oneLoss) {
   return [await W.wait('rdone'), await L.wait('rdone')];
 }
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1' }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1', RANK_BOT_WAIT: '300' }, stdio: 'pipe' });
   await new Promise(r => setTimeout(r, 600));
   try {
     const A = await client('tokenAAAAAAAAAAAAAAAA', 'puyo'), B = await client('tokenBBBBBBBBBBBBBBBB', 'tetris');
@@ -58,6 +58,22 @@ async function series(W, L, oneLoss) {
     const dx = await C.wait('rdone');
     ok(dx.win === true && dx.placed === 1, `도중 이탈한 쪽 패배 (C ${dx.text})`);
     C.ws.close();
+    // 사람이 없을 때 AI 상대(설정을 켠 사람만): 혼자 기다리면 AI와 매칭, 결과는 사람 쪽 보고로 정함
+    const E = await client('tokenEEEEEEEEEEEEEEEE', 'tetris');
+    E.send({ t: 'rq', token: E.token, style: E.style, name: 'E', bot: true });
+    const se = await E.wait('start', 3000);
+    ok(se.ranked === 1 && se.bot && /^AI /.test(se.bot.name) && se.bot.lv >= 0 && se.styles.length === 2, `AI 상대 매칭: ${se.bot && se.bot.name} · 세기 ${se.bot && se.bot.lv.toFixed(2)}`);
+    E.send({ t: 'rres', win: false }); E.send({ t: 'ready' }); await E.wait('start'); E.send({ t: 'rres', win: true });
+    E.send({ t: 'ready' }); await E.wait('start'); E.send({ t: 'rres', win: true });
+    const de = await E.wait('rdone');
+    ok(de.win === true && de.score[0] === 2 && de.score[1] === 1 && /^AI /.test(de.opp.name) && de.placed === 1, `AI 상대 결과 반영: 2:1 승 · ${de.text}`);
+    const F = await client('tokenFFFFFFFFFFFFFFFF', 'tetris');
+    F.send({ t: 'rq', token: F.token, style: F.style, name: 'F' });
+    let gotF = null; try { gotF = await F.wait('start', 1200); } catch {}
+    ok(!gotF, '설정을 끈 사람은 AI와 매칭되지 않음');
+    const tt = await get('/rank/top?style=tetris&q=AI');
+    ok(tt.total === 0 || tt.rows.every(r => !/^AI /.test(r.name)), 'AI는 순위표·기록에 저장되지 않음');
+    E.ws.close(); F.ws.close();
   } catch (e) { ok(false, e.message); }
   finally { srv.kill(); try { fs.unlinkSync(FILE); } catch {} }
 })();

@@ -5,7 +5,7 @@
 let keyWait = null;
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
-  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; showVol(); renderKeys();
+  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
@@ -36,6 +36,7 @@ window.addEventListener('keydown', e => {          // 키 설정 입력(다른 �
   stats.keys = keys; saveStats(); keyWait = null; renderKeys();
 }, true);
 $('oppRank').addEventListener('change', () => { stats = loadStats(); stats.oppRank = $('oppRank').checked; saveStats(); });
+$('rankBot').addEventListener('change', () => { stats = loadStats(); stats.rankBot = $('rankBot').checked; saveStats(); });
 $('bKeyReset').addEventListener('click', () => { stats = loadStats(); stats.keys = null; saveStats(); keyWait = null; renderKeys(); });
 $('bSetClose').addEventListener('click', closeSettings);
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
@@ -137,7 +138,7 @@ function act(a) {
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'itab') { infoTab = v; renderInfo(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi' })); }
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();

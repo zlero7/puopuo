@@ -94,7 +94,9 @@ function startRoom(room) {
   const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
   const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
   const ranks = room.ranked ? room.seats.map(p => { if (!p.rank) return null; const v = rank.view(p.rank.rec); return { group: v.group, div: v.div, text: v.text }; }) : null;   // 랭크전: 게임 중 이름표에 띄울 티어
-  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks }));
+  const bot = room.seats.find(p => p.bot);         // AI 상대: 상대 판은 각자 브라우저에서 CPU로 돌림
+  const botInfo = bot ? { name: bot.rank.rec.name, char: bot.rank.rec.char, lv: rank.botLevel(bot.rank.rec) } : undefined;
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks, bot: botInfo }));
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
@@ -137,6 +139,18 @@ function matchRanked() {
     a.style = a.rank.style; b.style = b.rank.style;
     addPlayer(room, a); addPlayer(room, b);
   }
+  for (const a of rankQ) if (a.rank.bot && a.readyState === 1 && Date.now() - a.rank.since >= BOT_WAIT) botMatch(a);
+}
+// 사람이 없을 때 AI 상대: 설정에서 켠 사람만, 이만큼 기다려도 못 찾으면(RANK_BOT_WAIT, 기본 20초)
+const BOT_WAIT = process.env.RANK_BOT_WAIT != null ? +process.env.RANK_BOT_WAIT : 20000;
+function botMatch(a) {
+  rankQ.delete(a);
+  const rec = rank.bot(a.rank.rec), seat = { bot: true, readyState: 0, style: a.rank.style, rank: { rec, style: a.rank.style } };
+  const room = newRoom(a, 2, 'classic'); room.rule = 'tsu';
+  room.ranked = { score: [0, 0], rep: {}, ended: false, bot: true };
+  a.style = a.rank.style;
+  room.players.push(a); a.room = room; room.players.push(seat);
+  startRoom(room);
 }
 setInterval(matchRanked, 2000);
 // 랭크전 끝: 레이팅 계산 후 두 사람에게 결과
@@ -191,9 +205,9 @@ wss.on('connection', ws => {
       case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
         if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
         leave(ws);
-        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name, m.char), since: Date.now() };
+        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name, m.char), since: Date.now(), bot: !!m.bot };
         rankQ.add(ws);
-        send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)) });
+        send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });
         matchRanked();
         break;
       }
@@ -202,6 +216,7 @@ wss.on('connection', ws => {
         if (!R || R.ended || !room.started) return;
         const i = room.seats.indexOf(ws); if (i < 0) return;
         R.rep[i] = !!m.win;
+        if (R.bot) R.rep[1 - i] = !m.win;                  // AI 상대: 사람 쪽 보고로 정함
         if (Object.keys(R.rep).length < 2) return;
         const wins = [0, 1].filter(k => R.rep[k]);
         R.rep = {};
@@ -215,7 +230,7 @@ wss.on('connection', ws => {
         if (!room || !room.started || room.players.length < 2) return;
         if (room.ranked && room.ranked.ended) return;     // 끝난 랭크전은 다시 하기 없음
         room.ready.add(ws);
-        if (room.players.every(p => room.ready.has(p))) startRoom(room);
+        if (room.players.every(p => p.bot || room.ready.has(p))) startRoom(room);
         else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady', have: room.ready.size, size: room.players.length }); });
         break;
       }

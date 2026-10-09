@@ -225,8 +225,19 @@ function top(style, season, page = 1, q = '', token = '') {
   const seasons = [cur, ...Object.keys(db.boards).map(Number).filter(n => n < cur).sort((a, b) => b - a)].map(n => ({ n, name: seasonInfo(n).name }));
   return { season: seasonInfo(s), seasons, total, page: pg, pages, rows: rows.slice((pg - 1) * PAGE, pg * PAGE).map(({ key, ...r }) => ({ ...r, me: !!token && key === `${token}:${style}` })) };
 }
+// AI 상대(랭크전에 사람이 없을 때): 저장하지 않는 기록. 숨은 실력 점수·보이는 티어를 상대와 비슷하게
+const BOT_CHARS = [['lumi', '루미'], ['toto', '토토'], ['pin', '핀'], ['moka', '모카'], ['byeol', '별이'], ['kuro', '쿠로'], ['somi', '솜이'], ['bolt', '볼트']];
+function bot(p) {
+  const [char, ko] = BOT_CHARS[Math.floor(Math.random() * BOT_CHARS.length)];
+  const b = blank(`AI ${ko}`, p.style), r = p.r + (Math.random() - 0.5) * 80;
+  const total = doneThisSeason(p) ? Math.max(0, Math.min(MASTER - 1, p.total + Math.round((Math.random() - 0.5) * 60))) : Math.min(MASTER - 1, mmrToTotal(r));
+  Object.assign(b, { char, r, rd: 60, placed: b.need, yearPlaced: true, total, peak: total, bot: true });
+  return b;
+}
+// AI 세기(0~1): 숨은 실력 점수 1000(브론즈 1) → 0, 2050(마스터) → 1
+const botLevel = p => Math.max(0, Math.min(1.15, (p.r - 1000) / 1050));
 const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
