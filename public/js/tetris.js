@@ -212,6 +212,7 @@ class TField {
   hold() {
     if (this.phase !== 'drop' || !this.canHold || this.forceQ) return;
     const k = this.cur.k;
+    if (!this.remote) emit(this, { t: 'hold' });         // 서버 검증용
     if (this.holdK) { const nk = this.holdK; this.holdK = k; this.spawnType(nk); }
     else { this.holdK = k; this.spawnType(tPieceAt(this.idx++)); }
     this.canHold = false; if (this.human) sfx.hold();
@@ -290,7 +291,7 @@ class TField {
     const p = this.cur, ts = this.tspinType(), cells = this.cells(p);
     if (cells.every(([, y]) => y < TH - TVIS)) {
       if (game.rule === 'party') { this.cur = null; partyReset(this); return; }
-      for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [] }); this.die(); return;
+      for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k); if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows: [], ...this.lockInfo(p) }); this.die(); return;
     }
     for (const [x, y] of cells) this.grid[y][x] = TKEYS.indexOf(p.k);
     if (p.it) (this.items = this.items || []).push({ x: cells[p.it.i][0], y: cells[p.it.i][1], k: p.it.k });
@@ -298,7 +299,7 @@ class TField {
     const rows = []; for (let r = 0; r < TH; r++) if (this.grid[r].every(v => v)) rows.push(r);
     const filledAfter = this.grid.reduce((a, row, r) => a + (rows.includes(r) ? 0 : row.filter(Boolean).length), 0);
     const pc = rows.length > 0 && filledAfter === 0;
-    if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true) });
+    if (!this.remote) emit(this, { t: 'tlock', g: this.encode(), rows, fx: this.lockFx(rows.length, ts, pc, true), ...this.lockInfo(p) });
     this.shake = Math.max(this.shake, hard ? 2.5 : 0);
     if (rows.length && this.items && this.items.length) {   // 파티: 지운 줄에 있던 ★아이템 발동(줄이 다 지워진 뒤)
       this.itemQ = (this.itemQ || []).concat(this.items.filter(t => rows.includes(t.y)).map(t => t.k));
@@ -325,6 +326,8 @@ class TField {
       this.afterLock();
     }
   }
+  // 서버 검증용: 놓은 조각 · 자리 · 마지막 조작이 회전이었는지(T스핀 판정)
+  lockInfo(p) { return { k: p.k, x: p.x, y: p.y, r: p.r, rot: this.lastRot ? 1 : 0, kick: this.lastKick || 0 }; }
   lockFx(lines, ts, pc, pre) {
     const labs = [];
     if (ts === 2) labs.push('T스핀' + (['', ' 싱글', ' 더블', ' 트리플'][lines] || ''));
@@ -379,6 +382,7 @@ class TField {
     if (!this.gauge) return;
     let g = this.gauge; this.gauge = 0;
     const c = Math.min(g, this.pending); g -= c; this.pending -= c;
+    if (c > 0) emit(this, { t: 'off', n: c, x: TGX / 2, y: FH / 2, ch: 0 });    // 게이지로 상쇄한 것도 알림(서버 검증·상대 화면)
     if (g <= 0) return;
     this.opp = pickTarget(this, 'puyo');
     const n = this.vsPuyo() ? T2P[Math.min(g, 60)] : g, x = this.ox + TGX / 2, y = this.oy + FH / 2;   // 뿌요 상대가 다 떨어졌으면 줄 그대로

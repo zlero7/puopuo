@@ -6,7 +6,7 @@
    ① 온라인이면 상대에게 보내고 ② 녹화 중이면 리플레이에 기록한다.
    재생은 온라인 상대 화면을 재현하는 코드(원격 판)를 그대로 쓴다. */
 function emit(f, d) {
-  if (game.net && f === game.fields[0]) gsend(d.to != null ? { ...d, to: game.fields[d.to] ? game.fields[d.to].seat : undefined } : d);   // 판 번호 → 자리 번호
+  if (game.net && f === game.fields[0]) gsend({ ...d, to: d.to != null ? (game.fields[d.to] ? game.fields[d.to].seat : undefined) : undefined, at: Math.round(game.el || 0) });   // 판 번호 → 자리 번호 · 서버 검증용 진행 시간
   recEv(f, d);
 }
 // 녹화: [진행 시간(ms), 판 번호, 이벤트]

@@ -259,6 +259,7 @@ class Field {
     if (this.phase !== 'drop' || !this.piece || !this.canHold) return;
     const keep = [this.piece.a, this.piece.b], [a, b] = this.holdP || pairAt(this.idx++);
     this.holdP = keep; this.canHold = false;
+    if (!this.remote) emit(this, { t: 'hold' });         // 서버 검증: 어떤 쌍을 쓰는지 따라가려면 홀드도 알아야 함
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 }; this.acc = 0;
     if (!this.fits(this.piece)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (this.human) sfx.hold();
