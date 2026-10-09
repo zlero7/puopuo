@@ -14,7 +14,7 @@ function client(token, style) {
 const ok = (c, msg) => { console.log(`${c ? '✓' : '✗'} ${msg}`); if (!c) process.exitCode = 1; };
 // 한 시리즈: winner가 2승(중간에 loser가 1승 할 수도)
 async function series(W, L, oneLoss) {
-  for (const c of [W, L]) c.send({ t: 'rq', token: c.token, style: c.style, name: c.token.slice(5, 6) });
+  for (const c of [W, L]) c.send({ t: 'rq', token: c.token, style: c.style, name: c.token.slice(5, 6), char: 'kuro' });
   await W.wait('start'); await L.wait('start');
   const games = oneLoss ? [L, W, W] : [W, W];
   for (let i = 0; i < games.length; i++) {
@@ -43,10 +43,11 @@ async function series(W, L, oneLoss) {
     ok(!last[1].placing, `배치 완료(10패): B → ${last[1].text}`);
     const after = await series(A, B);
     ok(after[0].d > 0 && after[1].d < 0 && /RP/.test(after[0].text), `배치 후 시리즈: A ${after[0].d > 0 ? '+' : ''}${after[0].d} RP → ${after[0].text} · B ${after[1].d} RP → ${after[1].text}`);
+    ok(after[0].opp && after[0].opp.name === 'B' && after[0].opp.char === 'kuro' && /RP/.test(after[0].opp.text), `결과에 상대 정보: ${after[0].opp.name} · ${after[0].opp.text}`);
     await new Promise(r => setTimeout(r, 500));
     const top = await get('/rank/top?style=puyo'), me = await get('/rank/me?style=tetris&token=tokenBBBBBBBBBBBBBBBB');
-    ok(top.length === 1 && top[0].text === after[0].text, `순위표(뿌요) 1위: ${top[0] && top[0].text}`);
-    ok(me.text === after[1].text && me.season && /시즌/.test(me.season.name), `내 정보(B 테트리스): ${me.text} · ${me.season.name} ${me.season.daysLeft}일 남음`);
+    ok(top.rows.length === 1 && top.rows[0].name === 'A' && top.rows[0].place === 1, `순위표(뿌요, 플래티넘 이상): 1위 ${top.rows[0] && top.rows[0].name} ${top.rows[0] && top.rows[0].label} ${top.rows[0] && top.rows[0].rp} RP`);
+    ok(me.text === after[1].text && /시즌/.test(me.season.name) && me.matches.length === 11 && me.matches[0].opp.name === 'A', `내 정보(B 테트리스): ${me.text} · ${me.season.name} · 랭크 기록 ${me.matches.length}경기`);
     ok(fs.existsSync(FILE), '파일로 저장');
     A.ws.close(); B.ws.close();
     // 도중 이탈은 패배(배치 1판으로 셈)

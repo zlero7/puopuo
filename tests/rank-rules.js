@@ -1,58 +1,69 @@
-// 랭크 규칙 테스트(서버 없이 rank.js 직접): 배치 · 티어 이름 · 잃은 만큼 내려가기 · 승급 보호 · 마스터 등수 · 시즌 넘김
+// 랭크 규칙 테스트(서버 없이 rank.js 직접)
+// 티어 이름 · 10배치 · 잃은 만큼 내려가기 · 승급 보호 · 마스터 등수 · 같은 해 5배치(거의 그대로) · 새해 완전 초기화 · 순위표
 // 실행: node tests/rank-rules.js
 const os = require('os'), path = require('path'), fs = require('fs');
 process.env.RANK_FILE = path.join(os.tmpdir(), `rank-rules-${process.pid}.json`);
-process.env.RANK_NOW = String(new Date(2026, 8, 10).getTime());           // 2026년 9월 = 시즌 5
+const at = (y, m) => { process.env.RANK_NOW = String(new Date(y, m - 1, 10).getTime()); };
+at(2026, 9);                                                 // 2026년 9월 = 2026 시즌 5
 const R = require('../rank.js');
 let fail = 0; const ok = (c, msg) => { console.log(`${c ? '✓' : '✗'} ${msg}`); if (!c) fail++; };
 const tok = i => 'tok' + String(i).padStart(14, '0');
+const set = (p, o) => Object.assign(p, { placed: p.need, yearPlaced: true, ...o });
 
-// 티어 이름: 숫자가 클수록 높음
-ok(R.tierOf(0).label === '브론즈 1' && R.tierOf(250).label === '브론즈 3' && R.tierOf(300).label === '실버 1' && R.tierOf(1499).label === '다이아 3' && R.tierOf(1500).label === '마스터', '티어 순서: 브론즈 1 < 브론즈 3 < 실버 1 … 다이아 3 < 마스터');
-ok(R.seasonInfo().name === '2026 시즌 5' && R.seasonInfo().months === '9~10월', '시즌: 2달 단위(9~10월 = 시즌 5)');
+ok(R.tierOf(0).label === '브론즈 1' && R.tierOf(250).label === '브론즈 3' && R.tierOf(300).label === '실버 1' && R.tierOf(1499).label === '다이아 3' && R.tierOf(1500).label === '마스터', '티어 순서: 브론즈 1 < … < 다이아 3 < 마스터');
+ok(R.seasonInfo().name === '2026 시즌 5' && R.seasonInfo().months === '9~10월', '시즌 이름: 2026 시즌 5 (9~10월)');
 
-// 배치 10시리즈
-const a = R.get(tok(1), 'puyo', 'A'), b = R.get(tok(2), 'puyo', 'B');
+// 생배 10시리즈
+const a = R.get(tok(1), 'puyo', 'A', 'kuro'), b = R.get(tok(2), 'puyo', 'B');
 for (let i = 0; i < 9; i++) R.report(a, b, [2, 0]);
-ok(R.view(a).placing && R.view(a).placed === 9 && R.labelOf(R.view(a)) === '배치 9/10', '배치 중에는 RP 없이 배치 9/10');
+ok(R.view(a).text === '배치 9/10' && a.matches[0].d === null, '생배: 배치 중에는 결과를 가리고 배치 9/10');
 const [ra] = R.report(a, b, [2, 1]);
-const va = R.view(a), vb = R.view(b);
-ok(ra.event === 'placed' && !va.placing && va.total <= 1199 && va.rp === 25, `배치 완료(10승) → ${va.label} ${va.rp} RP (첫 시즌 최대 플래티넘 3)`);
-ok(!vb.placing && vb.total < va.total, `10패 → ${vb.label} ${vb.rp} RP`);
+ok(ra.event === 'placed' && R.view(a).rp === 25 && a.total <= 1199, `생배 10승 → ${R.view(a).text} (최대 플래티넘 3)`);
+ok(ra.opp.name === 'B' && a.matches[0].opp.text.startsWith('배치'), '경기 기록에 상대 이름·당시 티어');
 
-// 잃은 만큼 그대로 내려가기: 실버 1 · 10 RP에서 지면 브론즈 3 · 90 근처
-a.total = 310; a.shield = false;
-const c = R.get(tok(3), 'puyo', 'C'); Object.assign(c, { placed: 10, season: a.season, total: 310, r: 1000, rd: 60 });
-const [, rc] = R.report(a, c, [2, 0]);   // c가 짐
-ok(rc.d < 0 && R.tierOf(c.total).label === '브론즈 3' && c.total === 310 + rc.d, `강등은 잃은 점수만큼: 실버 1 · 10 RP ${rc.d} → ${R.tierOf(c.total).label} · ${R.tierOf(c.total).rp} RP`);
-
-// 승급 → 바로 다음 시리즈는 져도 그 칸 아래로 안 내려감
-const d = R.get(tok(4), 'puyo', 'D'); Object.assign(d, { placed: 10, season: a.season, total: 395, r: 1700, rd: 60 });
-const e = R.get(tok(5), 'puyo', 'E'); Object.assign(e, { placed: 10, season: a.season, total: 400, r: 1500, rd: 60 });
+// 잃은 만큼 내려가기 · 보호 · 마스터
+const c = R.get(tok(3), 'puyo', 'C'); set(c, { total: 310, r: 1000, rd: 60 });
+const [, rc] = R.report(a, c, [2, 0]);
+ok(R.tierOf(c.total).label === '브론즈 3' && c.total === 310 + rc.d, `잃은 만큼: 실버 1 · 10 RP ${rc.d} → ${R.view(c).text}`);
+const d = R.get(tok(4), 'puyo', 'D'); set(d, { total: 395, r: 1700, rd: 60 });
+const e = R.get(tok(5), 'puyo', 'E'); set(e, { total: 400, r: 1500, rd: 60 });
 const [rd1] = R.report(d, e, [2, 0]);
-ok(rd1.event === 'promote' && R.tierOf(d.total).label === '실버 2', `승급: 실버 1 · 95 RP +${rd1.d} → ${R.tierOf(d.total).label}`);
-d.total = 405;
-const [, rd2] = R.report(e, d, [2, 0]);
-ok(rd2.event === 'shield' && d.total === 400, '승급 직후 패배는 실버 2 · 0 RP에서 멈춤(강등 보호)');
-const [, rd3] = R.report(e, d, [2, 0]);
-ok(rd3.d < 0 && d.total < 400 && R.tierOf(d.total).label === '실버 1', `보호는 한 번만: 다음 패배는 ${R.tierOf(d.total).label} · ${R.tierOf(d.total).rp} RP`);
+ok(rd1.event === 'promote', `승급: → ${R.view(d).text}`);
+d.total = 405; const [, rd2] = R.report(e, d, [2, 0]);
+ok(rd2.event === 'shield' && d.total === 400, '승급 직후 패배는 0 RP에서 멈춤(강등 보호)');
+const m1 = R.get(tok(6), 'puyo', 'M1', 'lumi'), m2 = R.get(tok(7), 'puyo', 'M2', 'pin');
+set(m1, { total: 1620 }); set(m2, { total: 1580 });
+ok(R.view(m1).text === '마스터 #1' && R.view(m2).text === '마스터 #2', '마스터 등수 표시');
 
-// 마스터: RP가 계속 쌓이고 등수로 표시
-const m1 = R.get(tok(6), 'puyo', 'M1'), m2 = R.get(tok(7), 'puyo', 'M2');
-Object.assign(m1, { placed: 10, season: a.season, total: 1620 }); Object.assign(m2, { placed: 10, season: a.season, total: 1580 });
-ok(R.labelOf(R.view(m1)) === '마스터 #1' && R.labelOf(R.view(m2)) === '마스터 #2', `마스터 등수 표시: ${R.labelOf(R.view(m1))}, ${R.labelOf(R.view(m2))}`);
-R.report(m2, m1, [2, 0]); R.report(m2, m1, [2, 0]); R.report(m2, m1, [2, 0]);
-ok(R.labelOf(R.view(m2)) === '마스터 #1', `RP 순으로 등수 바뀜: M2 ${m2.total - R.MASTER} RP → 마스터 #1`);
-ok(R.top('puyo')[0].text.startsWith('마스터 #1'), '순위표 1위는 마스터 #1');
+// 순위표: 플래티넘 이상만, 검색, 페이지
+const tp = R.top('puyo');
+ok(tp.rows.every(r => r.total >= R.BOARD_MIN) && tp.rows[0].name === 'M1' && tp.rows[0].char === 'lumi', `순위표는 플래티넘 이상만(${tp.total}명): 1위 ${tp.rows[0].name}`);
+for (let i = 0; i < 25; i++) set(R.get(tok(100 + i), 'puyo', 'P' + i), { total: 900 + i * 20 });
+const t2 = R.top('puyo', 0, 2), t3 = R.top('puyo', 0, 1, 'P1');
+ok(t2.page === 2 && t2.rows.length === 10 && t2.pages === Math.ceil(t2.total / 10), `페이지: ${t2.page}/${t2.pages}`);
+ok(t3.rows.every(r => r.name.includes('P1')) && t3.rows.length > 1, `이름 검색 P1: ${t3.rows.length}명`);
 
-// 시즌 넘김: 세부 티어 3칸 하락 + 재배치(기준 ±3칸)
-const gold3 = R.get(tok(8), 'puyo', 'G'); Object.assign(gold3, { placed: 10, season: a.season, total: 850, peak: 870 });   // 골드 3 · 50
-const foe = R.get(tok(9), 'puyo', 'F'); Object.assign(foe, { placed: 10, season: a.season, total: 850 });
-process.env.RANK_NOW = String(new Date(2026, 10, 3).getTime());          // 11월 = 시즌 6
+// 같은 해 다음 시즌: 5배치, 티어 그대로
+const g = R.get(tok(8), 'puyo', 'G'); set(g, { total: 850, peak: 870, r: 1560, rd: 60 });   // 골드 3 · 50, 숨은 실력은 비슷
+const f = R.get(tok(9), 'puyo', 'F'); set(f, { total: 850, r: 1560, rd: 60 });
+at(2026, 11);                                                // 2026 시즌 6
 const g2 = R.get(tok(8), 'puyo'), f2 = R.get(tok(9), 'puyo');
-ok(R.view(g2).placing && g2.total === 550 && g2.hist[0].final === '골드 3' && g2.hist[0].peak === '골드 3', '새 시즌: 배치 중, 기준은 3칸 아래(골드 3 · 50 → 실버 3 · 50), 지난 시즌 기록 남김');
-for (let i = 0; i < 5; i++) { R.report(g2, f2, [2, 1]); R.report(f2, g2, [2, 1]); }   // 5승 5패
-ok(!R.view(g2).placing && R.view(g2).label === '실버 3', `재배치 5승 5패 → ${R.labelOf(R.view(g2))}(기준 그대로)`);
+ok(g2.need === 5 && R.view(g2).text === '배치 0/5' && g2.hist[0].final === '골드 3', '같은 해 다음 시즌: 5배치, 지난 시즌 기록 남김');
+for (let i = 0; i < 4; i++) R.report(g2, f2, [2, 1]); R.report(f2, g2, [2, 1]);   // 4승 1패
+ok(R.view(g2).text === '골드 3 · 50 RP', `5배치 4승 1패, 실력 차이 크지 않음 → 그대로 ${R.view(g2).text}`);
+ok(R.view(f2).text === '골드 3 · 50 RP', `5배치 1승 4패, 실력 차이 크지 않음 → 그대로 ${R.view(f2).text}`);
+const top5 = R.top('puyo', 5);
+ok(top5.season.name === '2026 시즌 5' && top5.rows[0].name === 'M1' && top5.seasons.some(s => s.n === 5), '지난 시즌(시즌 5) 순위표 저장·조회');
+// 압도적이면 +1칸
+const h = R.get(tok(10), 'puyo', 'H'); Object.assign(h, { need: 5, placed: 0, start: 600, total: 600, r: 1900, rd: 60, yearPlaced: true, season: R.seasonOf() });
+const hf = R.get(tok(11), 'puyo', 'HF'); set(hf, { total: 600, r: 1400, rd: 60 });
+for (let i = 0; i < 5; i++) R.report(h, hf, [2, 0]);
+ok(R.view(h).text === '골드 3 · 0 RP' || R.view(h).text.startsWith('플래티넘'), `5배치 전승 + 실력이 훨씬 높음 → ${R.view(h).text}(골드 1에서 위로)`);
+
+// 새해: 완전 초기화, 그 해 첫 랭크전은 시즌 4라도 10배치
+at(2027, 7);                                                 // 2027 시즌 4
+const g3 = R.get(tok(8), 'puyo');
+ok(g3.need === 10 && g3.r === 1500 && g3.rd === 350 && g3.total === 0 && R.view(g3).text === '배치 0/10', '새해(2027 시즌 4에 처음): 숨은 점수 완전 초기화, 10배치');
 
 R.flush(); try { fs.unlinkSync(process.env.RANK_FILE); } catch {}
 console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exitCode = fail ? 1 : 0;

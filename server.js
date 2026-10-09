@@ -45,7 +45,7 @@ const server = http.createServer((req, res) => {
   } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
     let body;
-    if (url === '/rank/top') body = rank.top(style);
+    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20));
     else if (!rank.validToken(q.get('token'))) { res.writeHead(400); res.end(); return; }
     else body = rank.me(q.get('token'), style);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -146,7 +146,7 @@ function rankedEnd(room, w) {
   if (!W || !W.rank || !L || !L.rank) return;
   const score = [Math.max(2, R.score[w]), R.score[1 - w]];          // 상대가 나가서 끝났으면 2승으로 침
   const res = rank.report(W.rank.rec, L.rank.rec, score);
-  [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, d: r.d, event: r.event, score: win ? score : [score[1], score[0]], ...v, text: rank.labelOf(v) }); });
+  [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, d: r.d, event: r.event, opp: r.opp, score: win ? score : [score[1], score[0]], ...v }); });
 }
 
 wss.on('connection', ws => {
@@ -190,7 +190,7 @@ wss.on('connection', ws => {
       case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
         if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
         leave(ws);
-        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name), since: Date.now() };
+        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name, m.char), since: Date.now() };
         rankQ.add(ws);
         send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)) });
         matchRanked();
