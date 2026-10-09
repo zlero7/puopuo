@@ -354,6 +354,17 @@
   .result p { margin: 0 0 14px; font-size: 18px; }
   .result .chips { grid-template-columns: repeat(2, 1fr); margin-bottom: 18px; text-align: left; }
   .result .chip { background: rgba(0,0,0,0.24); box-shadow: none; }
+  /* 랭크전 결과: 내 티어·RP 변화 vs 상대 티어 */
+  .rkres { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; background: rgba(0,0,0,0.28); border-radius: 8px; padding: 12px 14px; margin: -4px 0 14px; text-align: left; }
+  .rkres .side { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .rkres .side.op { flex-direction: row-reverse; text-align: right; }
+  .rkres canvas { width: 62px; height: 62px; flex: none; }
+  .rkres .op canvas { width: 46px; height: 46px; }
+  .rkres b { display: block; font-family: var(--head); font-weight: 400; font-size: 30px; line-height: 1.1; }
+  .rkres .op b { font-size: 18px; }
+  .rkres small { display: block; font-size: 13px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rkres .vs { font-family: var(--head); opacity: 0.7; }
+  .rkres .up { color: #b6ff9e; } .rkres .down { color: #ffd0d6; }
   .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
   .btn {
     font-family: var(--head); font-size: 22px; border: 0; border-radius: 8px; padding: 10px 24px; cursor: pointer;
@@ -660,6 +671,7 @@
           <span class="in"></span>
           <h2 class="tt" id="ovTitle" style="position:relative">승리!</h2>
           <p id="ovSub"></p>
+          <div class="rkres hidden" id="ovRank"></div>
           <div class="chips" id="ovStats"></div>
           <div class="btns">
             <button class="btn" id="bResume">계속하기</button>

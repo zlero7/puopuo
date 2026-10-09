@@ -33,7 +33,7 @@ function forfeit() {
 }
 function showResult(tone, title, sub, chips, kind) {
   $('resultBox').className = 'result t-' + tone;
-  $('ovTitle').textContent = title; $('ovSub').textContent = sub;
+  $('ovTitle').textContent = title; $('ovSub').textContent = sub; $('ovRank').classList.add('hidden');
   $('ovStats').innerHTML = (chips || []).map(([k, v]) => `<div class="chip"><span>${k}</span><b>${v}</b></div>`).join('');
   overlayBtns(kind); overlay.classList.remove('hidden'); game.ovAt = performance.now();
   requestAnimationFrame(() => { const b = [...overlay.querySelectorAll('.btn')].find(b => !b.classList.contains('hidden')); if (b) b.focus({ preventScroll: true }); });
@@ -210,6 +210,7 @@ function update(dt) {
         if (game.ranked && online) {             // 랭크전: 판 사이엔 자동으로 다음 판, 끝나면 레이팅 변화
           showResult(me.won ? 'yellow' : 'blue', done && game.rankRes && rankTitle(game.rankRes) || (done ? (sr.me > sr.op ? '랭크전 승리!' : '랭크전 패배') : me.won ? '승리!' : '패배'),
             done || game.oppLeft ? (game.rankRes ? rankLine(game.rankRes) : '레이팅 계산 중…') : `시리즈 ${sr.me} : ${sr.op} (2선승) · 랭크전`, chips, done || game.oppLeft || !net.ws ? 'menu' : 'rnext');
+          if ((done || game.oppLeft) && game.rankRes) showRankRes(game.rankRes);
           if (!done && !game.oppLeft) game.autoNextT = 3500;
           return;
         }

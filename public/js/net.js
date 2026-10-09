@@ -38,7 +38,7 @@ function onNet(m) {
         stats = loadStats(); const h = stats.history.find(x => x.cat === 'ranked');
         if (h && !h.rk) { h.rk = { d: m.d, event: m.event, placing: m.event === 'placed' || m.placing, after: m.text, group: m.group, div: m.div, opp: m.opp, score: m.score }; saveStats(); }
       }
-      if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); }
+      if (!overlay.classList.contains('hidden') && game.ranked) { $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m); showRankRes(m); }
       break;
     case 'error': status(m.msg); break;
     case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
@@ -124,10 +124,22 @@ document.querySelectorAll('#pad button').forEach(btn => {
 });
 // 랭크전 결과 문구: 배치 진행 / 배치 완료 / RP 변화와 승급·강등
 const rankLine = m => {
-  const sc = (m.score ? `${m.score[0]} : ${m.score[1]} · ` : '') + (m.opp ? `상대 ${m.opp.name} ${m.opp.text} · ` : '');
+  const sc = m.score ? `${m.score[0]} : ${m.score[1]} · ` : '';
   if (m.event === 'placed') return `${sc}배치 완료(${m.pw}승 ${m.pl}패) → ${m.text}`;
   if (m.placing) return `${sc}배치 ${m.placed}/${m.need} (${m.pw}승 ${m.pl}패)`;
   const ev = { promote: ' · 승급!', master: ' · 마스터 달성!', demote: ' · 강등', shield: ' · 강등 보호' }[m.event] || '';
   return `${sc}${m.d >= 0 ? '+' : ''}${m.d} RP → ${m.text}${ev}`;
 };
 const rankTitle = m => m.event === 'placed' ? `배치 완료! ${m.label === '마스터' ? '마스터' : m.label}` : m.event === 'promote' ? `승급! ${m.label}` : m.event === 'master' ? '마스터 달성!' : m.event === 'demote' ? `강등… ${m.label}` : null;
+// 랭크전 결과 패널: 왼쪽 내 티어와 RP 변화, 오른쪽 상대 이름·티어
+function showRankRes(m) {
+  const box = $('ovRank');
+  const big = m.event === 'placed' ? '배치 완료' : m.placing ? `배치 ${m.placed}/${m.need}` : `${m.d > 0 ? '+' : ''}${m.d} RP`;
+  const cls = m.placing || m.event === 'placed' ? '' : m.d > 0 ? 'up' : m.d < 0 ? 'down' : '';
+  const ev = { placed: '배치 완료 · ', promote: '승급! · ', master: '마스터 달성! · ', demote: '강등 · ', shield: '강등 보호 · ' }[m.event] || '';
+  const o = m.opp || {};
+  box.innerHTML = `<div class="side me"><canvas data-g="${m.group}" data-d="${m.placing ? 0 : m.div}"></canvas><div><b class="${cls}">${big}</b><small>${ev}${esc(m.placing ? `${m.pw}승 ${m.pl}패` : m.text)}</small></div></div>` +
+    `<span class="vs">VS</span><div class="side op"><canvas data-g="${o.group == null ? -1 : o.group}" data-d="${o.div || 0}"></canvas><div><b>${esc(o.name || '상대')}</b><small>${esc(o.text || '')}</small></div></div>`;
+  box.classList.remove('hidden');
+  requestAnimationFrame(() => box.querySelectorAll('canvas').forEach(c => { const g = fitCanvas(c); if (g) drawTierEmblem(g.x, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.92, +c.dataset.g, +c.dataset.d); }));
+}
