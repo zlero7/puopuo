@@ -134,11 +134,11 @@ const rankTitle = m => m.event === 'placed' ? `배치 완료! ${m.label === '마
 // 랭크전 결과 패널: 왼쪽 내 티어와 RP 변화, 오른쪽 상대 이름·티어
 function showRankRes(m) {
   const box = $('ovRank');
-  const big = m.event === 'placed' ? '배치 완료' : m.placing ? `배치 ${m.placed}/${m.need}` : `${m.d > 0 ? '+' : ''}${m.d} RP`;
+  const big = m.event === 'placed' ? esc(m.label) : m.placing ? `배치 ${m.placed}/${m.need}` : `${m.d > 0 ? '+' : ''}${m.d} RP`;
   const cls = m.placing || m.event === 'placed' ? '' : m.d > 0 ? 'up' : m.d < 0 ? 'down' : '';
   const ev = { placed: '배치 완료 · ', promote: '승급! · ', master: '마스터 달성! · ', demote: '강등 · ', shield: '강등 보호 · ' }[m.event] || '';
   const o = m.opp || {};
-  box.innerHTML = `<div class="side me"><canvas data-g="${m.group}" data-d="${m.placing ? 0 : m.div}"></canvas><div><b class="${cls}">${big}</b><small>${ev}${esc(m.placing ? `${m.pw}승 ${m.pl}패` : m.text)}</small></div></div>` +
+  box.innerHTML = `<div class="side me"><canvas data-g="${m.group}" data-d="${m.placing ? 0 : m.div}"></canvas><div><b class="${cls}${m.placing && m.event !== 'placed' ? ' pl' : ''}">${big}</b><small>${ev}${esc(m.event === 'placed' ? `${m.pw}승 ${m.pl}패 · ${m.rp} RP` : m.placing ? `${m.pw}승 ${m.pl}패` : m.text)}</small></div></div>` +
     `<span class="vs">VS</span><div class="side op"><canvas data-g="${o.group == null ? -1 : o.group}" data-d="${o.div || 0}"></canvas><div><b>${esc(o.name || '상대')}</b><small>${esc(o.text || '')}</small></div></div>`;
   box.classList.remove('hidden');
   requestAnimationFrame(() => box.querySelectorAll('canvas').forEach(c => { const g = fitCanvas(c); if (g) drawTierEmblem(g.x, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.92, +c.dataset.g, +c.dataset.d); }));
