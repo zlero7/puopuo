@@ -326,17 +326,19 @@
   #t-stats .art { height: 54% !important; }
   #t-stats .tt { bottom: 46% !important; }
   #t-stats .rec { bottom: 28% !important; }
+  #t-stats .ico { width: clamp(48px, 8vh, 80px); height: clamp(48px, 8vh, 80px); }   /* 제목 위 빈자리에 맞게 작게 */
+  #t-adv .rec { left: 8%; right: auto; bottom: 37%; }        /* 제목 왼쪽 빈자리(아래 설명 칸과 안 겹치게) */
   #sc-ai .tile:not(#t-ai) .tt { top: 8% !important; }
-  #sc-ai .tile:not(#t-ai) .td { left: 46%; right: 5%; bottom: auto; top: 38%; }
-  #sc-ai .tile:not(#t-ai) .rec { bottom: 7% !important; }
+  #sc-ai .tile:not(#t-ai) .td { left: 46%; right: 5%; bottom: auto; top: 41%; font-size: clamp(11px, 1.75vh, 16px); }
+  #sc-ai .tile:not(#t-ai) .rec { bottom: 4% !important; }
   #t-quick .td { left: 8%; right: 8%; bottom: 7%; }
   #t-quick .art { top: 8% !important; height: 50% !important; }
   #t-quick .tt { bottom: 34% !important; }
   #t-quick .rec { top: 10% !important; }
   #t-create .td, #t-local .td { bottom: 7%; }
   #t-create .tt { top: 12% !important; }
-  #t-local .td { right: 20%; }
-  #t-local .tt { top: 6% !important; }
+  #t-local .td { right: 20%; bottom: 3%; font-size: clamp(11px, 1.7vh, 14px); }
+  #t-local .tt { top: 3% !important; }
   #t-join .tt { top: 2% !important; font-size: clamp(22px, 4.4vh, 44px); }
   #t-join .joinrow { bottom: 29%; }
   #t-join .joinrow input { padding: 3px 8px; }
@@ -488,9 +490,9 @@
         </button>
         <button class="tile t-purple" id="t-stats" data-act="go:stats" data-desc="지금까지 플레이한 횟수, 승패, 최고 기록을 확인할 수 있어.">
           <span class="in"></span>
-          <canvas class="art" data-art="stats" style="left:6%;top:14%;width:40%;height:70%"></canvas>
+          <canvas class="art" data-art="stats" style="left:6%;top:14%;width:34%;height:70%"></canvas>
           <span class="tt" style="right:10%;bottom:34%">내 정보</span>
-          <canvas class="ico" data-col="5" style="right:30%;top:8%"></canvas>
+          <canvas class="ico" data-col="5" style="right:8%;top:5%"></canvas>
           <span class="rec" id="mainRec"></span>
         </button>
       </section>
@@ -603,7 +605,7 @@
           <span class="in"></span>
           <canvas class="art" data-art="vs" style="left:52%;top:14%;width:40%;height:66%"></canvas>
           <span class="tt" style="left:8%;bottom:18%">빠른 매칭</span>
-          <span class="rec" id="recOnline" style="right:auto;left:9%;bottom:auto;top:18%"></span>
+          <span class="rec" id="recOnline" style="right:8%;left:auto;bottom:auto;top:4%"></span>
         </button>
         <button class="tile t-orange" id="t-create" data-act="create" data-desc="방을 만들고 4자리 코드를 친구에게 알려줘.">
           <span class="in"></span>
@@ -618,10 +620,10 @@
         </div>
         <button class="tile t-green" id="t-local" data-act="local" data-desc="한 키보드(또는 게임패드 2개)로 둘이 대전해. 1P는 WASD·Q/E·R, 2P는 방향키·. /·, 를 써.">
           <span class="in"></span>
-          <span class="tt" style="left:9%;top:24%"><small>한 컴퓨터에서 둘이</small>로컬 대전</span>
+          <span class="tt" style="left:9%;top:11%"><small>한 컴퓨터에서 둘이</small>로컬 대전</span>
           <canvas class="ico" data-col="2" style="right:5%;bottom:8%"></canvas>
         </button>
-        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12 판·통상 규칙·2선승). 로그인해야 할 수 있고, 처음과 해마다 첫 시즌은 10번, 같은 해 다음 시즌은 5번 배치를 봐. 승패는 서버가 기록을 다시 계산해서 정해.">
+        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12·통상·2선승). 로그인이 필요하고, 승패는 서버가 정해.">
           <span class="in"></span>
           <canvas class="art" data-art="rank" style="left:14%;top:8%;width:72%;height:40%"></canvas>
           <span class="tt" style="left:12%;bottom:30%">랭크전</span>
