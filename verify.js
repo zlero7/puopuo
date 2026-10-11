@@ -59,6 +59,11 @@ class Match {
 
   // 이벤트 하나 처리. now: 서버 기준 진행 시간(ms). 돌려주는 값: { bad } 위반 · { relay } 상대에게 보낼(필요하면 고친) 이벤트
   feed(i, ev, now) {
+    if (!this.seats[i]) return {};
+    try { return this.feed0(i, ev, now); }
+    catch (e) { if (process.env.VDEBUG) console.log('feed 오류', e); return this.fail(this.seats[i], '기록이 이상함'); }   // 계산할 수 없는 기록은 위반
+  }
+  feed0(i, ev, now) {
     const s = this.seats[i];
     if (this.loser != null || !ev || typeof ev.t !== 'string') return {};
     if (s.dead && ['lock', 'tlock', 'hold', 'garb', 'tgarb'].includes(ev.t)) return this.fail(s, '탈락한 뒤에도 계속 둠');

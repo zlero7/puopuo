@@ -314,7 +314,7 @@ function render(t) {
   } else {
     const ly = OY + 372, sm = game.soloMode;
     slab(ctx, PX - 70, ly, 140, 62, TONES.green, 5);
-    const lab = isT && sm !== 'endless' ? SOLO_KO[sm] : !isT && sm === 'efever' ? `${me.fv.lv || feverLv()[0]}연쇄 판` : '레벨 ' + me.level;
+    const lab = isT && sm !== 'endless' && SOLO_KO[sm] ? SOLO_KO[sm] : !isT && sm === 'efever' ? `${me.fv.lv || feverLv()[0]}연쇄 판` : '레벨 ' + me.level;
     outlined(ctx, lab, PX, ly + 32, lab.length > 5 ? 22 : 26, '#fff', TONES.green.d, 6);
     if (isT) {
       const el = game.state === 'play' || game.state === 'over' || game.state === 'pause' ? (me.doneAt || game.el) : 0;

@@ -121,7 +121,7 @@ function act(a) {
   const [k, v, w] = a.split(':');
   if (k === 'style') {
     stats = loadStats(); if (v === 'me') stats.style = w; else if (v === 'p2') stats.p2Style = w; else stats.cpuStyle = w; saveStats(); renderRecords();
-    if (v === 'me') nsend({ t: 'style', style: w });
+    if (v === 'me') { nsend({ t: 'style', style: w }); showRankRec(); }   // 랭크 타일도 고른 스타일의 티어로
     return;
   }
   if (k === 'go') showScreen(v);

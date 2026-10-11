@@ -166,6 +166,10 @@ function start(mode, seed, styles, board, rule) {
   if (!game.advGo && !(game.keepSeries && game.adv)) { game.adv = null; game.cpuChars = null; }   // 어드벤처가 아니면 정리
   game.advGo = false;
   audio(); game.net = mode === 'online'; game.oppLeft = false;
+  if (mode !== 'online') {                 // 온라인이 아닌 게임: 기다리던 매칭·방은 나감(나중에 온라인 판이 이 게임을 덮어쓰지 않게)
+    game.ranked = false;
+    if (typeof cancelWait === 'function' && net.ws) cancelWait();
+  }
   applyBoard(board || stats.board || 'wide');
   game.rule = mode === 'solo' ? (game.soloMode === 'efever' ? 'fever' : 'tsu') : RULES[rule] ? rule : RULES[stats.rule] ? stats.rule : 'tsu';
   game.myStyle = styles ? styles.me : stats.style || 'puyo';

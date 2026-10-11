@@ -44,14 +44,22 @@ try {
     for (const [k, val] of Object.entries(blank(p.name, p.style))) if (p[k] === undefined) p[k] = val;   // 예전 형식에 빠진 값 채우기
     p.key = key;
   }
-} catch { /* 처음 */ }
+} catch (e) {
+  if (e.code !== 'ENOENT') {         // 파일이 깨졌으면 새로 덮어쓰기 전에 따로 보관하고 알림(처음이면 파일이 없음)
+    const bak = `${FILE}.broken-${Date.now()}`;
+    try { fs.renameSync(FILE, bak); } catch (_) {}
+    console.error(`랭크 기록 파일을 읽지 못해 빈 기록으로 시작합니다(${e.message}). 원래 파일: ${bak}`);
+    db = { players: {}, boards: {}, cur: seasonOf() };
+  }
+}
 let saveTimer = null;
 const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); };   // 잠깐 모았다가 한 번에
 function flush() {
   clearTimeout(saveTimer);
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE + '.tmp', JSON.stringify(db));
+    const fd = fs.openSync(FILE + '.tmp', 'w');          // 다 쓴 뒤 디스크에 확실히 내려놓고 바꿔 끼움(갑자기 꺼져도 빈 파일이 안 되게)
+    try { fs.writeSync(fd, JSON.stringify(db)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(FILE + '.tmp', FILE);
   } catch (e) { console.error('랭크 저장 실패:', e.message); }
 }
@@ -95,20 +103,30 @@ function roll(p) {
   Object.assign(p, { season: cur, placed: 0, pw: 0, pl: 0, sw: 0, sl: 0, shield: false, start: p.total, peak: p.need === 5 ? p.total : 0 });
   return p;
 }
+// 기록은 첫 시리즈를 마쳐야 저장됨(아무 토큰으로 대기열만 들어와도 파일이 커지지 않게). 그 전엔 같은 토큰이 오면 같은 빈 기록을 씀
+const fresh = new Map();
 function get(token, style, name, char) {
   const k = `${token}:${style}`;
-  if (!db.players[k]) db.players[k] = blank(name, style);
-  const p = roll(db.players[k]);
+  let p = db.players[k] || fresh.get(k);
+  if (!p) { p = blank('', style); fresh.set(k, p); if (fresh.size > 2000) fresh.delete(fresh.keys().next().value); }
+  roll(p);
   p.key = k;
-  if (name) p.name = String(name).slice(0, 10);
+  if (typeof name === 'string' && name.trim()) p.name = name.trim().slice(0, 10);
   if (typeof char === 'string' && /^[a-z]{2,10}$/.test(char)) p.char = char;
   return p;
 }
 const live = () => Object.values(db.players).map(roll);
-// 마스터 등수(이번 시즌 배치를 끝낸 마스터끼리 RP 순)
+// 이번 시즌 순위표(플래티넘 이상, RP 순). 기록이 바뀔 때만 다시 계산(요청마다 전체를 훑지 않게)
+let board = null;
+function curBoard(style) {
+  const cur = seasonOf();
+  if (!board || board.season !== cur) board = { season: cur };
+  return board[style] || (board[style] = boardRows(live().filter(p => p.style === style && p.season === cur && doneThisSeason(p) && p.total >= BOARD_MIN)));
+}
+// 마스터 등수(이번 시즌 배치를 끝낸 마스터끼리 RP 순 = 순위표 등수)
 function masterRank(p) {
-  const list = live().filter(q => q.style === p.style && q.season === p.season && doneThisSeason(q) && q.total >= MASTER).sort((a, b) => b.total - a.total);
-  const i = list.indexOf(p); return i >= 0 ? i + 1 : null;
+  if (p.season !== seasonOf() || !doneThisSeason(p) || p.total < MASTER) return null;
+  const i = curBoard(p.style).findIndex(r => r.key === p.key); return i >= 0 ? i + 1 : null;
 }
 
 /* ---------- Glicko-2 (숨은 실력 점수) ---------- */
@@ -158,6 +176,7 @@ function labelOfRec(p) {            // 지금 보이는 티어 글자(배치 중
 }
 // 한 시리즈 결과 반영
 function apply(p, o, oppView, win, score) {
+  board = null;                                 // 순위표 다시 계산
   const before = p.total, wasPlacing = !doneThisSeason(p);
   const nr = glicko(p, o, win ? 1 : 0);
   p.r = nr.r; p.rd = nr.rd; p.vol = nr.vol;
@@ -184,10 +203,17 @@ function apply(p, o, oppView, win, score) {
 }
 // 상대에게 보여 줄 '시리즈 직전' 내 모습
 const brief = p => { const v = view(p); return { name: p.name, char: p.char, text: v.text, group: v.group, div: v.div }; };
+// 기록이 바뀜: 아직 저장 안 된 기록이면 저장 목록에 넣고, 순위표를 다시 계산하게 함
+function touch(p) {
+  if (!p.bot && p.key && !db.players[p.key]) { db.players[p.key] = p; fresh.delete(p.key); }
+  board = null;
+}
 function report(winner, loser, score) {        // score: [이긴 쪽 승수, 진 쪽 승수]
+  roll(winner); roll(loser);                    // 시즌이 바뀌는 순간이어도 두 사람 모두 같은 시즌에 기록
+  touch(winner); touch(loser);
   const wo = { r: winner.r, rd: winner.rd }, lo = { r: loser.r, rd: loser.rd }, wb = brief(winner), lb = brief(loser);
   const a = apply(winner, lo, lb, true, score), b = apply(loser, wo, wb, false, [score[1], score[0]]);
-  save();
+  board = null; save();
   return [{ ...a, opp: lb }, { ...b, opp: wb }];
 }
 
@@ -217,8 +243,7 @@ function boardRows(list) {
 function top(style, season, page = 1, q = '', token = '') {
   ensureSeason();
   const cur = seasonOf(), s = season && season < cur ? season : cur;
-  let rows = s === cur ? boardRows(live().filter(p => p.style === style && p.season === cur && doneThisSeason(p) && p.total >= BOARD_MIN))
-    : ((db.boards[s] || {})[style] || []);
+  let rows = s === cur ? curBoard(style) : ((db.boards[s] || {})[style] || []);
   const total = rows.length;
   if (q) rows = rows.filter(r => r.name.toLowerCase().includes(String(q).toLowerCase()));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE)), pg = Math.max(1, Math.min(pages, +page || 1));
@@ -240,4 +265,4 @@ const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };

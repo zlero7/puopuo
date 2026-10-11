@@ -381,9 +381,11 @@
   .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.25); }
   .btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
-  .pad { display: none; gap: 10px; margin-top: 12px; align-items: center; justify-content: center; }
+  /* 터치 버튼 8개가 좁은 폰 화면(양옆 8px 여백)에도 한 줄로 들어가게 크기를 화면 폭에 맞춤 */
+  .pad { --pg: clamp(4px, 1.6vw, 10px); --pb: min(58px, calc((100vw - 16px - 7 * var(--pg)) / 8));
+    display: none; gap: var(--pg); margin-top: 12px; align-items: center; justify-content: center; max-width: 100%; }
   .pad button {
-    font-family: var(--font); font-size: 24px; color: #fff; width: 58px; height: 58px; border-radius: 50%;
+    font-family: var(--font); font-size: calc(var(--pb) * 0.42); color: #fff; width: var(--pb); height: var(--pb); padding: 0; flex: none; border-radius: 50%;
     background: #2f78f0; border: 0; box-shadow: 0 5px 0 #1747b0; touch-action: none;
   }
   .pad button.on { transform: translateY(3px); box-shadow: 0 2px 0 #1747b0; }

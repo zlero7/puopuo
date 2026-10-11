@@ -60,6 +60,7 @@ function recordGame() {
     sr: game.series && game.series.to > 1 ? [game.series.me, game.series.op] : null });
   stats.history = stats.history.slice(0, 100);
   saveStats();
+  if (cat === 'ranked' && game.rkPending) attachRank(game.rkPending);   // 랭크전 결과가 이 판 기록보다 먼저 왔음
 }
 const fmtTime = ms => { const m = Math.round(ms / 60000); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };
 const wins = () => stats.ai.reduce((a, x) => a + x.w, 0) + stats.online.w;

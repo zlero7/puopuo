@@ -24,8 +24,8 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(k)) e.preventDefault();
-  if ((k === 'm' || k === 'M') && !e.repeat) { muted = !muted; applyVolume(); return; }
   const lk = k.toLowerCase();
+  if (lk === 'm' && !e.repeat && !(game.mode !== 'replay' && game.mode !== 'local' && keyMap().m)) { muted = !muted; applyVolume(); return; }   // M: 음소거(M을 다른 동작에 지정했으면 그 동작)
   if (game.mode === 'replay') {                         // 리플레이: ← → 배속, Esc 일시정지
     if ((lk === 'escape' || lk === 'p') && !e.repeat) openPause();
     else if (k === 'ArrowLeft' || k === 'ArrowDown') replaySpeed(-1);
@@ -70,7 +70,7 @@ $('bResume').addEventListener('click', resume);
 $('dlg').addEventListener('click', () => dlgNext());
 $('bForfeit').addEventListener('click', forfeit);
 $('bMenu').addEventListener('click', () => {
-  if (game.net) { nsend({ t: 'leave' }); game.net = false; }
+  if (game.net || game.mode === 'online') { nsend({ t: 'leave' }); game.net = false; }   // 서버 판정으로 내 판이 끝났어도 방은 나감
   if (game.mode === 'replay') { game.replay = null; openMenu('stats'); return; }
   if (game.adv) { advToMenu(game.ovKind === 'adv' && game.advResult > 0); return; }
   if (game.mode === 'solo' && game.myStyle === 'tetris') { openMenu('solo', 't-' + (game.soloMode || 'endless')); return; }

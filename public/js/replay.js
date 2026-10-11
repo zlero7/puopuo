@@ -116,7 +116,7 @@ function exportReplay(rp) {
 function checkReplay(rp) {
   if (!rp || rp.v !== 1 || !Array.isArray(rp.ev) || !Array.isArray(rp.players)) return null;
   if (rp.players.length < 1 || rp.players.length > 4) return null;
-  if (!rp.players.every(p => p && (p.style === 'puyo' || p.style === 'tetris'))) return null;
+  if (!rp.players.every(p => p && ['puyo', 'tetris', 'fusion'].includes(p.style))) return null;
   if (!BOARDS[rp.board] || typeof rp.seed !== 'number') return null;
   if (!rp.ev.every(e => Array.isArray(e) && typeof e[0] === 'number' && Number.isInteger(e[1]) && e[1] >= 0 && e[1] < rp.players.length && e[2] && typeof e[2].t === 'string')) return null;
   return rp;
