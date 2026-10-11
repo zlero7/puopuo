@@ -78,7 +78,7 @@ function cleanEv(f, d) {
     case 'it': return typeof d.k === 'string' ? { t: 'it', k: d.k.slice(0, 20) } : null;
     case 'pend': return { t: 'pend', sc: evInt(d.sc, 0, 1e9) };
     case 'bb': return { t: 'bb', r: evInt(d.r, 0, 999), p: evInt(d.p, 0, 1e9), at: evNum(d.at, 0, 1e8) };
-    case 'dead': case 'hold': case 'sw': return { t: d.t };
+    case 'dead': case 'hold': case 'sw': case 'ce': return { t: d.t };
     default: return null;
   }
 }
@@ -102,10 +102,12 @@ function applyRemote(f, d) {
       f.queue.push(d); break;
     case 'atk': {
       const to = game.fields[d.to] || f.opp;
+      if (f.kind === 'puyo') f.atkOpen = true;
       if (game.state === 'play' && to) game.launch(f, to, d.n, f.ox + d.x, f.oy + d.y, 'attack', d.ch);
       break;
     }
     case 'off': game.launch(f, f, d.n, f.ox + d.x, f.oy + d.y, 'offset', d.ch); break;
+    case 'ce': f.atkOpen = false; releaseGarb(f); break;             // 상대 연쇄 끝: 붙잡혀 있던 방해가 이제 떨어질 수 있음
     case 'bb': bbReport(f, d.p, d.at, d.r); break;
     case 'it': itemFx(f, d.k); break;
     case 'pend': partyFinish(f, d.sc); break;

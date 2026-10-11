@@ -63,7 +63,10 @@ function orbPos(o) {
 }
 function impact(o) {
   if (o.kind !== 'offset') {                         // 'bb'(빅뱅 데미지)는 연출만
-    if (o.kind === 'attack' && !o.to.remote) o.to.pending += o.n;          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+    if (o.kind === 'attack' && !o.to.remote) {          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+      o.to.pending += o.n;
+      if (o.from.atkOpen && o.from.kind === 'puyo' && o.to.kind === 'puyo') holdGarb(o.to, o.from, o.n);   // 보낸 쪽 연쇄가 끝날 때까지 붙잡음
+    }
     if (o.kind === 'attack' && o.from !== o.to) o.to.lastHitBy = o.from;   // 3~4인: 나를 공격한 사람에게 반격
     o.to.trayBump = 1; o.to.hit = Math.min(1, 0.4 + o.n / 20);
     o.to.shake = Math.max(o.to.shake, 3 + Math.min(7, o.n / 3));

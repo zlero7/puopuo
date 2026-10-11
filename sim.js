@@ -75,7 +75,8 @@ function createBot({ seed, style, oppStyle, board = 'classic', rule = 'tsu', lv 
     f,
     step(dt, el) { game.el = el; f.update(dt, true); run('__launch.length = 0'); return run('__events.splice(0)').filter(e => e[0] === f).map(e => e[1]); },
     state: () => stateOf(f),
-    hit(n) { f.pending += n; },               // 상대 공격이 도착함
+    hit(n, held) { f.pending += n; if (held) run('holdGarb')(f, f.opp, n); },   // 상대 공격이 도착함(상대 연쇄가 아직 안 끝났으면 붙잡힘)
+    release() { run('releaseGarb')(f.opp); },  // 상대 연쇄 끝
   };
 }
 

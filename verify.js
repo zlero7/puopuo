@@ -8,7 +8,7 @@
 const vm = require('vm');
 const { createEngine } = require('./sim');
 
-const SLACK = 3000;          // 공격이 상대 화면에 닿기까지 넉넉히(네트워크 + 날아가는 연출)
+const SLACK = 2000;          // 연쇄가 끝난 뒤 그 방해가 상대 화면에 닿기까지 넉넉히(네트워크 + 날아가는 연출)
 const MIN_10_LOCKS = 1500;   // 10개를 이보다 빨리 놓으면 사람이 할 수 없는 속도
 const FF_MAX = 4000;         // 연쇄·줄 지우기 연출을 빨리 감을 때 최대 걸음 수
 
@@ -151,8 +151,12 @@ class Match {
           if (n > s[key]) return this.fail(s, '낼 수 없는 만큼 공격');
           s[key] -= n;
         }
-        this.seats[1 - i].inc.push({ n, t: now });
+        this.seats[1 - i].inc.push({ n, t: puyo ? Infinity : now });   // 뿌요 연쇄 공격은 연쇄가 끝나야(ce) 떨어뜨려야 할 방해가 됨
         return { relay: this.fx(s, ev, n) };
+      }
+      case 'ce': {                                // 연쇄 끝: 이 연쇄로 보낸 방해를 이제부터 받아야 함
+        for (const x of this.seats[1 - i].inc) if (x.t === Infinity) x.t = now;
+        return { relay: { t: 'ce' } };
       }
       case 'st': return { relay: this.st(s, ev) };
       case 'hi': return { relay: { t: 'hi', name: String(ev.name == null ? '' : ev.name).slice(0, 10), char: typeof ev.char === 'string' && /^[a-z]{1,12}$/.test(ev.char) ? ev.char : '' } };
@@ -229,6 +233,7 @@ class Match {
         if (fits(x, y, o2)) nx.push([x, y, o2]);
         else if (fits(x - DX[o2], y - DY[o2], o2)) nx.push([x - DX[o2], y - DY[o2], o2]);
         else if (fits(x, y, (o + 2) % 4)) nx.push([x, y, (o + 2) % 4]);
+        else { const o3 = (o + 2) % 4; if (fits(x - DX[o3], y - DY[o3], o3)) nx.push([x - DX[o3], y - DY[o3], o3]); }   // 바닥에 닿은 퀵턴(밀어 올림)
       }
       for (const [a, b, c] of nx) { const k = key(a, b, c); if (!seen.has(k) && fits(a, b, c)) { seen.add(k); q.push([a, b, c]); } }
     }

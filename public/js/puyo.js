@@ -218,6 +218,12 @@ function trayIcon(c, k, x, y, r) {
 }
 
 /* ================= 필드 ================= */
+// 상대가 연쇄하는 동안 날아온 방해는 그 연쇄가 끝날 때까지 떨어지지 않음(원작처럼 예고에만 쌓이고, 그동안 맞받아칠 연쇄를 만들 수 있음)
+// held: 공격한 판 → 아직 붙잡힌 개수. 연쇄가 끝나면(ce) 풀림
+function holdGarb(to, from, n) { if (!to.held) to.held = new Map(); to.held.set(from, (to.held.get(from) || 0) + n); }
+function releaseGarb(from) { for (const f of game.fields) if (f.held) f.held.delete(from); }
+function droppable(f) { let h = 0; if (f.held) for (const v of f.held.values()) h += v; return Math.max(0, f.pending - Math.min(f.pending, h)); }
+
 class Field {
   constructor(ox, oy, human, name) { this.kind = 'puyo'; this.sx = ox; this.ox = ox + (SW - FW) / 2; this.oy = oy; this.human = human; this.name = name; this.opp = null; this.ai = { delay: 170, noise: 400, pot: 0.6, miss: 0.12, greedy: 0, atk: 0.6, soft: true }; this.reset(); }
 
@@ -228,7 +234,7 @@ class Field {
     this.fv = { gauge: 0, on: false, t: 0, lv: 0, stash: null, hit: false }; this.forcePair = null;   // 피버(fever.js)
     this.idx = 0; this.score = 0; this.chain = 0; this.maxChain = 0; this.pending = 0; this.carry = 0; this.atkCarry = 0; this.trayBump = 0; this.hit = 0;
     this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lineCarry = 0; this.lineOut = 0; this.lineAtk = 0;
-    this.acBonus = false; this.blockedAt = 0; this.dangerOn = false; this.holdP = null; this.canHold = true;
+    this.acBonus = false; this.held = null; this.atkOpen = false; this.blockedAt = 0; this.dangerOn = false; this.holdP = null; this.canHold = true;
     this.pops = 0; this.level = 1; this.phase = 'none'; this.piece = null; this.acc = 0; this.settleT = 0;
     this.particles = []; this.texts = []; this.trails = []; this.shake = 0; this.flash = 0;
     this.dead = false; this.won = false; this.noGarb = false; this.soft = false;
@@ -250,7 +256,7 @@ class Field {
     const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 };
     const item = nextItem(this); if (item) this.piece[rnd(2) ? 'ia' : 'ib'] = item;     // 파티: ★아이템
-    this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true;
+    this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true; this.blockedAt = 0;
     if (!this.fits(this.piece)) { if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     if (!this.human) this.planAI();
   }
@@ -268,7 +274,7 @@ class Field {
     if (this.dead) return;
     // 원격 판(온라인 상대·리플레이)은 보던 연쇄·밀린 이벤트를 끝까지 보여준 뒤 탈락
     if (this.remote && (this.phase === 'pop' || this.phase === 'settle' || this.queue.length)) { this.dieLater = true; return; }
-    this.dead = true; this.phase = 'dead'; this.piece = null;
+    this.dead = true; this.phase = 'dead'; this.piece = null; this.atkOpen = false; releaseGarb(this);
     if (!this.remote) emit(this, { t: 'dead' });
   }
 
@@ -324,7 +330,8 @@ class Field {
         const now = performance.now();
         if (this.human && now - this.blockedAt > 350) { this.blockedAt = now; sfx.move(); return; }
         this.blockedAt = 0;
-        p = { ...q, o: (q.o + 2) % 4 }; if (!this.fits(p)) return;
+        const o2 = (q.o + 2) % 4;                // 퀵턴(반 바퀴): 바닥에 닿아 있으면 한 칸 밀어 올림
+        p = { ...q, o: o2 }; if (!this.fits(p)) { p = { ...q, o: o2, x: q.x - DX[o2], y: q.y - DY[o2] }; if (!this.fits(p)) return; }
       }
     }
     q.x = p.x; q.y = p.y; q.o = p.o; if (this.human) sfx.rot();
@@ -549,7 +556,7 @@ class Field {
     const c = Math.min(this.pending, n);
     const rx = x - this.ox, ry = y - this.oy;
     if (c > 0) { this.pending -= c; n -= c; this.feverHit(); game.launch(this, this, c, x, y, 'offset'); emit(this, { t: 'off', n: c, x: rx, y: ry, ch: this.chain }); }
-    if (n > 0) { game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.chain }); }
+    if (n > 0) { this.atkOpen = true; game.launch(this, this.opp, n, x, y, 'attack'); emit(this, { t: 'atk', to: game.fields.indexOf(this.opp), n, x: rx, y: ry, ch: this.chain }); }
   }
 
   // 테트리스 상대: 연쇄 단계 점수(+이월)가 210·630·1050·1710·3500·7000·14000점에 닿으면 1~7줄.
@@ -580,6 +587,7 @@ class Field {
       }
       this.lineOut = 0; this.lineCarry = 0;
     }
+    if (this.atkOpen && !this.remote) { this.atkOpen = false; releaseGarb(this); emit(this, { t: 'ce' }); }   // 연쇄 끝: 이 연쇄로 보낸 방해가 이제 떨어질 수 있음
     if (this.chain > 0) {
       if (this.chain >= 2) this.chains2++;
       if (this.isEmpty() && !this.fv.on && game.rule !== 'bigbang') {     // 피버·빅뱅 씨앗판은 다 터뜨려도 전멸 보너스 없음
@@ -612,7 +620,7 @@ class Field {
       if (this.fv.t <= 0) { this.endFever(); return; }
       this.spawn(); return;
     }
-    if (this.pending > 0 && !this.noGarb) { this.dropGarbage(); return; }
+    if (droppable(this) > 0 && !this.noGarb) { this.dropGarbage(); return; }   // 상대 연쇄가 아직 안 끝났으면 그 방해는 예고로만 남음
     this.spawn();
   }
 
@@ -678,7 +686,7 @@ class Field {
   }
 
   dropGarbage() {
-    const n = Math.min(BOARDS[BOARD].drop || 30, this.pending); this.pending -= n; this.noGarb = true;   // 한 번에 떨어지는 최대 개수
+    const n = Math.min(BOARDS[BOARD].drop || 30, droppable(this)); this.pending -= n; this.noGarb = true;   // 한 번에 떨어지는 최대 개수
     const counts = Array(COLS).fill(Math.floor(n / COLS)); const order = [...Array(COLS).keys()].sort(() => Math.random() - 0.5);
     for (let i = 0; i < n % COLS; i++) counts[order[i]]++;
     if (!this.remote) emit(this, { t: 'garb', c: counts, g: this.encode() });

@@ -185,14 +185,14 @@ function startBot(room, seed, styles, board, lv) {
   const R = room.ranked, bs = room.seats.findIndex(p => p.bot), hs = 1 - bs;
   if (R.botLoop) clearInterval(R.botLoop.t);
   const bot = createBot({ seed, style: styles[bs], oppStyle: styles[hs], board, rule: room.rule, lv });
-  const L = R.botLoop = { bot, inbox: [], last: R.t0, stT: 0 };
+  const L = R.botLoop = { bot, inbox: [], last: R.t0, stT: 0, chainN: 0 };
   L.t = setInterval(() => { try { botTick(); } catch (e) { clearInterval(L.t); console.error('AI 오류:', e && e.message); } }, 16);   // 멈춘 AI는 60초 뒤 '오래 두지 않음'으로 짐
   function botTick() {
     const now = Date.now();
     if (R.judged || R.ended || !rooms.has(room.code) || R.botLoop !== L || !R.match) { clearInterval(L.t); return; }
     if (now < R.t0) return;
     const dt = Math.min(100, now - L.last); L.last = now;
-    for (let i = L.inbox.length - 1; i >= 0; i--) if (L.inbox[i].at <= now) { bot.hit(L.inbox[i].n); L.inbox.splice(i, 1); }
+    for (let i = L.inbox.length - 1; i >= 0; i--) if (L.inbox[i].at <= now) { bot.hit(L.inbox[i].n, L.inbox[i].chain === L.chainN); L.inbox.splice(i, 1); }
     const el = now - R.t0, out = bot.step(dt, el);
     L.stT += dt; if (L.stT >= 50) { L.stT = 0; out.push(bot.state()); }
     const human = room.seats[hs];
@@ -360,7 +360,8 @@ function onMessage(ws, m) {
         if (R.match.loser != null) judge(room, R.match.loser, R.match.reason);
         if (!res.relay) return;
         d = res.relay;
-        if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500 });   // AI에게 공격이 날아가는 시간
+        if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500, chain: R.botLoop.chainN });   // AI에게 공격이 날아가는 시간
+        if (R.botLoop && d.t === 'ce') { R.botLoop.chainN++; R.botLoop.bot.release(); }   // 사람 연쇄 끝: AI 쪽에 붙잡혀 있던 방해가 떨어질 수 있음
       }
       for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
       break;
