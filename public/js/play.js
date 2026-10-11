@@ -200,7 +200,7 @@ function update(dt) {
       const win = f.find(x => x.won);
       showResult('purple', '리플레이 끝', `${d.getMonth() + 1}/${d.getDate()} 경기 · ${who}${win ? ` · ${win.name} 승리` : ''}`,
         f.map(x => [x.name, `${x.score.toLocaleString()}점 · ${x.kind === 'tetris' ? `${x.maxChain} REN` : `${x.maxChain}연쇄`}`]), 'replay');
-    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded) {
+    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && !game.puzzle) {
       const me = game.fields[0], online = game.mode === 'online';
       const isT = me.kind === 'tetris';
       const chips = [['점수', me.score.toLocaleString()], isT ? ['최고 REN', `${me.maxChain} REN`] : ['최고 연쇄', `${me.maxChain}연쇄`],
@@ -271,9 +271,9 @@ function render(t) {
     if (isT) {
       for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }
     } else {
-      const n1 = pairAt(me.idx), n2 = pairAt(me.idx + 1);
-      drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
-      drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
+      const n1 = me.pairQ ? me.pairQ[0] : pairAt(me.idx), n2 = me.pairQ ? me.pairQ[1] : pairAt(me.idx + 1);   // 퍼즐은 남은 쌍
+      if (n1) drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
+      if (n2) drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
     }
   }
   {                                    // 홀드(뿌요·테트리스 공통)
@@ -320,6 +320,13 @@ function render(t) {
       outlined(ctx, `${sr.me} : ${sr.op}`, PX, y + 74, 28, '#22212e', '#fff', 4);
       if (sr.to > 1) { ctx.font = '13px ' + FONT(); ctx.fillStyle = '#6d6b80'; ctx.textAlign = 'center'; ctx.fillText(`${sr.to}선승`, PX, y + 108); }
     }
+  } else if (game.puzzle) {                // 튜토리얼·퍼즐: 목표 · 남은 쌍
+    const Z = game.puzzle, ly = OY + 372;
+    slab(ctx, PX - 70, ly, 140, 86, TONES.green, 5);
+    outlined(ctx, '목표', PX, ly + 20, 17, '#fff', TONES.green.d, 5);
+    const gt = pzGoalText(Z.def.goal); outlined(ctx, gt, PX, ly + 56, gt.length > 8 ? 15 : 20, '#fff', TONES.green.d, 5);
+    slab(ctx, PX - 70, ly + 96, 140, 40, TONES.white, 4); outlined(ctx, `남은 쌍 ${(me.pairQ || []).length + (me.piece ? 1 : 0)}`, PX, ly + 116, 17, '#22212e', '#fff', 4);
+    if (Z.def.hint) { ctx.font = '13px ' + FONT(); ctx.fillStyle = '#6d6b80'; ctx.textAlign = 'center'; wrapText(ctx, Z.def.hint, PX, ly + 158, 136, 17); }
   } else {
     const ly = OY + 372, sm = game.soloMode;
     slab(ctx, PX - 70, ly, 140, 62, TONES.green, 5);
@@ -373,4 +380,11 @@ function drawIntro(t) {
   ctx.translate(W / 2, OY + FH * 0.82); ctx.scale(sc, sc);
   outlined(ctx, msg, 0, 0, go ? 76 : 56, go ? '#ffe066' : '#fff', '#22212e', 12);
   ctx.restore();
+}
+
+// 글자를 폭에 맞춰 여러 줄로(퍼즐 힌트)
+function wrapText(c, txt, x, y, w, lh) {
+  let line = '';
+  for (const ch of txt) { if (c.measureText(line + ch).width > w && line) { c.fillText(line, x, y); y += lh; line = ch.trim() ? ch : ''; } else line += ch; }
+  if (line) c.fillText(line, x, y);
 }

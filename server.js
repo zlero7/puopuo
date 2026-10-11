@@ -363,6 +363,7 @@ function onMessage(ws, m) {
         if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500, chain: R.botLoop.chainN });   // AI에게 공격이 날아가는 시간
         if (R.botLoop && d.t === 'ce') { R.botLoop.chainN++; R.botLoop.bot.release(); }   // 사람 연쇄 끝: AI 쪽에 붙잡혀 있던 방해가 떨어질 수 있음
       }
+      if (d.t === 'hi') d = { t: 'hi', name: rank.cleanName(d.name), char: typeof d.char === 'string' ? d.char.slice(0, 12) : '' };   // 닉네임 필터(일반 방도)
       for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
       break;
     }

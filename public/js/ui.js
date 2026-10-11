@@ -131,6 +131,8 @@ function act(a) {
   if (k === 'go') showScreen(v);
   else if (k === 'solo') showScreen((stats.style || 'puyo') === 'tetris' ? 'solo' : 'psolo');
   else if (k === 'psolo') { game.soloMode = v; start('solo'); }
+  else if (k === 'tut') puzzleGo('tut', 0);   // 튜토리얼은 처음부터
+  else if (k === 'puz') { const i = PUZZLES.findIndex((_, j) => !pzDone('puz', j)); puzzleGo('puz', i < 0 ? 0 : i); }
   else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
   else if (k === 'local') start('local');
   else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
@@ -142,6 +144,7 @@ function act(a) {
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'itab') { infoTab = v; renderInfo(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
+  else if ((k === 'ranked' || k === 'quick' || k === 'create') && askName(() => act(a))) return;   // 처음 온라인: 닉네임부터
   else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
@@ -178,7 +181,7 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
   t.addEventListener('mouseenter', () => { if (document.activeElement.tagName !== 'INPUT') t.focus({ preventScroll: true }); });
   t.addEventListener('focus', () => { const d = t.querySelector('.td'); $('mDesc').textContent = d && getComputedStyle(d).display === 'none' ? t.dataset.desc : ''; });
 });
-$('pName').addEventListener('change', () => { stats = loadStats(); stats.name = $('pName').value.trim().slice(0, 10) || '플레이어'; $('pName').value = stats.name; saveStats(); });
+$('pName').addEventListener('change', () => { stats = loadStats(); stats.name = cleanName($('pName').value); $('pName').value = stats.name; saveStats(); });
 // 랭크 티어 엠블럼: 브론즈·실버·골드·플래티넘·다이아·마스터(-1은 배치 중). div: 세부 티어 1~3(별 개수)
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 function drawTierEmblem(c, x, y, size, group, div) {
@@ -277,4 +280,43 @@ window.addEventListener('popstate', () => {
 document.querySelectorAll('.stylebar .lab').forEach(lab => {
   const g = document.createElement('span'); g.className = 'grp';
   lab.parentNode.insertBefore(g, lab); g.appendChild(lab); if (g.nextElementSibling && g.nextElementSibling.classList.contains('segs')) g.appendChild(g.nextElementSibling);
+});
+
+// 처음 온라인 대전을 할 때 닉네임 묻기(기본 이름 '플레이어'끼리는 누가 누군지 몰라서). 물었으면 true
+function askName(then) {
+  stats = loadStats();
+  if ((stats.name && stats.name !== '플레이어') || stats.nameAsked) return false;
+  $('nameAsk').classList.remove('hidden'); $('naIn').value = ''; setTimeout(() => $('naIn').focus(), 50);
+  const done = save => {
+    $('nameAsk').classList.add('hidden'); stats = loadStats(); stats.nameAsked = true;
+    if (save) { stats.name = cleanName($('naIn').value); $('pName').value = stats.name; }
+    saveStats(); $('naOk').onclick = $('naSkip').onclick = null; then();
+  };
+  $('naOk').onclick = () => done(true); $('naSkip').onclick = () => done(false);
+  $('naIn').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); };
+  return true;
+}
+// 기록 저장·불러오기(학교 컴퓨터를 바꿔도 이어서 하게): 이 게임이 브라우저에 저장한 것(puyo-로 시작) 전부를 파일 하나로
+$('bExport').addEventListener('click', () => {
+  const data = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^puyo-[\w-]+$/.test(k)) data[k] = localStorage.getItem(k); } } catch (e) {}
+  const d = new Date(), p2 = n => String(n).padStart(2, '0'), a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ v: 1, game: 'puyo', at: d.toISOString(), data })], { type: 'application/json' }));
+  a.download = `puyo-save-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$('bImport').addEventListener('click', () => $('fImport').click());
+$('fImport').addEventListener('change', () => {
+  const file = $('fImport').files[0]; $('fImport').value = ''; if (!file) return;
+  if (file.size > 5e6) { alert('파일이 너무 커요.'); return; }
+  file.text().then(t => {
+    let v; try { v = JSON.parse(t); } catch (e) { v = null; }
+    const ok = v && v.v === 1 && v.game === 'puyo' && v.data && typeof v.data === 'object' &&
+      Object.entries(v.data).every(([k, s]) => /^puyo-[\w-]+$/.test(k) && typeof s === 'string') &&
+      (!v.data['puyo-token'] || /^[A-Za-z0-9]{16,40}$/.test(v.data['puyo-token']));
+    if (!ok) { alert('기록 파일이 아니거나 손상됐어요.'); return; }
+    if (!confirm('지금 이 브라우저의 기록을 파일의 기록으로 바꿀까요? (랭크전 기록도 함께 옮겨져요)')) return;
+    try { for (const [k, s] of Object.entries(v.data)) localStorage.setItem(k, s); } catch (e) { alert('저장 공간이 부족해서 다 불러오지 못했어요.'); }
+    location.reload();
+  });
 });

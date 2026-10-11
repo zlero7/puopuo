@@ -159,7 +159,7 @@ class Match {
         return { relay: { t: 'ce' } };
       }
       case 'st': return { relay: this.st(s, ev) };
-      case 'hi': return { relay: { t: 'hi', name: String(ev.name == null ? '' : ev.name).slice(0, 10), char: typeof ev.char === 'string' && /^[a-z]{1,12}$/.test(ev.char) ? ev.char : '' } };
+      case 'hi': return { relay: { t: 'hi', name: require('./rank').cleanName(ev.name), char: typeof ev.char === 'string' && /^[a-z]{1,12}$/.test(ev.char) ? ev.char : '' } };
       default: return this.fail(s, `랭크전에서 쓸 수 없는 기록(${ev.t})`);
     }
   }

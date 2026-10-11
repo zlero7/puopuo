@@ -260,14 +260,15 @@ class Field {
   mk(c, r, col, y) { return { c, r, col, y, vy: 0, sq: -1, amp: 0 }; }
   valid(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS && !this.grid[y][x]; }
   fits(p) { return this.valid(p.x, p.y) && this.valid(p.x + DX[p.o], p.y + DY[p.o]); }
-  fallIv() { return (game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60)) / (effOn(this, 'speed') ? 3 : 1); }
+  fallIv() { if (game.puzzle) return 1e9; return (game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60)) / (effOn(this, 'speed') ? 3 : 1); }
 
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }
     if (swapDue(this)) { swapField(this); return; }      // 스왑(swap.js)
     if (game.rule === 'fever' && !this.fv.on && (this.fv.gauge >= FEVER_GAUGE || (game.soloMode === 'efever' && !game.vs && !this.fv.lv))) { this.startFever(); return; }
     if (this.grid[1][SP]) { if (this.fv.on) { this.endFever(); return; } if (this.bbOn()) { this.bbFinish(0); return; } if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
-    const [a, b] = this.forcePair || pairAt(this.idx++); this.forcePair = null;
+    if (this.pairQ && !this.pairQ.length && !this.forcePair) { puzzleOut(); return; }   // 퍼즐: 쌍을 다 씀
+    const [a, b] = this.forcePair || (this.pairQ ? this.pairQ.shift() : pairAt(this.idx++)); this.forcePair = null;
     this.piece = { x: SP, y: 1, o: 0, a, b, rx: SP, ang: 0 };
     const item = nextItem(this); if (item) this.piece[rnd(2) ? 'ia' : 'ib'] = item;     // 파티: ★아이템
     this.acc = 0; this.phase = 'drop'; this.noGarb = false; this.chain = 0; this.soft = false; this.canHold = true; this.blockedAt = 0;
@@ -276,7 +277,7 @@ class Field {
   }
   // 홀드: 지금 쌍을 맡겨 두고 맡긴 쌍(없으면 다음 쌍)을 꺼냄. 한 번 놓을 때까지 한 번만
   hold() {
-    if (this.phase !== 'drop' || !this.piece || !this.canHold) return;
+    if (this.phase !== 'drop' || !this.piece || !this.canHold || this.pairQ) return;   // 퍼즐은 홀드 없음
     const keep = [this.piece.a, this.piece.b], [a, b] = this.holdP || pairAt(this.idx++);
     this.holdP = keep; this.canHold = false;
     if (!this.remote) emit(this, { t: 'hold' });         // 서버 검증: 어떤 쌍을 쓰는지 따라가려면 홀드도 알아야 함
@@ -611,6 +612,7 @@ class Field {
       }
       this.lastChain = this.chain;
     }
+    if (game.puzzle && !this.remote && puzzleCheck(this, this.chain)) { this.chain = 0; return; }   // 튜토리얼·퍼즐: 목표 확인
     this.chain = 0;
     if (this.remote) { this.spawn(); return; }
     if (this.itemQ && this.itemQ.length) {   // 파티: 터뜨린 ★아이템 발동(판 정리는 다시 내려앉은 뒤 이어짐)

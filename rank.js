@@ -63,6 +63,13 @@ function flush() {
     fs.renameSync(FILE + '.tmp', FILE);
   } catch (e) { console.error('랭크 저장 실패:', e.message); }
 }
+// 순위표·상대 화면에 나갈 닉네임: 욕설·비속어가 들어 있으면 '플레이어'로(띄어쓰기·기호·숫자를 빼고 검사)
+const BAD_WORDS = ['시발','씨발','씨팔','시팔','ㅅㅂ','ㅆㅂ','병신','븅신','ㅂㅅ','개새','개색','새끼','좆','존나','졸라','지랄','ㅈㄹ','미친','엿먹','닥쳐','꺼져','썅','니애미','느금','애미','애비','섹스','fuck','shit','bitch','sex','porn','nigg','asshole','dick'];
+function cleanName(name) {
+  const s = String(name == null ? '' : name).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 10);
+  const k = s.toLowerCase().replace(/[\s\d_.\-~!@#$%^&*()+=|/\\'"`,?:;\[\]{}]/g, '');
+  return !s || BAD_WORDS.some(w => k.includes(w)) ? '플레이어' : s;
+}
 const validToken = t => typeof t === 'string' && /^[A-Za-z0-9]{16,40}$/.test(t);
 const STYLES = ['puyo', 'tetris'];
 
@@ -111,7 +118,7 @@ function get(token, style, name, char) {
   if (!p) { p = blank('', style); fresh.set(k, p); if (fresh.size > 2000) fresh.delete(fresh.keys().next().value); }
   roll(p);
   p.key = k;
-  if (typeof name === 'string' && name.trim()) p.name = name.trim().slice(0, 10);
+  if (typeof name === 'string' && name.trim()) p.name = cleanName(name);
   if (typeof char === 'string' && /^[a-z]{2,10}$/.test(char)) p.char = char;
   return p;
 }
@@ -265,4 +272,4 @@ const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { cleanName, touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
