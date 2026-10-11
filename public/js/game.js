@@ -76,9 +76,20 @@ function padOverlay(a) {
 // 연습(1인)은 방해뿌요 칸이 필요 없어서 위쪽을 잘라 필드를 더 크게 보여줌
 let LW = 840, VIEW_Y0 = 0;
 const viewH = () => CANVAS_H - VIEW_Y0;
+// 세로 폰(2인 · 통상/피버): 내 판을 크게, 상대 판은 오른쪽 칸(홀드 아래)에 작게(compact)
+const MINI_Y = OY + 392;
+const miniK = () => Math.min(140 / SW, (CANVAS_H - MINI_Y - 4) / CANVAS_H);
+const isMini = f => !!game.compact && f === game.fields[1];
+function miniPt(f, x, y) { const k = miniK(); return [PX - SW * k / 2 + (x - f.ox) * k, MINI_Y + y * k]; }
+function inMini(c, f, fn) {
+  if (!isMini(f)) { fn(); return; }
+  const k = miniK(); c.save(); c.translate(PX - SW * k / 2, MINI_Y); c.scale(k, k); c.translate(-f.ox, 0); fn(); c.restore();
+}
 function fit() {
   const pad = document.getElementById('pad');
-  const padH = getComputedStyle(pad).display === 'none' ? 0 : 84;
+  game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW);
+  const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;
   const s = Math.max(0.3, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
   const rs = DPR * Math.max(1, s);
@@ -86,7 +97,7 @@ function fit() {
   game.rs = rs;
   cv.style.width = (LW * s) + 'px'; cv.style.height = (viewH() * s) + 'px';
 }
-function setSize(W) { LW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
+function setSize(W) { LW = game.fullLW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
 
 const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
 const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };

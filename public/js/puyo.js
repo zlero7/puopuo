@@ -193,6 +193,7 @@ function decorate(c, it) {
     c.strokeStyle = '#4b4670'; c.lineWidth = 2; c.lineCap = 'round';
     c.beginPath(); c.moveTo(-R * 0.16, R * 0.36); c.lineTo(R * 0.16, R * 0.36); c.stroke();
   } else {
+    if (stats.cb && it.col >= 1 && it.col <= 5) cbMark(c, it.col);
     for (const sd of [-1, 1]) {
       c.fillStyle = '#fff'; c.beginPath(); c.ellipse(sd * ex, ey, R * 0.27, R * 0.35, 0, 0, Math.PI * 2); c.fill();
       c.fillStyle = '#22123a'; c.beginPath(); c.ellipse(sd * ex - sd * R * 0.03, ey + R * 0.08, R * 0.15, R * 0.22, 0, 0, Math.PI * 2); c.fill();
@@ -200,6 +201,19 @@ function decorate(c, it) {
     }
   }
   c.restore();
+}
+
+// 색약 모드: 색마다 다른 모양(빨강 ▲ · 초록 ■ · 파랑 ● · 노랑 ★ · 보라 ◆)을 몸통 아래쪽에
+function cbMark(c, col) {
+  const s = R * 0.24, y = R * 0.56;
+  c.save(); c.translate(0, y); c.fillStyle = 'rgba(255,255,255,0.92)'; c.strokeStyle = 'rgba(34,18,58,0.75)'; c.lineWidth = 2; c.lineJoin = 'round';
+  c.beginPath();
+  if (col === 1) { c.moveTo(0, -s); c.lineTo(s, s * 0.8); c.lineTo(-s, s * 0.8); c.closePath(); }
+  else if (col === 2) c.rect(-s * 0.85, -s * 0.85, s * 1.7, s * 1.7);
+  else if (col === 3) c.arc(0, 0, s, 0, Math.PI * 2);
+  else if (col === 4) for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? s * 0.48 : s * 1.1; c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  else { c.moveTo(0, -s * 1.1); c.lineTo(s, 0); c.lineTo(0, s * 1.1); c.lineTo(-s, 0); c.closePath(); }
+  c.stroke(); c.fill(); c.restore();
 }
 
 // 큰 단위 방해 아이콘: 4 별(180) · 5 달(360) · 6 왕관(720) · 7 혜성(1440)
@@ -685,6 +699,23 @@ class Field {
     this.piece = null; this.phase = 'settle'; this.settleT = 0;
   }
 
+  // 떨어질 자리 표시: 지금 쌍을 바로 떨어뜨렸을 때 두 뿌요가 각각 놓일 칸(갈라져 떨어지는 것까지)
+  drawGhost(c, pc) {
+    let y = pc.y; while (this.fits({ ...pc, y: y + 1 })) y++;
+    const cells = [[pc.x, y, pc.a], [pc.x + DX[pc.o], y + DY[pc.o], pc.b]];
+    cells.sort((p, q) => q[1] - p[1]);             // 아래쪽 뿌요부터 내려놓음
+    const top = {};
+    for (const [x] of cells) if (top[x] == null) { let r = 0; while (r < ROWS && !this.grid[r][x]) r++; top[x] = r; }
+    c.save();
+    for (const [x, , col] of cells) {
+      const r = --top[x]; if (r < 1) continue;
+      const cx = x * CS + CS / 2, cy = (r - 1) * CS + CS / 2;
+      c.globalAlpha = 0.85; c.strokeStyle = PAL[col].m; c.lineWidth = Math.max(2, R * 0.16);
+      c.beginPath(); c.arc(cx, cy, R * 0.42, 0, Math.PI * 2); c.stroke();
+      c.globalAlpha = 0.35; c.fillStyle = PAL[col].s; c.fill();
+    }
+    c.restore();
+  }
   dropGarbage() {
     const n = Math.min(BOARDS[BOARD].drop || 30, droppable(this)); this.pending -= n; this.noGarb = true;   // 한 번에 떨어지는 최대 개수
     const counts = Array(COLS).fill(Math.floor(n / COLS)); const order = [...Array(COLS).keys()].sort(() => Math.random() - 0.5);
@@ -834,6 +865,7 @@ class Field {
       items.push({ cx: px, cy: py, rx: R, ry: R, col: pc.a, star: pc.ia },
                  { cx: px + Math.sin(pc.ang) * CS, cy: py - Math.cos(pc.ang) * CS, rx: R, ry: R, col: pc.b, star: pc.ib });
     }
+    if (pc && this.human && !this.remote && this.phase === 'drop' && stats.ghost !== false) this.drawGhost(c, pc);
     drawPuyos(c, items, links, quads);
     for (const it of items) if (it.star) drawStar(c, it.cx, it.cy - R * 0.1, R * 0.6, ITEMS[it.star] ? ITEMS[it.star].col : '#ffe066');
 

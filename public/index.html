@@ -44,9 +44,11 @@
     grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; background: #fff;
     border: 3px solid #cfd1dc; border-radius: 6px; padding: 7px 14px; box-shadow: 0 4px 0 rgba(0,0,0,0.06);
   }
-  .stylebar .lab { font-family: var(--head); font-size: 17px; color: #3a3850; }
+  .stylebar .lab { font-family: var(--head); font-size: 17px; color: #3a3850; white-space: nowrap; flex: none; }
   .segs { display: flex; background: #e9eaf1; border-radius: 999px; padding: 3px; }
-  .seg { font-family: var(--head); font-size: 16px; border: 0; background: transparent; color: #6d6b80; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
+  .stylebar .grp { display: flex; align-items: center; gap: 8px; max-width: 100%; }   /* 이름표와 버튼 묶음이 따로 줄바꿈되지 않게 */
+  .stylebar .segs { flex-wrap: wrap; }
+  .seg { white-space: nowrap; font-family: var(--head); font-size: 16px; border: 0; background: transparent; color: #6d6b80; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
   .seg.on { background: var(--c); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
   .seg:focus-visible, .seg:focus { outline: 3px solid #1f74f0; outline-offset: 1px; }
 
@@ -61,6 +63,9 @@
     margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
     font-size: clamp(24px, 4.4vh, 42px); color: #fff; letter-spacing: 1px; text-shadow: 0 3px 0 rgba(120, 10, 20, 0.35);
   }
+  .backbtn { flex: none; margin-left: clamp(10px, 3vw, 40px); width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
+    background: #fff; color: #ff2b47; font-family: var(--head); font-size: 24px; line-height: 1; box-shadow: 0 3px 0 rgba(120, 10, 20, 0.35); }
+  .backbtn:not(.hidden) + h1 { padding-left: 12px; }
   .band-white {
     position: fixed; top: 0; right: 0; z-index: 4; height: calc(var(--bandH) * 0.62 + env(safe-area-inset-top, 0px)); width: 46vw;
     background: #fff; clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
@@ -391,6 +396,11 @@
   .pad button.on { transform: translateY(3px); box-shadow: 0 2px 0 #1747b0; }
 
   @media (pointer: coarse), (max-width: 760px) { #game .pad { display: flex; } }
+  @media (pointer: coarse) { #hints { visibility: hidden; } }      /* 터치 기기: 키보드 안내는 숨김 */
+  /* 세로 폰: 터치 버튼을 크게 두 줄로 */
+  @media (max-width: 760px) and (orientation: portrait) {
+    .pad { --pb: min(64px, calc((100vw - 16px - 3 * var(--pg)) / 4)); flex-wrap: wrap; max-width: calc(4 * var(--pb) + 3 * var(--pg) + 4px); }
+  }
   @media (max-width: 760px) {
     body { justify-content: flex-start; overflow-y: auto; }
     #menu { height: auto; max-height: none; }
@@ -411,12 +421,14 @@
     .mrow > .mvs, .mrow > .mres, .mrow > .mrank { grid-column: 2 / 4; }
     .rkhero { flex-direction: column; text-align: center; }
     .rkhero canvas { width: 96px; height: 96px; }
+    .tile .td { display: none; }                 /* 좁은 화면: 타일 설명은 아래 설명 칸(#mDesc)에서만 */
+    .tag { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .tile, .tile[data-act]:focus .ico { transition: none; animation: none; } }
 </style>
 </head>
 <body>
-  <div class="band-top"><h1 id="bandTitle">메인 메뉴</h1></div>
+  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1></div>
   <div class="band-white"></div>
   <button id="bSettings" class="gear" aria-label="설정">⚙ 설정</button>
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">
@@ -425,6 +437,8 @@
       <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
       <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
       <h3>게임</h3>
+      <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
+      <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
       <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
       <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
       <h3>키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h3>

@@ -50,7 +50,8 @@ const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const
 // 공격 구슬: 연쇄 위치에서 출발해 크게 호를 그리며 상대 방해뿌요 칸으로 날아감(상쇄는 내 칸으로 짧게)
 game.launch = (from, to, n, x, y, kind, ch) => {
   const col = kind === 'offset' ? '#8fd0ff' : CH_COL[Math.max(0, (ch == null ? from.chain : ch) - 1) % CH_COL.length];
-  const tx = to.ox + to.fw / 2, ty = to.oy - 32;
+  if (isMini(from)) [x, y] = miniPt(from, x, y);                     // 세로 폰: 작게 그린 상대 판 위치로
+  const [tx, ty] = isMini(to) ? miniPt(to, to.ox + to.fw / 2, to.oy - 32) : [to.ox + to.fw / 2, to.oy - 32];
   game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind !== 'offset' ? 720 : 420, n, from, to, kind, col,
     size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind !== 'offset' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
   ring(x, y, col, 8, 46, 320, 6); burst(x, y, col, 10, 0.25);
@@ -255,7 +256,7 @@ function drawPair(c, cx, cy, s, a, b, bob) {
 function render(t) {
   const W = LW, rs = game.rs || DPR;
   ctx.setTransform(rs, 0, 0, rs, 0, -VIEW_Y0 * rs); ctx.clearRect(0, 0, W, CANVAS_H);
-  for (const f of game.fields) f.draw(t);
+  for (const f of game.fields) inMini(ctx, f, () => f.draw(t));
   const me = game.fields[0]; if (!me) return;
   ctx.save();
   // 다음 (뿌요: 2쌍 / 테트리스: 5개 + 홀드)
@@ -289,7 +290,12 @@ function render(t) {
     }
     ctx.restore();
   }
-  if (game.vs) {
+  if (game.vs && game.compact) {             // 세로 폰: VS 엠블럼 대신 상대 판(작게). 시리즈·공격력은 한 줄로
+    const sr = game.series, bits = [];
+    if (sr) bits.push(`${sr.me} : ${sr.op}`);
+    if (game.marginLv) bits.push(`공격력 ×${(70 / targetPt()).toFixed(1)}`);
+    if (bits.length) { slab(ctx, PX - 66, OY + 360, 132, 28, TONES.white, 3); outlined(ctx, bits.join(' · '), PX, OY + 374, 16, '#22212e', '#fff', 4); }
+  } else if (game.vs) {
     const base = OY + 376;
     if (game.marginLv) {                       // 마진 타임: 현재 공격력 배율
       slab(ctx, PX - 66, base, 132, 36, TONES.orange, 4);
@@ -329,8 +335,8 @@ function render(t) {
     }
   }
   ctx.restore();
-  for (const f of game.fields) {           // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
-    if (!f.char) continue;
+  for (const f of game.fields) inMini(ctx, f, () => {   // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
+    if (!f.char) return;
     drawChar(ctx, f.char, f.ox + 12, 18, 38, f.dead ? 'sad' : 'happy');
     drawCut(ctx, f);
     if (game.state === 'over' && game.vs && (f.won || f.dead)) {
@@ -338,7 +344,7 @@ function render(t) {
       slab(ctx, f.ox + 16, OY + FH * 0.66, f.fw - 32, 40, { c: '#ffffff', d: ch.d }, 4);
       outlined(ctx, txt, f.ox + f.fw / 2, OY + FH * 0.66 + 20, Math.min(19, 300 / txt.length + 4), '#22212e', '#fff', 4);
     }
-  }
+  });
   if (game.rule === 'bigbang') drawBigBang(ctx);
   if (game.rule === 'swap') drawSwap(ctx);
   if (game.rule === 'party' && game.vs) drawParty(ctx);
