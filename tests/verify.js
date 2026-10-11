@@ -63,7 +63,7 @@ function check(rp, mutate) {
     tamper(P, '뿌요를 갈 수 없는 자리에 놓기', (d, k) => k === kl ? { ...d, y: d.y - 4 } : d, /자리/);
     tamper(P, '받지 않은 색 조각 놓기', (d, k) => k === kl ? { ...d, a: d.a % 4 + 1 } : d, /조각/);
     const ka = firstK(P, d => d.t === 'atk');
-    if (ka >= 0) tamper(P, '공격을 부풀리기', (d, k) => k === ka ? { ...d, n: d.n + 30 } : d, /공격/);
+    if (ka >= 0) tamper(P, '공격을 부풀리기', (d, k) => k === ka ? { ...d, n: d.n + 30 } : d, /공격|상쇄/);   // 한 연쇄로 낼 수 있는 양을 넘으면 그 자리에서, 아니면 남은 상쇄에서 걸림
     const kg = firstK(P, d => d.t === 'garb');
     if (kg >= 0) tamper(P, '방해뿌요 안 받기', d => d.t === 'garb' ? null : d, /방해|자리|판/);
     const dead = P.ev.find(e => e[2].t === 'dead');
@@ -72,6 +72,25 @@ function check(rp, mutate) {
       ok(m.loser === dead[1], `조작 잡음: 탈락을 숨기고 버티기 → ${m.loser === dead[1] ? '막힌 순간 탈락' : '못 잡음'}`);
     }
     tamper({ ...P, ev: P.ev.map(([t, pi, d]) => [Math.round(t / 8), pi, d]) }, '8배 빠르게 두기(매크로)', d => d, /속도/);
+    // 공격을 모아 두기: 어떤 공격을 그때 보내지 않고 있다가, 연쇄가 없는 다음 놓기 뒤에 보냄(그 사이 받은 방해가 없는 구간에서)
+    {
+      const E = P.ev, lockAfter = (k, pi) => E.findIndex((e, j) => j > k && e[1] === pi && e[2].t === 'lock');
+      let pick = null;
+      for (let k = 0; k < E.length && !pick; k++) {
+        const [, pi, d] = E[k]; if (d.t !== 'atk') continue;
+        for (let a = lockAfter(k, pi); a > 0 && !pick; a = lockAfter(a, pi)) {
+          const b = lockAfter(a, pi); if (b < 0) break;
+          if (E.slice(k + 1, b).some(e => e[1] === pi && e[2].t === 'garb')) break;
+          if (!E.slice(a + 1, b).some(e => e[1] === pi && /atk|off/.test(e[2].t))) pick = { k, pi, a };
+        }
+      }
+      if (pick) {
+        const { k, pi, a } = pick, ev = E.slice(0, a + 1).filter((e, j) => j !== k && (j < k || e[1] === pi));
+        ev.push([E[a][0] + 1, pi, E[k][2]]);
+        const m = check({ ...P, ev });
+        ok(m.seats[pi].bad && /공격/.test(m.seats[pi].bad), `조작 잡음: 공격을 모아 뒀다 나중에 쓰기 → ${m.seats[pi].bad || '못 잡음'}`);
+      }
+    }
   }
   if (T) {
     const kl = firstK(T, d => d.t === 'tlock');

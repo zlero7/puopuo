@@ -77,7 +77,12 @@ function newCode() {
   while (rooms.has(c));
   return c;
 }
-function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+// 받는 쪽이 못 따라오면(1MB 넘게 밀림) 게임 메시지는 버림(서버 메모리가 끝없이 늘지 않게). 중요한 알림은 그래도 보냄
+function send(ws, msg) {
+  if (!ws || ws.readyState !== 1) return;
+  if (msg.t === 'g' && ws.bufferedAmount > 1 << 20) return;
+  ws.send(JSON.stringify(msg));
+}
 const sizeOf = v => Math.max(2, Math.min(4, Math.floor(typeof v === 'number' ? v : 2) || 2));
 // 받은 메시지 정리: Object 기본 이름(toString·valueOf 등)을 덮어쓴 값은 숫자·문자로 바꿀 때 오류를 내서 서버가 죽으므로 빼 버림
 const BAD_KEYS = new Set(Object.getOwnPropertyNames(Object.prototype));
@@ -174,7 +179,7 @@ function botMatch(a) {
   room.players.push(a); a.room = room; room.players.push(seat);
   startRoom(room);
 }
-setInterval(matchRanked, 2000);
+setInterval(matchRanked, 1000);   // 매칭은 1초마다 한 번(대기열 메시지마다 돌리지 않음)
 // AI 상대를 서버에서 돌림: 16ms마다 한 걸음, 생긴 기록은 검증기에 넣고 사람에게 중계(사람 상대와 똑같이 보임)
 function startBot(room, seed, styles, board, lv) {
   const R = room.ranked, bs = room.seats.findIndex(p => p.bot), hs = 1 - bs;
@@ -242,7 +247,24 @@ function rankedEnd(room, w, why) {
   for (const p of room.players) if (p.room === room) p.room = null;
 }
 
-wss.on('connection', ws => {
+// 한 주소(IP)에서 동시에 접속할 수 있는 수(학교처럼 여러 명이 같은 주소일 수 있어 넉넉히, MAX_CONN_PER_IP)
+const MAX_CONN_PER_IP = +process.env.MAX_CONN_PER_IP || 64;
+const perIp = new Map();
+// 메시지 속도 제한(연결마다): 게임 메시지는 초당 60개(잠깐 몰리면 120개까지), 나머지는 초당 5개(10개까지). 넘으면 버리고, 계속 넘기면 연결을 끊음
+const RATE = { g: [60, 120], other: [5, 10] };
+function allow(ws, kind) {
+  const [per, burst] = RATE[kind], b = ws.bucket[kind], now = Date.now();
+  b.n = Math.min(burst, b.n + (now - b.at) * per / 1000); b.at = now;
+  if (b.n >= 1) { b.n--; return true; }
+  if (++ws.dropped > 2000) ws.terminate();
+  return false;
+}
+wss.on('connection', (ws, req) => {
+  const ip = req.socket.remoteAddress || '';
+  if ((perIp.get(ip) || 0) >= MAX_CONN_PER_IP) { ws.close(1013, 'too many'); return; }
+  perIp.set(ip, (perIp.get(ip) || 0) + 1);
+  ws.on('close', () => { const n = (perIp.get(ip) || 1) - 1; if (n > 0) perIp.set(ip, n); else perIp.delete(ip); });
+  ws.bucket = { g: { n: RATE.g[1], at: Date.now() }, other: { n: RATE.other[1], at: Date.now() } }; ws.dropped = 0;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
@@ -252,6 +274,7 @@ wss.on('connection', ws => {
     let m;
     try { m = clean(JSON.parse(raw)); } catch { return; }
     if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+    if (!allow(ws, m.t === 'g' ? 'g' : 'other')) return;
     try { onMessage(ws, m); } catch (e) { console.error('메시지 처리 오류:', m.t, e && e.message); }
   });
 
@@ -293,9 +316,9 @@ function onMessage(ws, m) {
       if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
       leave(ws);
       ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, typeof m.name === 'string' ? m.name : '', m.char), since: Date.now(), bot: !!m.bot };
+      for (const o of rankQ) if (o !== ws && o.rank.token === m.token) { rankQ.delete(o); send(o, { t: 'error', msg: '다른 창에서 랭크전 대기를 시작해서 이 창의 대기는 취소됐어요.' }); }   // 한 사람은 대기열에 한 번만
       rankQ.add(ws);
       send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });
-      matchRanked();
       break;
     }
     case 'rres': {         // 랭크전 한 판 결과: 두 사람 보고가 맞을 때만 인정

@@ -75,6 +75,14 @@ const tok = c => 'robust' + c.repeat(14);
     first.send({ t: 'ready' });                           // other는 다음 판을 시작하지 않고 버팀
     const rf = await first.wait('rdone', 9000), ro = await other.wait('rdone', 1000);
     ok(rf.win && !ro.win && rf.why, `다음 판을 안 하고 버틴 쪽이 시리즈 패배(${rf.why})`);
+    // ④ 메시지 폭주: 한 사람이 2만 개를 쏟아부어도 상대에게는 초당 60개 정도만 가고 서버는 그대로
+    const X = await client(), Y = await client();
+    X.send({ t: 'create', size: 2 }); const cr = await X.wait('created'); Y.send({ t: 'join', code: cr.code });
+    await X.wait('start'); await Y.wait('start'); Y.box.length = 0;
+    for (let i = 0; i < 20000; i++) X.send({ t: 'g', d: { t: 'st', sc: i } });
+    await sleep(1000);
+    const flood = Y.box.filter(x => x.t === 'g').length;
+    ok(flood < 400 && await health(), `메시지 폭주를 막음: 2만 개 중 ${flood}개만 전달`);
     ok(await health(), '끝까지 서버가 켜져 있음');
   } catch (e) { ok(false, e.message); }
   finally {

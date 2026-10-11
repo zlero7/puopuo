@@ -21,8 +21,8 @@ function hollow() {
 // 엔진 하나 = 독립된 전역 공간 하나(대전 한 판마다 새로 만듦)
 function createEngine() {
   const H = hollow();
+  // Math·JSON·Array 같은 기본 객체는 이 공간 자신의 것을 씀(서버 쪽 객체를 넘기지 않음). 받은 기록은 값으로만 들어가고 코드로 실행되지 않음
   const sandbox = {
-    console, Math, JSON, Date, Array, Object, Number, String, Boolean, Set, Map, Symbol, Error, Proxy, Reflect, Infinity, NaN, isFinite, parseInt, parseFloat,
     setTimeout: () => 0, clearTimeout: () => {}, requestAnimationFrame: () => 0,
     performance: { now: () => 0 },
     window: { devicePixelRatio: 1 },          // AudioContext 없음 → 소리는 조용히 꺼짐
@@ -31,8 +31,8 @@ function createEngine() {
     localStorage: { getItem: () => null, setItem: () => {} },
     navigator: { getGamepads: () => [] },
   };
-  sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
+  vm.runInContext('var console = { log() {}, warn() {}, error() {} };', ctx);   // 규칙 코드의 로그는 버림
   // 브라우저에서 play.js · replay.js · stats.js가 주는 것 중 규칙 코드가 부르는 것들
   vm.runInContext(`
     var __events = [], __launch = [];

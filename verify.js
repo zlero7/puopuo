@@ -27,7 +27,7 @@ class Match {
     this.seats = F.map((f, i) => ({
       f, i, real: Object.getPrototypeOf(f).spawn, dead: false, bad: null, lastAt: 0, locks: [],
       inc: [], paid: 0, garbSince: true, agedAtLock: 0,
-      pool: 0, poolOff: 0, poolAtk: 0, gauge: 0,
+      pool: 0, poolOff: 0, poolAtk: 0, gauge: 0, steps: [], offChain: 0, atkChain: 0,
     }));
     for (const s of this.seats) {
       s.f.spawn = () => { s.f.piece = null; s.f.cur = null; s.f.phase = 'next'; };   // 다음 조각은 기록이 오면 꺼냄(방해를 먼저 받을 수 있게)
@@ -47,7 +47,10 @@ class Match {
   // 이 자리에서 생긴 공격(서버 계산)을 예산에 더함
   collect(s) {
     const L = this.run('__launch.splice(0)'), opp = this.seats[1 - s.i];
-    for (const l of L) if (l.from === s.f && l.kind === 'attack') { if (this.cross(s)) s.poolAtk += l.n; else s.pool += l.n; }
+    for (const l of L) if (l.from === s.f && l.kind === 'attack') {
+      if (!this.cross(s)) s.pool += l.n;
+      else if (s.f.kind !== 'puyo') s.poolAtk += l.n;      // 뿌요 → 테트리스 줄 공격은 상쇄한 만큼 빼고 따로 계산(lineBudget)
+    }
     this.run('__events.length = 0');
     return opp;
   }
@@ -73,7 +76,7 @@ class Match {
       if (!o.dead && this.doomed(o)) { o.dead = true; this.loser = o.i; this.reason = '탈락'; return { relay: { t: 'dead' } }; }
       s.dead = true; if (this.loser == null) { this.loser = i; this.reason = '탈락'; } return { relay: { t: 'dead' } };
     }
-    const at = Math.max(s.lastAt, Math.min(+ev.at || 0, now + 1500)); s.lastAt = at; this.K.game.el = at;
+    const at = Math.max(s.lastAt, Math.min(+ev.at || 0, now + 1500)); s.lastAt = at; this.K.game.el = Math.min(at, Math.max(0, now));   // 마진 타임은 서버 시간 기준(앞당긴 시각으로 공격력을 올리지 못하게)
     const f = s.f, puyo = f.kind === 'puyo';
     switch (ev.t) {
       case 'hold': {
@@ -89,6 +92,10 @@ class Match {
         this.spawn(s); if (s.dead) return this.fail(s, '탈락한 뒤에도 계속 둠');
         s.locks.push(at); if (s.locks.length > 10) s.locks.shift();
         if (s.locks.length === 10 && s.locks[9] - s.locks[0] < MIN_10_LOCKS) return this.fail(s, '사람이 할 수 없는 속도');
+        // 지난번 놓기로 낸 공격·상쇄는 이번 놓기 전까지만 쓸 수 있음(모아 뒀다가 아무 때나 상쇄 방패로 쓰지 못하게)
+        // (테트리스가 뿌요 상대로 게이지를 모으는 중이면 REN이 끝나 게이지를 내보낼 때까지 유지)
+        if (!(this.cross(s) && !puyo && f.gauge > 0)) { s.pool = 0; s.poolOff = 0; s.poolAtk = 0; }
+        s.steps = []; s.offChain = 0; s.atkChain = 0;
         const r = puyo ? this.lockPuyo(s, ev) : this.lockTetris(s, ev);
         if (r) return this.fail(s, r);
         s.agedAtLock = this.aged(s, now); s.garbSince = false;
@@ -125,16 +132,25 @@ class Match {
       case 'off': {                              // 상쇄: 받은 방해 안에서, 낼 수 있는 공격 안에서
         const n = ev.n | 0; if (n <= 0) return {};
         if (n > this.pend(s)) return this.fail(s, '받지 않은 방해를 상쇄');
-        if (this.cross(s)) { if (n > s.poolOff) return this.fail(s, '낼 수 없는 만큼 상쇄'); s.poolOff -= n; }
+        if (this.cross(s)) {
+          if (n > s.poolOff) return this.fail(s, '낼 수 없는 만큼 상쇄');
+          s.poolOff -= n; s.offChain += n;
+          if (f.kind !== 'puyo') s.poolAtk = Math.max(0, s.poolAtk - gaugeCut(n));   // 테트리스: 상쇄한 만큼 게이지(뿌요로 보낼 양)가 줄어듦
+        }
         else { if (n > s.pool) return this.fail(s, '낼 수 없는 만큼 상쇄'); s.pool -= n; }
         s.paid += n;
         return { relay: this.fx(s, ev, n) };
       }
       case 'atk': {                              // 공격: 서버가 계산한 만큼까지만 상대에게 보냄
         const n = ev.n | 0; if (n <= 0) return {};
-        const key = this.cross(s) ? 'poolAtk' : 'pool';
-        if (n > s[key]) return this.fail(s, '낼 수 없는 만큼 공격');
-        s[key] -= n;
+        if (this.cross(s) && puyo) {                    // 뿌요 → 테트리스: 상쇄한 단계의 줄은 못 보냄
+          if (s.atkChain + n > this.lineBudget(s)) return this.fail(s, '낼 수 없는 만큼 공격');
+          s.atkChain += n;
+        } else {
+          const key = this.cross(s) ? 'poolAtk' : 'pool';
+          if (n > s[key]) return this.fail(s, '낼 수 없는 만큼 공격');
+          s[key] -= n;
+        }
         this.seats[1 - i].inc.push({ n, t: now });
         return { relay: this.fx(s, ev, n) };
       }
@@ -163,6 +179,13 @@ class Match {
       o.ho = this.K.TKEYS.includes(ev.ho) && ev.ho && ev.ho !== 'G' ? ev.ho : null; o.gg = int(ev.gg, 0, 99);
     }
     return o;
+  }
+  // 뿌요 → 테트리스 줄 공격 예산: 연쇄 단계마다 { u: 상쇄할 수 있는 양, l: 줄 }. 그 단계를 다 상쇄했으면 그 단계 줄은 0(클라이언트 attackT와 같음)
+  // 이번 연쇄에서 상쇄한 총량(offChain)으로 '적어도 몇 단계는 다 상쇄했어야 하는지' 구해서, 줄이 적은 단계부터 그만큼 뺌(정상 기록은 항상 이 안에 들어감)
+  lineBudget(s) {
+    const st = s.steps, n = st.length, U = st.reduce((a, x) => a + x.u, 0), L = st.reduce((a, x) => a + x.l, 0);
+    const k = Math.max(0, Math.min(n, s.offChain - U + n));
+    return L - st.map(x => x.l).sort((a, b) => a - b).slice(0, k).reduce((a, b) => a + b, 0);
   }
   // 다음 조각을 꺼낼 수 없는 판(방해는 더 쌓일 뿐 풀어 주지 않으므로 이미 진 것)
   doomed(s) {
@@ -238,7 +261,12 @@ function hookUnits(m) {
     const f = s.f;
     if (f.kind === 'puyo') {
       const orig = Object.getPrototypeOf(f).attackT;
-      f.attackT = function (step, units, x, y) { m.unitsOff = (m.unitsOff || 0) + Math.max(1, units); return orig.call(this, step, units, x, y); };
+      f.attackT = function (step, units, x, y) {
+        m.unitsOff = (m.unitsOff || 0) + Math.max(1, units);
+        const lo = this.lineOut, r = orig.call(this, step, units, x, y);
+        s.steps.push({ u: Math.max(1, units), l: this.lineOut - lo });
+        return r;
+      };
     } else {
       const orig = Object.getPrototypeOf(f).deliver;
       f.deliver = function (amount, x, y) {
@@ -249,6 +277,9 @@ function hookUnits(m) {
     }
   }
 }
-function newMatch(o) { const m = new Match(o); hookUnits(m); return m; }
+// 테트리스가 뿌요 상대에게 게이지로 모은 양 g에서 n을 상쇄하면 보내는 뿌요(T2P[g])가 줄어드는 양의 최솟값(g를 몰라도 이만큼은 확실히 줄어듦)
+let T2P = null;
+function gaugeCut(n) { n = Math.min(59, n); return Math.max(0, Math.min(T2P[n], T2P[n + 1] - T2P[1])); }
+function newMatch(o) { const m = new Match(o); if (!T2P) T2P = m.run('T2P.slice()'); hookUnits(m); return m; }
 
 module.exports = { newMatch, Match, SLACK };
