@@ -11,10 +11,18 @@ function loadStats() {
   try { const v = JSON.parse(localStorage.getItem(STATS_KEY)); return v ? { ...defStats(), ...v } : defStats(); }
   catch (e) { return defStats(); }
 }
+// 닉네임 필터(서버와 같은 규칙): 욕설·비속어가 들어 있으면 '플레이어'
+const BAD_WORDS = ['시발','씨발','씨팔','시팔','ㅅㅂ','ㅆㅂ','병신','븅신','ㅂㅅ','개새','개색','새끼','좆','존나','졸라','지랄','ㅈㄹ','미친','엿먹','닥쳐','꺼져','썅','니애미','느금','애미','애비','섹스','fuck','shit','bitch','sex','porn','nigg','asshole','dick'];
+function cleanName(name) {
+  const s = String(name == null ? '' : name).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 10);
+  const k = s.toLowerCase().replace(/[\s\d_.\-~!@#$%^&*()+=|/\\'"`,?:;\[\]{}]/g, '');
+  return !s || BAD_WORDS.some(w => k.includes(w)) ? '플레이어' : s;
+}
 function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {} }
 let stats = loadStats();
 function recordGame() {
   if (game.recorded) return; game.recorded = true;
+  if (game.puzzle) { puzzleOut(); return; }      // 튜토리얼·퍼즐은 기록에 넣지 않음(쌓여서 끝나면 실패)
   if (game.mode === 'replay') return;
   if (game.mode === 'online' && game.ranked) nsend({ t: 'rres', win: !!game.fields[0].won });   // 랭크전: 결과 보고(서버가 양쪽을 맞춰 봄)
   const rp = finishRecording();
@@ -60,6 +68,7 @@ function recordGame() {
     sr: game.series && game.series.to > 1 ? [game.series.me, game.series.op] : null });
   stats.history = stats.history.slice(0, 100);
   saveStats();
+  if (cat === 'ranked' && game.rkPending) attachRank(game.rkPending);   // 랭크전 결과가 이 판 기록보다 먼저 왔음
 }
 const fmtTime = ms => { const m = Math.round(ms / 60000); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };
 const wins = () => stats.ai.reduce((a, x) => a + x.w, 0) + stats.online.w;
@@ -77,6 +86,7 @@ function renderRecords() {
   $('recEndless').textContent = (stats.practice || {}).tBest ? `최고 ${stats.practice.tBest.toLocaleString()}점` : '기록 없음';
   [0, 1, 2].forEach(i => { $('rec' + i).textContent = `${stats.ai[i].w}승 ${stats.ai[i].l}패`; });
   const pr = stats.practice || {};
+  if (typeof pzCount === 'function') { $('recTut').textContent = `${pzCount('tut')} / ${LESSONS.length} 완료`; $('recPuz').textContent = `${pzCount('puz')} / ${PUZZLES.length} 풀었어`; }
   $('recPEndless').textContent = pr.best ? `최고 ${pr.best.toLocaleString()}점` : '기록 없음';
   $('recPEfever').textContent = pr.fBest ? `최고 ${pr.fBest.toLocaleString()}점 · ${pr.fChain || 0}연쇄` : '기록 없음';
   $('recOnline').textContent = `${stats.online.w}승 ${stats.online.l}패`;

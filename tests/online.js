@@ -9,6 +9,7 @@ const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4
 
 (async () => {
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: require('os').tmpdir() + `/ranks-${PORT}.json` }, stdio: 'pipe' });
+  if (process.env.VDEBUG) srv.stdout.on('data', b => String(b).split('\n').filter(l => l.includes('[판정]')).forEach(l => console.log(l)));
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch();
   const pages = [], errs = [];
@@ -17,8 +18,8 @@ const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4
       const ctx = await browser.newContext(); const p = await ctx.newPage();
       p.on('pageerror', e => errs.push(`[${i}] ${e.message}`));
       await p.goto(`http://127.0.0.1:${PORT}/`);
-      await p.evaluate(([i, N]) => {
-        stats.players = N; stats.name = 'P' + i; stats.style = i % 2 ? 'tetris' : 'puyo'; stats.board = 'wide'; saveStats();
+      await p.evaluate(([i, N, STYLE]) => {
+        stats.players = N; stats.name = 'P' + i; stats.style = STYLE || (i % 2 ? 'tetris' : 'puyo'); stats.board = 'wide'; saveStats();
         // 시작하면 내 판을 CPU로 바꿔 자동 진행
         const orig = window.onNetHook = true;
         setInterval(() => {
@@ -28,9 +29,11 @@ const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4
             if (f.phase === 'drop') f.planAI();
           }
         }, 50);
-      }, [i, N]);
+      }, [i, N, process.env.STYLE || '']);
       pages.push(p);
     }
+    // CHEAT=1: 첫 번째 사람이 공격량을 몰래 부풀려 보냄(서버 검증이 잡아야 함)
+    if (process.env.CHEAT) await pages[0].evaluate(() => { const orig = gsend; gsend = d => orig(d && d.t === 'atk' ? { ...d, n: d.n + 20 } : d); });
     for (const p of pages) { await p.evaluate(r => act(r ? 'ranked' : 'quick'), RANKED); await new Promise(r => setTimeout(r, 200)); }
     const t0 = Date.now();
     let res;

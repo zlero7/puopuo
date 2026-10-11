@@ -151,7 +151,7 @@ class FField {
     this.shake = Math.max(0, this.shake - dt * 0.03); this.flash = Math.max(0, this.flash - dt * 0.003);
     this.trayBump = Math.max(0, this.trayBump - dt * 0.004); this.hit = Math.max(0, this.hit - dt * 0.0025);
     if (!active || this.dead) return;
-    if (this.remote) { while (this.queue.length) this.applyEvent(this.queue.shift()); return; }
+    if (this.remote) { while (this.queue.length) { try { this.applyEvent(this.queue.shift()); } catch (e) { console.error('상대 기록을 적용하지 못함', e); } } return; }
     if (this.phase === 'drop') this.updateDrop(dt);
     else if (this.phase === 'resolve') { this.resT -= dt; if (this.resT <= 0) this.step(); }
   }

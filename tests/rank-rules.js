@@ -8,7 +8,7 @@ at(2026, 9);                                                 // 2026년 9월 = 2
 const R = require('../rank.js');
 let fail = 0; const ok = (c, msg) => { console.log(`${c ? '✓' : '✗'} ${msg}`); if (!c) fail++; };
 const tok = i => 'tok' + String(i).padStart(14, '0');
-const set = (p, o) => Object.assign(p, { placed: p.need, yearPlaced: true, ...o });
+const set = (p, o) => { Object.assign(p, { placed: p.need, yearPlaced: true, ...o }); R.touch(p); return p; };
 
 ok(R.tierOf(0).label === '브론즈 1' && R.tierOf(250).label === '브론즈 3' && R.tierOf(300).label === '실버 1' && R.tierOf(1499).label === '다이아 3' && R.tierOf(1500).label === '마스터', '티어 순서: 브론즈 1 < … < 다이아 3 < 마스터');
 ok(R.seasonInfo().name === '2026 시즌 5' && R.seasonInfo().months === '9~10월', '시즌 이름: 2026 시즌 5 (9~10월)');

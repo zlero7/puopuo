@@ -34,7 +34,7 @@ function forfeit() {
 function showResult(tone, title, sub, chips, kind) {
   $('resultBox').className = 'result t-' + tone;
   $('ovTitle').textContent = title; $('ovSub').textContent = sub; $('ovRank').classList.add('hidden');
-  $('ovStats').innerHTML = (chips || []).map(([k, v]) => `<div class="chip"><span>${k}</span><b>${v}</b></div>`).join('');
+  $('ovStats').innerHTML = (chips || []).map(([k, v]) => `<div class="chip"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
   overlayBtns(kind); overlay.classList.remove('hidden'); game.ovAt = performance.now();
   requestAnimationFrame(() => { const b = [...overlay.querySelectorAll('.btn')].find(b => !b.classList.contains('hidden')); if (b) b.focus({ preventScroll: true }); });
 }
@@ -50,7 +50,8 @@ const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const
 // 공격 구슬: 연쇄 위치에서 출발해 크게 호를 그리며 상대 방해뿌요 칸으로 날아감(상쇄는 내 칸으로 짧게)
 game.launch = (from, to, n, x, y, kind, ch) => {
   const col = kind === 'offset' ? '#8fd0ff' : CH_COL[Math.max(0, (ch == null ? from.chain : ch) - 1) % CH_COL.length];
-  const tx = to.ox + to.fw / 2, ty = to.oy - 32;
+  if (isMini(from)) [x, y] = miniPt(from, x, y);                     // 세로 폰: 작게 그린 상대 판 위치로
+  const [tx, ty] = isMini(to) ? miniPt(to, to.ox + to.fw / 2, to.oy - 32) : [to.ox + to.fw / 2, to.oy - 32];
   game.orbs.push({ x0: x, y0: y, x1: tx, y1: ty, t: 0, dur: kind !== 'offset' ? 720 : 420, n, from, to, kind, col,
     size: 9 + Math.min(16, Math.sqrt(n) * 3.2), lift: kind !== 'offset' ? 170 + Math.min(120, n * 3) : 60, trail: [] });
   ring(x, y, col, 8, 46, 320, 6); burst(x, y, col, 10, 0.25);
@@ -63,7 +64,10 @@ function orbPos(o) {
 }
 function impact(o) {
   if (o.kind !== 'offset') {                         // 'bb'(빅뱅 데미지)는 연출만
-    if (o.kind === 'attack' && !o.to.remote) o.to.pending += o.n;          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+    if (o.kind === 'attack' && !o.to.remote) {          // 상대 화면의 방해뿌요 수는 상대가 보내주는 값으로 표시
+      o.to.pending += o.n;
+      if (o.from.atkOpen && o.from.kind === 'puyo' && o.to.kind === 'puyo') holdGarb(o.to, o.from, o.n);   // 보낸 쪽 연쇄가 끝날 때까지 붙잡음
+    }
     if (o.kind === 'attack' && o.from !== o.to) o.to.lastHitBy = o.from;   // 3~4인: 나를 공격한 사람에게 반격
     o.to.trayBump = 1; o.to.hit = Math.min(1, 0.4 + o.n / 20);
     o.to.shake = Math.max(o.to.shake, 3 + Math.min(7, o.n / 3));
@@ -179,6 +183,7 @@ function update(dt) {
         w.won = true; w.place = 1; w.piece = null;
         (F[0].won || !F[0].human ? sfx.win : sfx.lose)();
         if (game.series && game.mode !== 'replay') { if (w === F[0]) game.series.me++; else game.series.op++; }
+        if (game.ranked && game.rjudge) syncSeries();
         recordGame();                        // 승패(won)가 정해진 뒤에 기록해야 함
       }
     }
@@ -195,7 +200,7 @@ function update(dt) {
       const win = f.find(x => x.won);
       showResult('purple', '리플레이 끝', `${d.getMonth() + 1}/${d.getDate()} 경기 · ${who}${win ? ` · ${win.name} 승리` : ''}`,
         f.map(x => [x.name, `${x.score.toLocaleString()}점 · ${x.kind === 'tetris' ? `${x.maxChain} REN` : `${x.maxChain}연쇄`}`]), 'replay');
-    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded) {
+    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && !game.puzzle) {
       const me = game.fields[0], online = game.mode === 'online';
       const isT = me.kind === 'tetris';
       const chips = [['점수', me.score.toLocaleString()], isT ? ['최고 REN', `${me.maxChain} REN`] : ['최고 연쇄', `${me.maxChain}연쇄`],
@@ -251,7 +256,7 @@ function drawPair(c, cx, cy, s, a, b, bob) {
 function render(t) {
   const W = LW, rs = game.rs || DPR;
   ctx.setTransform(rs, 0, 0, rs, 0, -VIEW_Y0 * rs); ctx.clearRect(0, 0, W, CANVAS_H);
-  for (const f of game.fields) f.draw(t);
+  for (const f of game.fields) inMini(ctx, f, () => f.draw(t));
   const me = game.fields[0]; if (!me) return;
   ctx.save();
   // 다음 (뿌요: 2쌍 / 테트리스: 5개 + 홀드)
@@ -266,9 +271,9 @@ function render(t) {
     if (isT) {
       for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }
     } else {
-      const n1 = pairAt(me.idx), n2 = pairAt(me.idx + 1);
-      drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
-      drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
+      const n1 = me.pairQ ? me.pairQ[0] : pairAt(me.idx), n2 = me.pairQ ? me.pairQ[1] : pairAt(me.idx + 1);   // 퍼즐은 남은 쌍
+      if (n1) drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
+      if (n2) drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
     }
   }
   {                                    // 홀드(뿌요·테트리스 공통)
@@ -285,7 +290,12 @@ function render(t) {
     }
     ctx.restore();
   }
-  if (game.vs) {
+  if (game.vs && game.compact) {             // 세로 폰: VS 엠블럼 대신 상대 판(작게). 시리즈·공격력은 한 줄로
+    const sr = game.series, bits = [];
+    if (sr) bits.push(`${sr.me} : ${sr.op}`);
+    if (game.marginLv) bits.push(`공격력 ×${(70 / targetPt()).toFixed(1)}`);
+    if (bits.length) { slab(ctx, PX - 66, OY + 360, 132, 28, TONES.white, 3); outlined(ctx, bits.join(' · '), PX, OY + 374, 16, '#22212e', '#fff', 4); }
+  } else if (game.vs) {
     const base = OY + 376;
     if (game.marginLv) {                       // 마진 타임: 현재 공격력 배율
       slab(ctx, PX - 66, base, 132, 36, TONES.orange, 4);
@@ -310,10 +320,17 @@ function render(t) {
       outlined(ctx, `${sr.me} : ${sr.op}`, PX, y + 74, 28, '#22212e', '#fff', 4);
       if (sr.to > 1) { ctx.font = '13px ' + FONT(); ctx.fillStyle = '#6d6b80'; ctx.textAlign = 'center'; ctx.fillText(`${sr.to}선승`, PX, y + 108); }
     }
+  } else if (game.puzzle) {                // 튜토리얼·퍼즐: 목표 · 남은 쌍
+    const Z = game.puzzle, ly = OY + 372;
+    slab(ctx, PX - 70, ly, 140, 86, TONES.green, 5);
+    outlined(ctx, '목표', PX, ly + 20, 17, '#fff', TONES.green.d, 5);
+    const gt = pzGoalText(Z.def.goal); outlined(ctx, gt, PX, ly + 56, gt.length > 8 ? 15 : 20, '#fff', TONES.green.d, 5);
+    slab(ctx, PX - 70, ly + 96, 140, 40, TONES.white, 4); outlined(ctx, `남은 쌍 ${(me.pairQ || []).length + (me.piece ? 1 : 0)}`, PX, ly + 116, 17, '#22212e', '#fff', 4);
+    if (Z.def.hint) { ctx.font = '13px ' + FONT(); ctx.fillStyle = '#6d6b80'; ctx.textAlign = 'center'; wrapText(ctx, Z.def.hint, PX, ly + 158, 136, 17); }
   } else {
     const ly = OY + 372, sm = game.soloMode;
     slab(ctx, PX - 70, ly, 140, 62, TONES.green, 5);
-    const lab = isT && sm !== 'endless' ? SOLO_KO[sm] : !isT && sm === 'efever' ? `${me.fv.lv || feverLv()[0]}연쇄 판` : '레벨 ' + me.level;
+    const lab = isT && sm !== 'endless' && SOLO_KO[sm] ? SOLO_KO[sm] : !isT && sm === 'efever' ? `${me.fv.lv || feverLv()[0]}연쇄 판` : '레벨 ' + me.level;
     outlined(ctx, lab, PX, ly + 32, lab.length > 5 ? 22 : 26, '#fff', TONES.green.d, 6);
     if (isT) {
       const el = game.state === 'play' || game.state === 'over' || game.state === 'pause' ? (me.doneAt || game.el) : 0;
@@ -325,8 +342,8 @@ function render(t) {
     }
   }
   ctx.restore();
-  for (const f of game.fields) {           // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
-    if (!f.char) continue;
+  for (const f of game.fields) inMini(ctx, f, () => {   // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
+    if (!f.char) return;
     drawChar(ctx, f.char, f.ox + 12, 18, 38, f.dead ? 'sad' : 'happy');
     drawCut(ctx, f);
     if (game.state === 'over' && game.vs && (f.won || f.dead)) {
@@ -334,7 +351,7 @@ function render(t) {
       slab(ctx, f.ox + 16, OY + FH * 0.66, f.fw - 32, 40, { c: '#ffffff', d: ch.d }, 4);
       outlined(ctx, txt, f.ox + f.fw / 2, OY + FH * 0.66 + 20, Math.min(19, 300 / txt.length + 4), '#22212e', '#fff', 4);
     }
-  }
+  });
   if (game.rule === 'bigbang') drawBigBang(ctx);
   if (game.rule === 'swap') drawSwap(ctx);
   if (game.rule === 'party' && game.vs) drawParty(ctx);
@@ -363,4 +380,11 @@ function drawIntro(t) {
   ctx.translate(W / 2, OY + FH * 0.82); ctx.scale(sc, sc);
   outlined(ctx, msg, 0, 0, go ? 76 : 56, go ? '#ffe066' : '#fff', '#22212e', 12);
   ctx.restore();
+}
+
+// 글자를 폭에 맞춰 여러 줄로(퍼즐 힌트)
+function wrapText(c, txt, x, y, w, lh) {
+  let line = '';
+  for (const ch of txt) { if (c.measureText(line + ch).width > w && line) { c.fillText(line, x, y); y += lh; line = ch.trim() ? ch : ''; } else line += ch; }
+  if (line) c.fillText(line, x, y);
 }

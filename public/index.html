@@ -44,9 +44,11 @@
     grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; background: #fff;
     border: 3px solid #cfd1dc; border-radius: 6px; padding: 7px 14px; box-shadow: 0 4px 0 rgba(0,0,0,0.06);
   }
-  .stylebar .lab { font-family: var(--head); font-size: 17px; color: #3a3850; }
+  .stylebar .lab { font-family: var(--head); font-size: 17px; color: #3a3850; white-space: nowrap; flex: none; }
   .segs { display: flex; background: #e9eaf1; border-radius: 999px; padding: 3px; }
-  .seg { font-family: var(--head); font-size: 16px; border: 0; background: transparent; color: #6d6b80; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
+  .stylebar .grp { display: flex; align-items: center; gap: 8px; max-width: 100%; }   /* 이름표와 버튼 묶음이 따로 줄바꿈되지 않게 */
+  .stylebar .segs { flex-wrap: wrap; }
+  .seg { white-space: nowrap; font-family: var(--head); font-size: 16px; border: 0; background: transparent; color: #6d6b80; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
   .seg.on { background: var(--c); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
   .seg:focus-visible, .seg:focus { outline: 3px solid #1f74f0; outline-offset: 1px; }
 
@@ -61,6 +63,9 @@
     margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
     font-size: clamp(24px, 4.4vh, 42px); color: #fff; letter-spacing: 1px; text-shadow: 0 3px 0 rgba(120, 10, 20, 0.35);
   }
+  .backbtn { flex: none; margin-left: clamp(10px, 3vw, 40px); width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
+    background: #fff; color: #ff2b47; font-family: var(--head); font-size: 24px; line-height: 1; box-shadow: 0 3px 0 rgba(120, 10, 20, 0.35); }
+  .backbtn:not(.hidden) + h1 { padding-left: 12px; }
   .band-white {
     position: fixed; top: 0; right: 0; z-index: 4; height: calc(var(--bandH) * 0.62 + env(safe-area-inset-top, 0px)); width: 46vw;
     background: #fff; clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
@@ -119,7 +124,7 @@
   #sc-vs #t-quick { grid-row: 2; grid-column: 1; } #sc-vs #t-local { grid-row: 3; grid-column: 1; }
   #sc-vs #t-create { grid-row: 2; grid-column: 2; } #sc-vs #t-join { grid-row: 3; grid-column: 2; }
   #sc-solo { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-  #sc-psolo { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  #sc-psolo { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
   #sc-stats { grid-template-columns: 0.75fr 1.9fr; grid-template-rows: 1fr; }
   /* 내 정보 오른쪽: 탭 카드(요약 · 기록 · 랭크 · 순위표) */
   .infocard { display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; }
@@ -272,6 +277,7 @@
     font-family: var(--head); font-size: 26px; border: 0; border-radius: 6px; padding: 6px 10px; width: 100%; color: var(--ink);
     box-shadow: inset 0 3px 0 rgba(0,0,0,0.12);
   }
+  .savebtns { display: flex; gap: 8px; } .savebtns .ghostbtn { flex: 1; font-size: 14px; padding: 4px 8px; }
   .big { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
   .big div { background: rgba(0,0,0,0.22); border-radius: 8px; padding: 8px 12px; }
   .big b { display: block; white-space: nowrap; font-family: var(--head); font-weight: 400; font-size: clamp(20px, 3.4vh, 30px); }
@@ -313,17 +319,19 @@
   #t-stats .art { height: 54% !important; }
   #t-stats .tt { bottom: 46% !important; }
   #t-stats .rec { bottom: 28% !important; }
+  #t-stats .ico { width: clamp(48px, 8vh, 80px); height: clamp(48px, 8vh, 80px); }   /* 제목 위 빈자리에 맞게 작게 */
+  #t-adv .rec { left: 8%; right: auto; bottom: 37%; }        /* 제목 왼쪽 빈자리(아래 설명 칸과 안 겹치게) */
   #sc-ai .tile:not(#t-ai) .tt { top: 8% !important; }
-  #sc-ai .tile:not(#t-ai) .td { left: 46%; right: 5%; bottom: auto; top: 38%; }
-  #sc-ai .tile:not(#t-ai) .rec { bottom: 7% !important; }
+  #sc-ai .tile:not(#t-ai) .td { left: 46%; right: 5%; bottom: auto; top: 41%; font-size: clamp(11px, 1.75vh, 16px); }
+  #sc-ai .tile:not(#t-ai) .rec { bottom: 4% !important; }
   #t-quick .td { left: 8%; right: 8%; bottom: 7%; }
   #t-quick .art { top: 8% !important; height: 50% !important; }
   #t-quick .tt { bottom: 34% !important; }
   #t-quick .rec { top: 10% !important; }
   #t-create .td, #t-local .td { bottom: 7%; }
   #t-create .tt { top: 12% !important; }
-  #t-local .td { right: 20%; }
-  #t-local .tt { top: 6% !important; }
+  #t-local .td { right: 20%; bottom: 3%; font-size: clamp(11px, 1.7vh, 14px); }
+  #t-local .tt { top: 3% !important; }
   #t-join .tt { top: 2% !important; font-size: clamp(22px, 4.4vh, 44px); }
   #t-join .joinrow { bottom: 29%; }
   #t-join .joinrow input { padding: 3px 8px; }
@@ -379,14 +387,21 @@
   .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,0.25); }
   .btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
-  .pad { display: none; gap: 10px; margin-top: 12px; align-items: center; justify-content: center; }
+  /* 터치 버튼 8개가 좁은 폰 화면(양옆 8px 여백)에도 한 줄로 들어가게 크기를 화면 폭에 맞춤 */
+  .pad { --pg: clamp(4px, 1.6vw, 10px); --pb: min(58px, calc((100vw - 16px - 7 * var(--pg)) / 8));
+    display: none; gap: var(--pg); margin-top: 12px; align-items: center; justify-content: center; max-width: 100%; }
   .pad button {
-    font-family: var(--font); font-size: 24px; color: #fff; width: 58px; height: 58px; border-radius: 50%;
+    font-family: var(--font); font-size: calc(var(--pb) * 0.42); color: #fff; width: var(--pb); height: var(--pb); padding: 0; flex: none; border-radius: 50%;
     background: #2f78f0; border: 0; box-shadow: 0 5px 0 #1747b0; touch-action: none;
   }
   .pad button.on { transform: translateY(3px); box-shadow: 0 2px 0 #1747b0; }
 
   @media (pointer: coarse), (max-width: 760px) { #game .pad { display: flex; } }
+  @media (pointer: coarse) { #hints { visibility: hidden; } }      /* 터치 기기: 키보드 안내는 숨김 */
+  /* 세로 폰: 터치 버튼을 크게 두 줄로 */
+  @media (max-width: 760px) and (orientation: portrait) {
+    .pad { --pb: min(64px, calc((100vw - 16px - 3 * var(--pg)) / 4)); flex-wrap: wrap; max-width: calc(4 * var(--pb) + 3 * var(--pg) + 4px); }
+  }
   @media (max-width: 760px) {
     body { justify-content: flex-start; overflow-y: auto; }
     #menu { height: auto; max-height: none; }
@@ -407,12 +422,14 @@
     .mrow > .mvs, .mrow > .mres, .mrow > .mrank { grid-column: 2 / 4; }
     .rkhero { flex-direction: column; text-align: center; }
     .rkhero canvas { width: 96px; height: 96px; }
+    .tile .td { display: none; }                 /* 좁은 화면: 타일 설명은 아래 설명 칸(#mDesc)에서만 */
+    .tag { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .tile, .tile[data-act]:focus .ico { transition: none; animation: none; } }
 </style>
 </head>
 <body>
-  <div class="band-top"><h1 id="bandTitle">메인 메뉴</h1></div>
+  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1></div>
   <div class="band-white"></div>
   <button id="bSettings" class="gear" aria-label="설정">⚙ 설정</button>
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">
@@ -421,11 +438,22 @@
       <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
       <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
       <h3>게임</h3>
+      <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
+      <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
       <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
+      <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
       <h3>키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h3>
       <div id="keyList" class="keylist"></div>
       <p class="padinfo" id="padInfo"></p>
       <div class="btns"><button class="ghostbtn" id="bKeyReset">기본값으로</button><button class="mini" id="bSetClose" style="--d:#1747b0">닫기</button></div>
+    </div>
+  </div>
+  <div id="nameAsk" class="modal hidden" role="dialog" aria-label="닉네임">
+    <div class="card setcard" style="max-width: 420px">
+      <h3>닉네임을 정해 줘</h3>
+      <p class="padinfo">온라인 대전에서 상대에게 보이는 이름이야(10자까지). 나중에 내 정보에서 바꿀 수 있어.</p>
+      <input id="naIn" maxlength="10" spellcheck="false" style="font-family: var(--head); font-size: 22px; width: 100%; padding: 6px 10px; border: 2px solid #cfd1dc; border-radius: 6px">
+      <div class="btns"><button class="ghostbtn" id="naSkip">그냥 할래</button><button class="mini" id="naOk" style="--d:#1747b0">확인</button></div>
     </div>
   </div>
   <div class="band-bot" id="hints"></div>
@@ -462,9 +490,9 @@
         </button>
         <button class="tile t-purple" id="t-stats" data-act="go:stats" data-desc="지금까지 플레이한 횟수, 승패, 최고 기록을 확인할 수 있어.">
           <span class="in"></span>
-          <canvas class="art" data-art="stats" style="left:6%;top:14%;width:40%;height:70%"></canvas>
+          <canvas class="art" data-art="stats" style="left:6%;top:14%;width:34%;height:70%"></canvas>
           <span class="tt" style="right:10%;bottom:34%">내 정보</span>
-          <canvas class="ico" data-col="5" style="right:30%;top:8%"></canvas>
+          <canvas class="ico" data-col="5" style="right:8%;top:5%"></canvas>
           <span class="rec" id="mainRec"></span>
         </button>
       </section>
@@ -577,7 +605,7 @@
           <span class="in"></span>
           <canvas class="art" data-art="vs" style="left:52%;top:14%;width:40%;height:66%"></canvas>
           <span class="tt" style="left:8%;bottom:18%">빠른 매칭</span>
-          <span class="rec" id="recOnline" style="right:auto;left:9%;bottom:auto;top:18%"></span>
+          <span class="rec" id="recOnline" style="right:8%;left:auto;bottom:auto;top:4%"></span>
         </button>
         <button class="tile t-orange" id="t-create" data-act="create" data-desc="방을 만들고 4자리 코드를 친구에게 알려줘.">
           <span class="in"></span>
@@ -592,10 +620,10 @@
         </div>
         <button class="tile t-green" id="t-local" data-act="local" data-desc="한 키보드(또는 게임패드 2개)로 둘이 대전해. 1P는 WASD·Q/E·R, 2P는 방향키·. /·, 를 써.">
           <span class="in"></span>
-          <span class="tt" style="left:9%;top:24%"><small>한 컴퓨터에서 둘이</small>로컬 대전</span>
+          <span class="tt" style="left:9%;top:11%"><small>한 컴퓨터에서 둘이</small>로컬 대전</span>
           <canvas class="ico" data-col="2" style="right:5%;bottom:8%"></canvas>
         </button>
-        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12 판·통상 규칙·2선승). 시즌마다 처음 10번은 배치, 그다음부터 RP를 모아 브론즈 1부터 마스터까지 올라가. 도중에 나가면 패배야.">
+        <button class="tile t-purple" id="t-rank" data-act="ranked" data-desc="실력이 비슷한 사람과 1:1로 겨뤄(원작 6×12·통상·2선승). 승패는 서버가 기록을 다시 계산해서 정해.">
           <span class="in"></span>
           <canvas class="art" data-art="rank" style="left:14%;top:8%;width:72%;height:40%"></canvas>
           <span class="tt" style="left:12%;bottom:30%">랭크전</span>
@@ -618,6 +646,12 @@
         </button>
         <button class="tile t-purple" id="t-pefever" data-act="psolo:efever" data-desc="연쇄 씨앗판이 계속 떨어지는 피버만 하는 모드야. 30초에서 시작하고, 긴 연쇄를 터뜨릴수록 시간이 늘어나.">
           <span class="in"></span><span class="tt" style="left:10%;top:24%">엔드리스 피버</span><span class="rec" id="recPEfever"></span>
+        </button>
+        <button class="tile t-green" id="t-tut" data-act="tut" data-desc="처음이라면 여기부터! 움직이기·회전부터 터뜨리기·연쇄·방해뿌요까지 차근차근 배워.">
+          <span class="in"></span><span class="tt" style="left:10%;top:24%">튜토리얼</span><span class="rec" id="recTut"></span>
+        </button>
+        <button class="tile t-orange" id="t-puz" data-act="puz" data-desc="정해진 판에서 주어진 한 쌍으로 목표 연쇄를 만들어 봐. 3연쇄부터 10연쇄까지! 저절로 안 떨어지니 천천히 생각해.">
+          <span class="in"></span><span class="tt" style="left:10%;top:24%">퍼즐</span><span class="rec" id="recPuz"></span>
         </button>
       </section>
 
@@ -642,6 +676,7 @@
           <div class="profile">
             <label for="pName">닉네임</label>
             <input id="pName" maxlength="10" spellcheck="false">
+            <div class="savebtns"><button class="ghostbtn" id="bExport" data-desc="기록·랭크·설정을 파일 하나로 저장해. 다른 컴퓨터에서 '기록 불러오기'로 이어서 할 수 있어.">기록 저장</button><button class="ghostbtn" id="bImport">기록 불러오기</button><input type="file" id="fImport" accept=".json,application/json" hidden></div>
             <div class="big">
               <div><b id="pGames">0</b><span>플레이 횟수</span></div>
               <div><b id="pRate">-</b><span>승률</span></div>
@@ -722,6 +757,7 @@
 <script src="js/fusion.js"></script>
 <script src="js/chars.js"></script>
 <script src="js/adventure.js"></script>
+<script src="js/puzzle.js"></script>
 <script src="js/rankfx.js"></script>
 <script src="js/main.js"></script>
 </body>

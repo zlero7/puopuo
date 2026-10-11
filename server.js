@@ -7,6 +7,10 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const rank = require('./rank');
+const { newMatch } = require('./verify');
+const { createBot } = require('./sim');
+// 랭크전은 서버가 기록을 다시 계산해서 승패를 정함. RANK_TRUST=1이면(테스트용) 예전처럼 두 사람 보고로 정함
+const VERIFY = process.env.RANK_TRUST !== '1';
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   // 모든 네트워크 카드에서 접속 허용
@@ -73,8 +77,23 @@ function newCode() {
   while (rooms.has(c));
   return c;
 }
-function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
-const sizeOf = v => Math.max(2, Math.min(4, Math.floor(+v) || 2));
+// 받는 쪽이 못 따라오면(1MB 넘게 밀림) 게임 메시지는 버림(서버 메모리가 끝없이 늘지 않게). 중요한 알림은 그래도 보냄
+function send(ws, msg) {
+  if (!ws || ws.readyState !== 1) return;
+  if (msg.t === 'g' && ws.bufferedAmount > 1 << 20) return;
+  ws.send(JSON.stringify(msg));
+}
+const sizeOf = v => Math.max(2, Math.min(4, Math.floor(typeof v === 'number' ? v : 2) || 2));
+// 받은 메시지 정리: Object 기본 이름(toString·valueOf 등)을 덮어쓴 값은 숫자·문자로 바꿀 때 오류를 내서 서버가 죽으므로 빼 버림
+const BAD_KEYS = new Set(Object.getOwnPropertyNames(Object.prototype));
+function clean(v, depth = 0) {
+  if (v === null || typeof v !== 'object') return v;
+  if (depth > 6) return null;
+  if (Array.isArray(v)) return v.map(x => clean(x, depth + 1));
+  const o = {};
+  for (const k of Object.keys(v)) if (!BAD_KEYS.has(k)) o[k] = clean(v[k], depth + 1);
+  return o;
+}
 function newRoom(ws, size, board) {
   const room = { code: newCode(), size, board: board || 'wide', rule: ws.rule || 'tsu', players: [], seats: [], ready: new Set(), started: false };
   rooms.set(room.code, room);
@@ -91,10 +110,17 @@ function startRoom(room) {
   room.ready.clear(); room.started = true; room.seats = room.players.slice();
   for (const [k, r] of quickWaiting) if (r === room) quickWaiting.delete(k);
   const seed = Math.floor(Math.random() * 2 ** 32);
-  const styles = room.seats.map(p => p.style || 'puyo');          // 각자 고른 스타일(뿌요뿌요/테트리스)
+  const styles = room.seats.map(p => (room.ranked && p.rank ? p.rank.style : p.style) || 'puyo');   // 각자 고른 스타일(랭크전은 대기열에 들어갈 때 고른 것으로 고정)
   const board = room.board;                                        // 판 크기는 방을 만든 사람(빠른 매칭은 같은 크기끼리)
   const ranks = room.ranked ? room.seats.map(p => { if (!p.rank) return null; const v = rank.view(p.rank.rec); return { group: v.group, div: v.div, text: v.text }; }) : null;   // 랭크전: 게임 중 이름표에 띄울 티어
-  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks }));
+  const bot = room.seats.find(p => p.bot);         // AI 상대: 상대 판은 각자 브라우저에서 CPU로 돌림
+  const botInfo = bot ? { name: bot.rank.rec.name, char: bot.rank.rec.char, lv: rank.botLevel(bot.rank.rec) } : undefined;
+  room.seats.forEach((p, i) => send(p, { t: 'start', seed, you: i, styles, board, rule: room.rule, ranked: room.ranked ? 1 : 0, ranks, bot: botInfo }));
+  if (room.ranked && VERIFY) {                     // 이번 판 검증 시작(준비 연출 2초 뒤부터 진행 시간이 흐름)
+    const R = room.ranked, now = Date.now();
+    R.match = newMatch({ seed, styles, rule: room.rule, board }); R.t0 = now + 2000; R.judged = false; R.judgedAt = 0; R.lastAct = [now + 2000, now + 2000];
+    if (bot) startBot(room, seed, styles, board, botInfo.lv);
+  }
 }
 
 // 방을 떠남: 시작 전이면 대기 인원만 갱신, 게임 중이면 남은 사람에게 누가 나갔는지 알림. 2명 미만이 되면 방을 없앰
@@ -137,101 +163,212 @@ function matchRanked() {
     a.style = a.rank.style; b.style = b.rank.style;
     addPlayer(room, a); addPlayer(room, b);
   }
+  for (const a of rankQ) if (a.rank.bot && a.readyState === 1 && Date.now() - a.rank.since >= BOT_WAIT && botRooms() < BOT_MAX) botMatch(a);
 }
-setInterval(matchRanked, 2000);
+// 서버에서 동시에 돌리는 AI 대전 수 제한(서버가 너무 무거워지지 않게, RANK_BOT_MAX, 기본 20). 넘으면 사람이 올 때까지 계속 기다림
+const BOT_MAX = process.env.RANK_BOT_MAX != null ? +process.env.RANK_BOT_MAX : 20;
+const botRooms = () => { let n = 0; for (const r of rooms.values()) if (r.ranked && r.ranked.bot && !r.ranked.ended) n++; return n; };
+// 사람이 없을 때 AI 상대: 설정에서 켠 사람만, 이만큼 기다려도 못 찾으면(RANK_BOT_WAIT, 기본 20초)
+const BOT_WAIT = process.env.RANK_BOT_WAIT != null ? +process.env.RANK_BOT_WAIT : 20000;
+function botMatch(a) {
+  rankQ.delete(a);
+  const rec = rank.bot(a.rank.rec), seat = { bot: true, readyState: 0, style: a.rank.style, rank: { rec, style: a.rank.style } };
+  const room = newRoom(a, 2, 'classic'); room.rule = 'tsu';
+  room.ranked = { score: [0, 0], rep: {}, ended: false, bot: true };
+  a.style = a.rank.style;
+  room.players.push(a); a.room = room; room.players.push(seat);
+  startRoom(room);
+}
+setInterval(matchRanked, 1000);   // 매칭은 1초마다 한 번(대기열 메시지마다 돌리지 않음)
+// AI 상대를 서버에서 돌림: 16ms마다 한 걸음, 생긴 기록은 검증기에 넣고 사람에게 중계(사람 상대와 똑같이 보임)
+function startBot(room, seed, styles, board, lv) {
+  const R = room.ranked, bs = room.seats.findIndex(p => p.bot), hs = 1 - bs;
+  if (R.botLoop) clearInterval(R.botLoop.t);
+  const bot = createBot({ seed, style: styles[bs], oppStyle: styles[hs], board, rule: room.rule, lv });
+  const L = R.botLoop = { bot, inbox: [], last: R.t0, stT: 0, chainN: 0 };
+  L.t = setInterval(() => { try { botTick(); } catch (e) { clearInterval(L.t); console.error('AI 오류:', e && e.message); } }, 16);   // 멈춘 AI는 60초 뒤 '오래 두지 않음'으로 짐
+  function botTick() {
+    const now = Date.now();
+    if (R.judged || R.ended || !rooms.has(room.code) || R.botLoop !== L || !R.match) { clearInterval(L.t); return; }
+    if (now < R.t0) return;
+    const dt = Math.min(100, now - L.last); L.last = now;
+    for (let i = L.inbox.length - 1; i >= 0; i--) if (L.inbox[i].at <= now) { bot.hit(L.inbox[i].n, L.inbox[i].chain === L.chainN); L.inbox.splice(i, 1); }
+    const el = now - R.t0, out = bot.step(dt, el);
+    L.stT += dt; if (L.stT >= 50) { L.stT = 0; out.push(bot.state()); }
+    const human = room.seats[hs];
+    for (const d0 of out) {
+      const d = { ...d0, to: d0.to != null ? hs : undefined, at: Math.round(el) };
+      if (d.t !== 'st') { R.match.feed(bs, d, el); if (/lock|hold|garb/.test(d.t)) R.lastAct[bs] = now; }
+      send(human, { t: 'g', d, f: bs });
+      if (R.match.loser != null) { judge(room, R.match.loser, R.match.reason); break; }
+    }
+  }
+}
+// 한 판 판정(서버 기준): 진 자리 · 이유. 두 사람에게 알리고, 2승이면 랭크전 끝
+function judge(room, loser, reason) {
+  const R = room.ranked; if (!R || R.judged || R.ended) return;
+  R.judged = true; R.judgedAt = Date.now(); const w = 1 - loser;
+  if (process.env.VDEBUG) console.log('[판정]', room.code, '진 자리', loser, reason, R.match ? JSON.stringify(R.match.seats.map(s => ({ locks: s.locks.length, lastAt: s.lastAt, phase: s.f.phase, dead: s.dead, idle: Date.now() - R.lastAct[s.i] }))) : '');
+  R.score[w]++;
+  for (const p of room.players) send(p, { t: 'rjudge', loser, reason, score: R.score });
+  if (R.score[w] >= 2) rankedEnd(room, w);
+}
+// 오래 두지 않으면(60초) 그 판 패배(둘 다면 더 오래 안 둔 쪽)
+// 판이 끝난 뒤 다음 판을 60초 안에 시작하지 않으면 시리즈 패배(지고 있는 쪽이 버텨서 상대가 나가게 만드는 것 막기)
+const IDLE_MS = 60000, READY_MS = +process.env.RANK_READY_MS || 60000;
+setInterval(() => {
+  const now = Date.now();
+  for (const room of rooms.values()) {
+    const R = room.ranked; if (!R || !R.match || R.ended) continue;
+    if (!R.judged) {
+      const i = R.lastAct[0] <= R.lastAct[1] ? 0 : 1;
+      if (now - R.lastAct[i] > IDLE_MS) judge(room, i, '오래 두지 않음');
+    } else if (!R.bot && now - R.judgedAt > READY_MS) {
+      const ok = room.seats.map(p => room.ready.has(p));
+      if (ok[0] !== ok[1]) rankedEnd(room, ok[0] ? 0 : 1, '다음 판을 시작하지 않음');   // 준비한 쪽이 시리즈 승리
+      else if (!ok[0] && R.score[0] !== R.score[1]) rankedEnd(room, R.score[0] > R.score[1] ? 0 : 1, '다음 판을 시작하지 않음');
+    }
+  }
+}, 5000);
 // 랭크전 끝: 레이팅 계산 후 두 사람에게 결과
-function rankedEnd(room, w) {
+function rankedEnd(room, w, why) {
   const R = room.ranked; if (!R || R.ended) return;
   R.ended = true;
   const W = room.seats[w], L = room.seats[1 - w];
-  if (!W || !W.rank || !L || !L.rank) return;
-  const score = [Math.max(2, R.score[w]), R.score[1 - w]];          // 상대가 나가서 끝났으면 2승으로 침
-  const res = rank.report(W.rank.rec, L.rank.rec, score);
-  [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, d: r.d, event: r.event, opp: r.opp, score: win ? score : [score[1], score[0]], ...v }); });
+  if (W && W.rank && L && L.rank) {
+    const score = [Math.max(2, R.score[w]), R.score[1 - w]];          // 상대가 나가서 끝났으면 2승으로 침
+    const res = rank.report(W.rank.rec, L.rank.rec, score);
+    [[W, true, res[0]], [L, false, res[1]]].forEach(([p, win, r]) => { const v = rank.view(p.rank.rec); send(p, { t: 'rdone', win, why, d: r.d, event: r.event, opp: r.opp, score: win ? score : [score[1], score[0]], ...v }); });
+  }
+  // 끝난 랭크전 방은 바로 정리(검증기·AI도 함께 버림). 남은 사람은 방 없는 상태가 됨
+  if (R.botLoop) clearInterval(R.botLoop.t);
+  R.match = null; R.botLoop = null;
+  rooms.delete(room.code);
+  for (const p of room.players) if (p.room === room) p.room = null;
 }
 
-wss.on('connection', ws => {
+// 한 주소(IP)에서 동시에 접속할 수 있는 수(학교처럼 여러 명이 같은 주소일 수 있어 넉넉히, MAX_CONN_PER_IP)
+const MAX_CONN_PER_IP = +process.env.MAX_CONN_PER_IP || 64;
+const perIp = new Map();
+// 메시지 속도 제한(연결마다): 게임 메시지는 초당 60개(잠깐 몰리면 120개까지), 나머지는 초당 5개(10개까지). 넘으면 버리고, 계속 넘기면 연결을 끊음
+const RATE = { g: [60, 120], other: [5, 10] };
+function allow(ws, kind) {
+  const [per, burst] = RATE[kind], b = ws.bucket[kind], now = Date.now();
+  b.n = Math.min(burst, b.n + (now - b.at) * per / 1000); b.at = now;
+  if (b.n >= 1) { b.n--; return true; }
+  if (++ws.dropped > 2000) ws.terminate();
+  return false;
+}
+wss.on('connection', (ws, req) => {
+  const ip = req.socket.remoteAddress || '';
+  if ((perIp.get(ip) || 0) >= MAX_CONN_PER_IP) { ws.close(1013, 'too many'); return; }
+  perIp.set(ip, (perIp.get(ip) || 0) + 1);
+  ws.on('close', () => { const n = (perIp.get(ip) || 1) - 1; if (n > 0) perIp.set(ip, n); else perIp.delete(ip); });
+  ws.bucket = { g: { n: RATE.g[1], at: Date.now() }, other: { n: RATE.other[1], at: Date.now() } }; ws.dropped = 0;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
+  // 잘못된 데이터(너무 큰 메시지·규격에 안 맞는 프레임)는 그 연결만 끊음. 이 처리가 없으면 서버 전체가 꺼짐
+  ws.on('error', () => ws.terminate());
   ws.on('message', raw => {
     let m;
-    try { m = JSON.parse(raw); } catch { return; }
-    if (!m || typeof m.t !== 'string') return;
-    if (m.style === 'puyo' || m.style === 'tetris') ws.style = m.style;
-    if (BOARD_KEYS.includes(m.board)) ws.board = m.board;
-    if (RULE_KEYS.includes(m.rule)) ws.rule = m.rule;
-
-    switch (m.t) {
-      case 'create': {
-        leave(ws);
-        const room = newRoom(ws, sizeOf(m.size), ws.board);
-        addPlayer(room, ws);
-        send(ws, { t: 'created', code: room.code, size: room.size });
-        break;
-      }
-      case 'join': {
-        const room = rooms.get(String(m.code || '').toUpperCase());
-        if (!room) { send(ws, { t: 'error', msg: '방을 찾을 수 없습니다. 코드를 확인하세요.' }); return; }
-        if (room.players.includes(ws)) return;
-        if (room.started || room.players.length >= room.size) { send(ws, { t: 'error', msg: '이미 사람이 다 찬 방입니다.' }); return; }
-        leave(ws);
-        addPlayer(room, ws);
-        break;
-      }
-      case 'quick': {        // 같은 판 크기·인원끼리 모아서 다 차면 시작
-        leave(ws);
-        const size = sizeOf(m.size), key = `${ws.board || 'wide'}:${ws.rule || 'tsu'}:${size}`;
-        let room = quickWaiting.get(key);
-        if (!room || room.started) { room = newRoom(ws, size, ws.board); quickWaiting.set(key, room); }
-        addPlayer(room, ws);
-        if (!room.started) send(ws, { t: 'waiting', have: room.players.length, size });
-        break;
-      }
-      case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
-        if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
-        leave(ws);
-        ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, m.name, m.char), since: Date.now() };
-        rankQ.add(ws);
-        send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)) });
-        matchRanked();
-        break;
-      }
-      case 'rres': {         // 랭크전 한 판 결과: 두 사람 보고가 맞을 때만 인정
-        const room = ws.room, R = room && room.ranked;
-        if (!R || R.ended || !room.started) return;
-        const i = room.seats.indexOf(ws); if (i < 0) return;
-        R.rep[i] = !!m.win;
-        if (Object.keys(R.rep).length < 2) return;
-        const wins = [0, 1].filter(k => R.rep[k]);
-        R.rep = {};
-        if (wins.length !== 1) return;                     // 엇갈리면 이 판은 무효
-        R.score[wins[0]]++;
-        if (R.score[wins[0]] >= 2) rankedEnd(room, wins[0]);
-        break;
-      }
-      case 'ready': {        // 게임이 끝난 뒤 '다시 하기': 남은 사람이 모두 누르면 새 판
-        const room = ws.room;
-        if (!room || !room.started || room.players.length < 2) return;
-        if (room.ranked && room.ranked.ended) return;     // 끝난 랭크전은 다시 하기 없음
-        room.ready.add(ws);
-        if (room.players.every(p => room.ready.has(p))) startRoom(room);
-        else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady', have: room.ready.size, size: room.players.length }); });
-        break;
-      }
-      case 'leave': leave(ws); break;
-      case 'g': {            // 게임 메시지는 다른 사람들에게 보낸 사람 자리 번호를 붙여 중계
-        const room = ws.room;
-        if (!room || !room.started) return;
-        const f = room.seats.indexOf(ws);
-        for (const p of room.players) if (p !== ws) send(p, { t: 'g', d: m.d, f });
-        break;
-      }
-    }
+    try { m = clean(JSON.parse(raw)); } catch { return; }
+    if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+    if (!allow(ws, m.t === 'g' ? 'g' : 'other')) return;
+    try { onMessage(ws, m); } catch (e) { console.error('메시지 처리 오류:', m.t, e && e.message); }
   });
 
   ws.on('close', () => leave(ws));
 });
+
+function onMessage(ws, m) {
+  if (m.style === 'puyo' || m.style === 'tetris') ws.style = m.style;
+  if (BOARD_KEYS.includes(m.board)) ws.board = m.board;
+  if (RULE_KEYS.includes(m.rule)) ws.rule = m.rule;
+
+  switch (m.t) {
+    case 'create': {
+      leave(ws);
+      const room = newRoom(ws, sizeOf(m.size), ws.board);
+      addPlayer(room, ws);
+      send(ws, { t: 'created', code: room.code, size: room.size });
+      break;
+    }
+    case 'join': {
+      const room = typeof m.code === 'string' && rooms.get(m.code.toUpperCase());
+      if (!room) { send(ws, { t: 'error', msg: '방을 찾을 수 없습니다. 코드를 확인하세요.' }); return; }
+      if (room.players.includes(ws)) return;
+      if (room.started || room.players.length >= room.size) { send(ws, { t: 'error', msg: '이미 사람이 다 찬 방입니다.' }); return; }
+      leave(ws);
+      addPlayer(room, ws);
+      break;
+    }
+    case 'quick': {        // 같은 판 크기·인원끼리 모아서 다 차면 시작
+      leave(ws);
+      const size = sizeOf(m.size), key = `${ws.board || 'wide'}:${ws.rule || 'tsu'}:${size}`;
+      let room = quickWaiting.get(key);
+      if (!room || room.started) { room = newRoom(ws, size, ws.board); quickWaiting.set(key, room); }
+      addPlayer(room, ws);
+      if (!room.started) send(ws, { t: 'waiting', have: room.players.length, size });
+      break;
+    }
+    case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
+      if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
+      leave(ws);
+      ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, typeof m.name === 'string' ? m.name : '', m.char), since: Date.now(), bot: !!m.bot };
+      for (const o of rankQ) if (o !== ws && o.rank.token === m.token) { rankQ.delete(o); send(o, { t: 'error', msg: '다른 창에서 랭크전 대기를 시작해서 이 창의 대기는 취소됐어요.' }); }   // 한 사람은 대기열에 한 번만
+      rankQ.add(ws);
+      send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });
+      break;
+    }
+    case 'rres': {         // 랭크전 한 판 결과: 두 사람 보고가 맞을 때만 인정
+      const room = ws.room, R = room && room.ranked;
+      if (!R || R.ended || !room.started || R.match) return;      // 검증하는 랭크전은 서버가 정함(보고는 무시)
+      const i = room.seats.indexOf(ws); if (i < 0) return;
+      R.rep[i] = !!m.win;
+      if (R.bot) R.rep[1 - i] = !m.win;                  // AI 상대(RANK_TRUST 테스트용): 사람 쪽 보고로 정함
+      if (Object.keys(R.rep).length < 2) return;
+      const wins = [0, 1].filter(k => R.rep[k]);
+      R.rep = {};
+      if (wins.length !== 1) return;                     // 엇갈리면 이 판은 무효
+      R.score[wins[0]]++;
+      if (R.score[wins[0]] >= 2) rankedEnd(room, wins[0]);
+      break;
+    }
+    case 'ready': {        // 게임이 끝난 뒤 '다시 하기': 남은 사람이 모두 누르면 새 판
+      const room = ws.room;
+      if (!room || !room.started || room.players.length < 2) return;
+      if (room.ranked && room.ranked.ended) return;     // 끝난 랭크전은 다시 하기 없음
+      if (room.ranked && room.ranked.match && !room.ranked.judged) return;   // 랭크전: 서버가 이번 판을 판정하기 전엔 다음 판 없음
+      room.ready.add(ws);
+      if (room.players.every(p => p.bot || room.ready.has(p))) startRoom(room);
+      else room.players.forEach(p => { if (p !== ws) send(p, { t: 'oppReady', have: room.ready.size, size: room.players.length }); });
+      break;
+    }
+    case 'leave': leave(ws); break;
+    case 'g': {            // 게임 메시지는 다른 사람들에게 보낸 사람 자리 번호를 붙여 중계
+      const room = ws.room;
+      if (!room || !room.started) return;
+      const f = room.seats.indexOf(ws);
+      let d = m.d;
+      if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.t !== 'string') return;
+      const R = room.ranked;
+      if (R && VERIFY && (!R.match || R.judged)) return;   // 랭크전: 판정이 난 뒤의 기록은 상대에게 보내지 않음
+      if (R && R.match) {    // 랭크전: 서버가 다시 계산해 보고 맞는 것만, 서버가 새로 만든 기록으로 상대에게
+        const res = R.match.feed(f, d, Date.now() - R.t0);
+        if (/lock|hold|garb/.test(d.t)) R.lastAct[f] = Date.now();
+        if (R.match.loser != null) judge(room, R.match.loser, R.match.reason);
+        if (!res.relay) return;
+        d = res.relay;
+        if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500, chain: R.botLoop.chainN });   // AI에게 공격이 날아가는 시간
+        if (R.botLoop && d.t === 'ce') { R.botLoop.chainN++; R.botLoop.bot.release(); }   // 사람 연쇄 끝: AI 쪽에 붙잡혀 있던 방해가 떨어질 수 있음
+      }
+      if (d.t === 'hi') d = { t: 'hi', name: rank.cleanName(d.name), char: typeof d.char === 'string' ? d.char.slice(0, 12) : '' };   // 닉네임 필터(일반 방도)
+      for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
+      break;
+    }
+  }
+}
 
 // 끊긴 연결 정리
 setInterval(() => {
@@ -240,6 +377,11 @@ setInterval(() => {
     ws.isAlive = false; ws.ping();
   }
 }, 30000);
+
+// 서버를 끌 때 랭크 기록을 바로 저장(모아서 저장하는 중이던 결과가 날아가지 않게)
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { rank.flush(); process.exit(0); });
+// 예상 못 한 오류가 나도 서버 전체가 꺼지지 않게(기록만 남김)
+process.on('uncaughtException', e => console.error('처리하지 못한 오류:', e && e.stack || e));
 
 server.on('error', err => {
   if (err.code === 'EADDRINUSE') console.error(`포트 ${PORT} 를 이미 다른 프로그램이 쓰고 있습니다. 예: PORT=3001 npm start`);
