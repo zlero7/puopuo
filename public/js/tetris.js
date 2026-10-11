@@ -246,7 +246,7 @@ class TField {
     if (!active || this.dead) return;
     if (this.remote) {
       if (this.phase === 'clear') this.updateClear(dt);
-      if (this.phase === 'wait' && this.queue.length) this.applyEvent(this.queue.shift());
+      if (this.phase === 'wait' && this.queue.length) { try { this.applyEvent(this.queue.shift()); } catch (e) { console.error('상대 기록을 적용하지 못함', e); this.phase = 'wait'; } }
       return;
     }
     if (!game.vs && game.soloMode === 'ultra' && game.el >= 180000 && !this.done) { this.finish(); return; }

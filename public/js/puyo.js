@@ -282,6 +282,9 @@ class Field {
     }
   }
   pump() {
+    try { this.pump0(); } catch (e) { console.error('상대 기록을 적용하지 못함', e); this.piece = null; this.phase = 'wait'; }   // 그 기록만 버리고 계속
+  }
+  pump0() {
     while (this.phase === 'wait' && this.queue.length) {
       const ev = this.queue.shift();
       if (ev.g && this.encode() !== ev.g) this.decode(ev.g);
@@ -893,7 +896,7 @@ class Field {
   }
 
   drawTray(c) {
-    let p = this.pending; if (p <= 0) return;
+    let p = Math.min(this.pending, 9999); if (!(p > 0)) return;
     const UNITS = [[1440, 7], [720, 6], [360, 5], [180, 4], [30, 3], [6, 2], [1, 1]], icons = [];
     for (const [u, k] of UNITS) { const n = Math.floor(p / u); p -= n * u; for (let i = 0; i < n; i++) icons.push(k); }
     const list = icons.slice(0, 6), rad = [0, 9, 13, 17, 17, 17, 18, 18], gap = 4;

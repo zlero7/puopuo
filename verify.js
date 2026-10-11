@@ -19,7 +19,7 @@ class Match {
     this.run = code => vm.runInContext(code, this.E);
     this.run(`applyBoard(${JSON.stringify(board)}); seedSeq(${seed >>> 0}); game.vs = true; game.rule = ${JSON.stringify(rule)};
       game.state = 'play'; game.mode = 'online'; game.el = 0; game.marginLv = 0;`);
-    this.K = this.run(`({ game, Field, TField, tReach, tspinOf, tValidOn, rotateOn, OJ, DX, DY, BOARDS, TW, TH, T2P, dims: () => ({ COLS, ROWS, SP, BOARD }) })`);
+    this.K = this.run(`({ game, Field, TField, tReach, tspinOf, tValidOn, rotateOn, OJ, DX, DY, BOARDS, TW, TH, T2P, TKEYS, dims: () => ({ COLS, ROWS, SP, BOARD }) })`);
     const mk = this.run(`(st, i) => { const f = st === 'tetris' ? new TField(0, 0, true, 'P' + i) : new Field(0, 0, true, 'P' + i); return f; }`);
     const F = styles.map((st, i) => mk(st, i));
     F[0].opp = F[1]; F[1].opp = F[0];
@@ -67,7 +67,12 @@ class Match {
     const s = this.seats[i];
     if (this.loser != null || !ev || typeof ev.t !== 'string') return {};
     if (s.dead && ['lock', 'tlock', 'hold', 'garb', 'tgarb'].includes(ev.t)) return this.fail(s, '탈락한 뒤에도 계속 둠');
-    if (ev.t === 'dead') { s.dead = true; if (this.loser == null) { this.loser = i; this.reason = '탈락'; } return { relay: ev }; }
+    if (ev.t === 'dead') {
+      // 상대가 먼저 막혀 있었는데(다음 조각을 꺼낼 수 없는 판) 기록을 안 보내고 버틴 거면 그쪽이 먼저 진 것
+      const o = this.seats[1 - i];
+      if (!o.dead && this.doomed(o)) { o.dead = true; this.loser = o.i; this.reason = '탈락'; return { relay: { t: 'dead' } }; }
+      s.dead = true; if (this.loser == null) { this.loser = i; this.reason = '탈락'; } return { relay: { t: 'dead' } };
+    }
     const at = Math.max(s.lastAt, Math.min(+ev.at || 0, now + 1500)); s.lastAt = at; this.K.game.el = at;
     const f = s.f, puyo = f.kind === 'puyo';
     switch (ev.t) {
@@ -75,7 +80,7 @@ class Match {
         this.spawn(s); if (s.dead) return this.fail(s, '탈락한 뒤에도 계속 둠');
         if (!f.canHold || f.phase !== 'drop') return this.fail(s, '홀드를 할 수 없는 때 홀드');
         f.hold(); if (f.dead) s.dead = true;
-        return { relay: ev };
+        return { relay: { t: 'hold' } };
       }
       case 'lock': case 'tlock': {
         if (puyo !== (ev.t === 'lock')) return this.fail(s, '스타일이 다른 기록');
@@ -88,7 +93,7 @@ class Match {
         if (r) return this.fail(s, r);
         s.agedAtLock = this.aged(s, now); s.garbSince = false;
         this.collect(s);
-        return { relay: ev };
+        return this.after(s, s.relay);
       }
       case 'garb': {                             // 뿌요: 방해뿌요 떨어뜨리기(열마다 개수)
         if (!puyo || f.phase !== 'next') return this.fail(s, '방해를 떨어뜨릴 수 없는 때');
@@ -99,8 +104,9 @@ class Match {
         if (Math.max(...c) - Math.min(...c) > 1) return this.fail(s, '방해 모양이 이상함');
         if (n < Math.min(cap, this.owed(s))) return this.fail(s, '방해를 덜 받음');
         s.paid += n; s.garbSince = true;
+        const pre = f.encode();
         f.placeGarbage(c); this.ff(s);
-        return { relay: ev };
+        return this.after(s, { t: 'garb', c, g: pre });
       }
       case 'tgarb': {                            // 테트리스: 아래에서 방해 줄이 올라옴(결과 격자)
         if (puyo || typeof ev.g !== 'string') return this.fail(s, '방해 기록이 이상함');
@@ -114,7 +120,7 @@ class Match {
         if (n < Math.min(7, this.owed(s))) return this.fail(s, '방해를 덜 받음');
         if (/[1-8]/.test(before.slice(0, n * TW))) return this.fail(s, '방해 줄이 맞지 않음');   // 위가 차 있으면 클라이언트는 탈락(줄을 넣지 않음)
         s.paid += n; s.garbSince = true; f.decode(g);
-        return { relay: ev };
+        return this.after(s, { t: 'tgarb', g: f.encode() });
       }
       case 'off': {                              // 상쇄: 받은 방해 안에서, 낼 수 있는 공격 안에서
         const n = ev.n | 0; if (n <= 0) return {};
@@ -122,7 +128,7 @@ class Match {
         if (this.cross(s)) { if (n > s.poolOff) return this.fail(s, '낼 수 없는 만큼 상쇄'); s.poolOff -= n; }
         else { if (n > s.pool) return this.fail(s, '낼 수 없는 만큼 상쇄'); s.pool -= n; }
         s.paid += n;
-        return { relay: ev };
+        return { relay: this.fx(s, ev, n) };
       }
       case 'atk': {                              // 공격: 서버가 계산한 만큼까지만 상대에게 보냄
         const n = ev.n | 0; if (n <= 0) return {};
@@ -130,11 +136,44 @@ class Match {
         if (n > s[key]) return this.fail(s, '낼 수 없는 만큼 공격');
         s[key] -= n;
         this.seats[1 - i].inc.push({ n, t: now });
-        return { relay: ev };
+        return { relay: this.fx(s, ev, n) };
       }
-      case 'st': case 'hi': return { relay: ev };
+      case 'st': return { relay: this.st(s, ev) };
+      case 'hi': return { relay: { t: 'hi', name: String(ev.name == null ? '' : ev.name).slice(0, 10), char: typeof ev.char === 'string' && /^[a-z]{1,12}$/.test(ev.char) ? ev.char : '' } };
       default: return this.fail(s, `랭크전에서 쓸 수 없는 기록(${ev.t})`);
     }
+  }
+
+  // 상대에게 보내는 기록은 서버가 계산한 값으로 새로 만듦(받은 기록을 그대로 넘기면 이상한 값으로 상대 화면을 멈추게 할 수 있음)
+  fx(s, ev, n) {                                   // 공격·상쇄: 양은 검증한 값, 날아가는 연출 위치만 받은 값(범위 안으로)
+    const num = (v, lo, hi) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, +v)) : 0;
+    return { t: ev.t, n, to: ev.t === 'atk' ? 1 - s.i : undefined, x: num(ev.x, -2000, 2000), y: num(ev.y, -2000, 2000), ch: Math.round(num(ev.ch, 0, 30)) };
+  }
+  st(s, ev) {
+    const f = s.f, int = (v, lo, hi) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : 0, col = v => Number.isInteger(v) && v >= 1 && v <= 5;
+    const o = { t: 'st', n: int(ev.n, 0, 1e6), pe: int(ev.pe, 0, 999), sc: f.score | 0, mc: f.maxChain | 0, pc: null };
+    const pc = ev.pc && typeof ev.pc === 'object' ? ev.pc : null;
+    if (f.kind === 'puyo') {
+      o.k = 'p';
+      if (pc && col(pc.a) && col(pc.b)) o.pc = { x: int(pc.x, -1, 20), y: int(pc.y, -1, 30), o: int(pc.o, 0, 3), a: pc.a, b: pc.b, p: Math.max(0, Math.min(1, +pc.p || 0)) };
+      if (ev.hp && col(ev.hp.a) && col(ev.hp.b)) o.hp = { a: ev.hp.a, b: ev.hp.b };
+    } else {
+      o.k = 't';
+      if (pc && this.K.TKEYS.includes(pc.k) && pc.k && pc.k !== 'G') o.pc = { k: pc.k, x: int(pc.x, -4, 14), y: int(pc.y, -4, 26), r: int(pc.r, 0, 3) };
+      o.ho = this.K.TKEYS.includes(ev.ho) && ev.ho && ev.ho !== 'G' ? ev.ho : null; o.gg = int(ev.gg, 0, 99);
+    }
+    return o;
+  }
+  // 다음 조각을 꺼낼 수 없는 판(방해는 더 쌓일 뿐 풀어 주지 않으므로 이미 진 것)
+  doomed(s) {
+    const f = s.f; if (s.dead) return true; if (f.phase !== 'next') return false;
+    if (f.kind === 'puyo') { const { SP } = this.K.dims(); return !!f.grid[1][SP] || !f.fits({ x: SP, y: 1, o: 0 }); }
+    const k = f.peekK(0); return !f.valid({ k, x: k === 'O' ? 4 : 3, y: 0, r: 0 });
+  }
+  // 놓기·방해 처리 뒤: 막혔으면 바로 탈락(기록을 안 보내고 버텨도 소용없게)
+  after(s, relay) {
+    if (this.doomed(s)) { s.dead = true; if (this.loser == null) { this.loser = s.i; this.reason = '탈락'; } }
+    return { relay };
   }
 
   // 뿌요 한 쌍 놓기
@@ -143,8 +182,10 @@ class Match {
     if (f.phase !== 'drop' || !p) return '놓을 조각이 없음';
     if (ev.n !== f.idx || ev.a !== p.a || ev.b !== p.b) return '받지 않은 조각';
     if (typeof ev.g === 'string' && ev.g !== f.encode()) return '판이 서버 계산과 다름';
-    const x = ev.x | 0, y = ev.y | 0, o = ev.o | 0;
+    if (![ev.x, ev.y, ev.o].every(Number.isInteger)) return '기록이 이상함';
+    const x = ev.x, y = ev.y, o = ev.o, pre = f.encode();
     if (!this.reachPuyo(f, x, y, o)) return '갈 수 없는 자리에 놓음';
+    s.relay = { t: 'lock', n: f.idx, x, y, o, a: p.a, b: p.b, h: ev.h ? 1 : 0, g: pre };
     p.x = x; p.y = y; p.o = o; p.ia = p.ib = undefined;
     f.lock(0, !!ev.h); this.ff(s);
     if (this.cross(s)) s.poolOff += this.unitsOff; this.unitsOff = 0;
@@ -175,6 +216,7 @@ class Match {
     const f = s.f, cur = f.cur;
     if (f.phase !== 'drop' || !cur) return '놓을 조각이 없음';
     if (ev.k !== cur.k) return '받지 않은 조각';
+    if (![ev.x, ev.y].every(Number.isInteger)) return '기록이 이상함';
     const p = { k: cur.k, x: ev.x | 0, y: ev.y | 0, r: (ev.r | 0) & 3 }, rot = !!ev.rot, kick = ev.kick | 0;
     const spin = this.K.tspinOf(f.grid, p, rot, kick);
     const ok = this.K.tReach(f.grid, cur, 0).some(o => o.p.x === p.x && o.p.y === p.y && o.p.r === p.r && o.spin === spin);
@@ -183,6 +225,8 @@ class Match {
     f.lock(false);
     const mine = this.events.filter(([fl, d]) => fl === f && d.t === 'tlock').pop();
     if (mine && typeof ev.g === 'string' && mine[1].g !== ev.g.padStart(this.K.TW * this.K.TH, '0')) return '판이 서버 계산과 다름';
+    if (!mine) return '기록이 이상함';
+    s.relay = { ...mine[1] };
     this.ff(s);
     return null;
   }

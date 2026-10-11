@@ -67,7 +67,10 @@ function check(rp, mutate) {
     const kg = firstK(P, d => d.t === 'garb');
     if (kg >= 0) tamper(P, '방해뿌요 안 받기', d => d.t === 'garb' ? null : d, /방해|자리|판/);
     const dead = P.ev.find(e => e[2].t === 'dead');
-    if (dead) tamper({ ...P, ev: P.ev.filter(e => !(e[2].t === 'dead')).concat([[dead[0] + 500, dead[1], { t: 'lock', n: 999, x: 2, y: 5, o: 0, a: 1, b: 1 }]]) }, '탈락하고도 계속 두기', d => d, null);
+    if (dead) {   // 탈락 기록을 빼고 버티거나 계속 둬도: 서버는 막힌 순간 그쪽을 탈락으로 봄
+      const m = check({ ...P, ev: P.ev.filter(e => !(e[2].t === 'dead')).concat([[dead[0] + 500, dead[1], { t: 'lock', n: 999, x: 2, y: 5, o: 0, a: 1, b: 1 }]]) });
+      ok(m.loser === dead[1], `조작 잡음: 탈락을 숨기고 버티기 → ${m.loser === dead[1] ? '막힌 순간 탈락' : '못 잡음'}`);
+    }
     tamper({ ...P, ev: P.ev.map(([t, pi, d]) => [Math.round(t / 8), pi, d]) }, '8배 빠르게 두기(매크로)', d => d, /속도/);
   }
   if (T) {

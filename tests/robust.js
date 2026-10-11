@@ -54,6 +54,16 @@ const tok = c => 'robust' + c.repeat(14);
     A.send({ t: 'rq', token: tok('A'), style: 'puyo', name: 'A' }); B.send({ t: 'rq', token: tok('B'), style: 'puyo', name: 'B' });
     const sa = await A.wait('start'); await B.wait('start');
     const [first, other] = sa.you === 0 ? [A, B] : [B, A];
+    // 상대 화면을 멈추게 하려는 값은 서버가 고쳐서 보내거나 버림
+    await sleep(2100);
+    other.box.length = 0;
+    first.send({ t: 'g', d: 'junk' }); first.send({ t: 'g', d: null });
+    first.send({ t: 'g', d: { t: 'st', pc: { x: 1e9, y: 'a', o: 9, a: 99, b: 1 }, pe: 1e300, sc: null } });
+    first.send({ t: 'g', d: { t: 'hi', name: '<img src=x onerror=alert(1)>길고긴이름입니다', char: '"><b>' } });
+    await sleep(300);
+    const got = other.box.filter(x => x.t === 'g').map(x => x.d);
+    const st = got.find(d => d.t === 'st'), hi = got.find(d => d.t === 'hi');
+    ok(got.length === 2 && st && st.pe <= 999 && typeof st.sc === 'number' && st.pc === null && hi.name.length <= 10 && hi.char === '', `상대에게는 고친 기록만 감: ${JSON.stringify(got)}`);
     first.send({ t: 'g', d: { t: 'dead' } });           // 첫 판: first가 탈락
     await A.wait('rjudge'); await B.wait('rjudge');
     first.send({ t: 'style', style: 'tetris' });

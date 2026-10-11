@@ -88,6 +88,7 @@ function onNet(m) {
 function onGame(d, from) {
   const op = from != null && game.seatField ? game.seatField[from] : game.fields[1];
   if (!op || !op.remote || game.mode !== 'online') return;
+  d = cleanEv(op, d); if (!d) return;                           // 상대가 보낸 이상한 값은 고치거나 버림
   if (d.to != null) { const t = game.seatField && game.seatField[d.to]; d = { ...d, to: t ? game.fields.indexOf(t) : undefined }; }   // 자리 번호 → 내 판 번호
   if (d.t === 'hi') { op.name = String(d.name || '상대').slice(0, 10); if (CHARS.some(c => c.id === d.char)) op.char = d.char; if (op.other) { op.other.name = op.name; op.other.char = op.char; } return; }
   if (d.t === 'st') recState(op, d); else recEv(op, d);         // 상대 판도 리플레이에 기록

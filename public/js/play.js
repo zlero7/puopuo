@@ -34,7 +34,7 @@ function forfeit() {
 function showResult(tone, title, sub, chips, kind) {
   $('resultBox').className = 'result t-' + tone;
   $('ovTitle').textContent = title; $('ovSub').textContent = sub; $('ovRank').classList.add('hidden');
-  $('ovStats').innerHTML = (chips || []).map(([k, v]) => `<div class="chip"><span>${k}</span><b>${v}</b></div>`).join('');
+  $('ovStats').innerHTML = (chips || []).map(([k, v]) => `<div class="chip"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
   overlayBtns(kind); overlay.classList.remove('hidden'); game.ovAt = performance.now();
   requestAnimationFrame(() => { const b = [...overlay.querySelectorAll('.btn')].find(b => !b.classList.contains('hidden')); if (b) b.focus({ preventScroll: true }); });
 }

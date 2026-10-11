@@ -24,8 +24,67 @@ function recState(f, d) {
   const s = JSON.stringify(d); if (f._recSt === s) return; f._recSt = s;
   recEv(f, d);
 }
+// 받은 이벤트 검사(온라인 상대 · 불러온 리플레이 파일은 믿을 수 없음): 모양이 맞게 고치고, 고칠 수 없으면 null(버림)
+// 이상한 값 하나로 화면 그리기에서 오류가 나면 게임이 멈추므로, 판에 넣기 전에 여기서 걸러냄
+const evInt = (v, lo, hi, d = 0) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : d;
+const evNum = (v, lo, hi) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, +v)) : 0;
+const evCol = v => Number.isInteger(v) && v >= 1 && v <= 5 ? v : 0;               // 뿌요 색 1~5
+const evGrid = (g, re, n) => typeof g === 'string' && g.length <= n && re.test(g) ? g : undefined;
+const evPuyoGrid = g => evGrid(g, /^[0-6]*$/, ROWS * COLS);
+const evTetGrid = g => evGrid(g, /^[0-8]*$/, TW * TH);
+function cleanEv(f, d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.t !== 'string') return null;
+  const to = d.to == null ? undefined : evInt(d.to, 0, 3);
+  switch (d.t) {
+    case 'st': {
+      const o = { t: 'st', n: evInt(d.n, 0, 1e6), pe: evInt(d.pe, 0, 999), sc: evInt(d.sc, 0, 1e9), mc: evInt(d.mc, 0, 99), pc: null };
+      const pc = d.pc && typeof d.pc === 'object' ? d.pc : null;
+      if (d.k === 'p' || (!d.k && f.kind === 'puyo')) {
+        if (pc && evCol(pc.a) && evCol(pc.b)) o.pc = { x: evInt(pc.x, -2, 20), y: evInt(pc.y, -2, 30), o: evInt(pc.o, 0, 3), a: pc.a, b: pc.b, p: evNum(pc.p, 0, 1) };
+        if (d.hp && evCol(d.hp.a) && evCol(d.hp.b)) o.hp = { a: d.hp.a, b: d.hp.b };
+        if (Array.isArray(d.fv)) o.fv = [evInt(d.fv[0], 0, 99), d.fv[1] ? 1 : 0, evNum(d.fv[2], 0, 9999)];
+      } else {
+        if (pc && TKEYS.includes(pc.k) && pc.k) o.pc = { ...pc, k: pc.k, x: evInt(pc.x, -4, TW + 4), y: evInt(pc.y, -4, TH + 4), r: evInt(pc.r, 0, 3) };
+        if (pc && f.kind === 'fusion' && pc.t === 'p' && evCol(pc.a) && evCol(pc.b)) o.pc = { ...pc, x: evInt(pc.x, -4, TW + 4), y: evInt(pc.y, -4, TH + 4), o: evInt(pc.o, 0, 3) };
+        o.ho = TKEYS.includes(d.ho) && d.ho ? d.ho : null; o.gg = evInt(d.gg, 0, 99);
+      }
+      if (d.k) o.k = d.k === 't' ? 't' : 'p';
+      return o;
+    }
+    case 'lock': {
+      if (!evCol(d.a) || !evCol(d.b)) return null;
+      const o = { t: 'lock', n: evInt(d.n, 0, 1e6), x: evInt(d.x, 0, COLS - 1), y: evInt(d.y, 0, ROWS - 1), o: evInt(d.o, 0, 3), a: d.a, b: d.b, h: d.h ? 1 : 0, g: evPuyoGrid(d.g) };
+      if (ITEM_KEYS.includes(d.ia)) o.ia = d.ia; if (ITEM_KEYS.includes(d.ib)) o.ib = d.ib;   // 파티 아이템
+      return o;
+    }
+    case 'garb': {
+      if (!Array.isArray(d.c) || d.c.length !== COLS) return null;
+      return { t: 'garb', c: d.c.map(v => evInt(v, 0, ROWS + 1)), g: evPuyoGrid(d.g) };
+    }
+    case 'gs': case 'fv': { const g = evPuyoGrid(d.g); return g === undefined ? null : { t: d.t, g, on: d.on ? 1 : 0 }; }
+    case 'tlock': {
+      const g = evTetGrid(d.g); if (g === undefined) return null;
+      const o = { t: 'tlock', g, rows: Array.isArray(d.rows) ? d.rows.slice(0, 4).map(v => evInt(v, 0, TH - 1)) : [] };
+      const fx = d.fx;
+      if (fx && typeof fx === 'object') o.fx = { labs: Array.isArray(fx.labs) ? fx.labs.slice(0, 4).map(v => String(v).slice(0, 20)) : [], pc: !!fx.pc, b2b: !!fx.b2b, ren: evInt(fx.ren, 0, 99) };
+      for (const k of ['x', 'y', 'r', 'kick']) if (d[k] != null) o[k] = evInt(d[k], -8, 40);
+      if (TKEYS.includes(d.k)) o.k = d.k; if (d.rot) o.rot = 1;
+      return o;
+    }
+    case 'tgarb': { const g = evTetGrid(d.g); return g === undefined ? null : { t: 'tgarb', g }; }
+    case 'fg': { const g = evGrid(d.g, /^[0-9A-G]*$/, FW_W * FW_H); return g === undefined ? null : { t: 'fg', g }; }
+    case 'atk': case 'off': return { t: d.t, to, n: evInt(d.n, 0, 999), x: evNum(d.x, -2000, 2000), y: evNum(d.y, -2000, 2000), ch: evInt(d.ch, 0, 30) };
+    case 'hi': return { t: 'hi', name: String(d.name == null ? '' : d.name).slice(0, 10), char: typeof d.char === 'string' ? d.char.slice(0, 12) : '' };
+    case 'it': return typeof d.k === 'string' ? { t: 'it', k: d.k.slice(0, 20) } : null;
+    case 'pend': return { t: 'pend', sc: evInt(d.sc, 0, 1e9) };
+    case 'bb': return { t: 'bb', r: evInt(d.r, 0, 999), p: evInt(d.p, 0, 1e9), at: evNum(d.at, 0, 1e8) };
+    case 'dead': case 'hold': case 'sw': return { t: d.t };
+    default: return null;
+  }
+}
 // 원격 판(온라인 상대 · 리플레이)에 이벤트 적용
 function applyRemote(f, d) {
+  d = cleanEv(f, d); if (!d) return;
   f = routeKind(f, d);                      // 스왑: 뿌요/테트리스 이벤트는 맞는 판으로
   switch (d.t) {
     case 'sw': f.queue.push(d); break;
@@ -119,6 +178,8 @@ function checkReplay(rp) {
   if (!rp.players.every(p => p && ['puyo', 'tetris', 'fusion'].includes(p.style))) return null;
   if (!BOARDS[rp.board] || typeof rp.seed !== 'number') return null;
   if (!rp.ev.every(e => Array.isArray(e) && typeof e[0] === 'number' && Number.isInteger(e[1]) && e[1] >= 0 && e[1] < rp.players.length && e[2] && typeof e[2].t === 'string')) return null;
+  // 이름·캐릭터는 다른 사람이 만든 파일일 수 있으니 짧은 글자로만(화면에 넣을 때도 esc)
+  rp.players = rp.players.map(p => ({ ...p, name: String(p.name == null ? '' : p.name).slice(0, 10), char: CHARS.some(c => c.id === p.char) ? p.char : 'lumi' }));
   return rp;
 }
 

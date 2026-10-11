@@ -328,10 +328,12 @@ function onMessage(ws, m) {
       if (!room || !room.started) return;
       const f = room.seats.indexOf(ws);
       let d = m.d;
+      if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.t !== 'string') return;
       const R = room.ranked;
-      if (R && R.match && !R.judged && d && typeof d === 'object') {   // 랭크전: 서버가 다시 계산해 보고 맞는 것만 상대에게
+      if (R && VERIFY && (!R.match || R.judged)) return;   // 랭크전: 판정이 난 뒤의 기록은 상대에게 보내지 않음
+      if (R && R.match) {    // 랭크전: 서버가 다시 계산해 보고 맞는 것만, 서버가 새로 만든 기록으로 상대에게
         const res = R.match.feed(f, d, Date.now() - R.t0);
-        if (typeof d.t === 'string' && /lock|hold|garb/.test(d.t)) R.lastAct[f] = Date.now();
+        if (/lock|hold|garb/.test(d.t)) R.lastAct[f] = Date.now();
         if (R.match.loser != null) judge(room, R.match.loser, R.match.reason);
         if (!res.relay) return;
         d = res.relay;
