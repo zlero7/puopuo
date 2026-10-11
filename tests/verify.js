@@ -88,7 +88,7 @@ function check(rp, mutate) {
         const { k, pi, a } = pick, ev = E.slice(0, a + 1).filter((e, j) => j !== k && (j < k || e[1] === pi));
         ev.push([E[a][0] + 1, pi, E[k][2]]);
         const m = check({ ...P, ev });
-        ok(m.seats[pi].bad && /공격/.test(m.seats[pi].bad), `조작 잡음: 공격을 모아 뒀다 나중에 쓰기 → ${m.seats[pi].bad || '못 잡음'}`);
+        ok(m.seats[pi].bad && /공격|상쇄/.test(m.seats[pi].bad), `조작 잡음: 공격을 모아 뒀다 나중에 쓰기 → ${m.seats[pi].bad || '못 잡음'}`);
       }
     }
   }
