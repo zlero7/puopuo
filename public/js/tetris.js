@@ -11,7 +11,7 @@
      연쇄가 끝나면 한 번에 아래에서 구멍 한 칸짜리 줄로 올라옴(한 번에 최대 7줄) */
 const TW = 10, TH = 22, TVIS = 20, TC = 28;
 const TGX = (SW - TW * TC) / 2, TGY = FH - TVIS * TC;
-// 고정 지연: 바닥에 닿으면 1초 뒤 고정. 바닥에서 회전하면 남은 시간이 0.5초로 다시 채워짐(블록 하나에 15번까지) — T스핀 넣을 시간
+// 고정 지연: 바닥에 닿으면 1초 뒤 고정. 바닥에서 이동·회전하면 남은 시간이 0.5초로 다시 채워짐(블록 하나에 15번까지) — T스핀 넣을 시간
 const LOCK_DELAY = 1000, LOCK_RESET = 500;
 const TKEYS = ['', 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'G'];
 const TCOL = { I: '#22cfee', O: '#ffd22e', T: '#b35af0', S: '#46d457', Z: '#ff4658', J: '#2f68f0', L: '#ff9324', G: '#a9a6bd' };
@@ -220,13 +220,13 @@ class TField {
     this.canHold = false; if (this.human) sfx.hold();
   }
   onGround() { return !this.valid({ ...this.cur, y: this.cur.y + 1 }); }
-  // 회전: 한 번이라도 바닥에 닿은 조각이면 남은 시간이 0.5초보다 적을 때 0.5초로 채움(조각 하나에 15번까지, 회전으로 잠깐 떠도 횟수에 들어감)
+  // 이동·회전: 한 번이라도 바닥에 닿은 조각이면 남은 시간이 0.5초보다 적을 때 0.5초로 채움(조각 하나에 15번까지, 회전으로 잠깐 떠도 횟수에 들어감)
   lockReset() { if (this.landed && this.resets < 15) { this.lockT = Math.min(this.lockT, LOCK_DELAY - LOCK_RESET); this.resets++; } }
   moveX(d) {
     if (this.phase !== 'drop') return false;
     const p = { ...this.cur, x: this.cur.x + d };
     if (!this.valid(p)) return false;
-    this.cur = p; this.lastRot = false; if (this.human) sfx.move(); return true;   // 옆으로 옮기기는 고정 시간을 늘리지 않음
+    this.cur = p; this.lastRot = false; this.lockReset(); if (this.human) sfx.move(); return true;
   }
   rotate(dir) {
     if (this.phase !== 'drop' || this.cur.k === 'O') return false;
