@@ -86,9 +86,9 @@ function drawVsPortrait(c, f, x, y, w, h, t) {
   c.save(); poly(x + 7, y + 7, w - 14, h - 14, k * 0.85); c.clip();
   const ix = x + 7, iy = y + 7, iw = w - 14, ih = h - 14;
   if (charImgOk('vs')) {
-    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sw = 240 / z, sh = sw * ih / iw;
+    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sh = Math.min(176, 240 * ih / iw) / z, sw = sh * iw / ih;   // 비율 그대로 잘라서
     if (lost) c.filter = 'grayscale(1) brightness(0.8)';
-    c.drawImage(CHAR_IMG.vs, i * 240 + (240 - sw) / 2, Math.max(0, (176 - sh) * 0.35), sw, Math.min(176, sh), ix, iy, iw, ih);
+    c.drawImage(CHAR_IMG.vs, i * 240 + (240 - sw) / 2, (176 - sh) * 0.35, sw, sh, ix, iy, iw, ih);
     c.filter = 'none';
   } else { c.fillStyle = ch.c; c.fillRect(ix, iy, iw, ih); drawChar(c, ch.id, ix + iw / 2, iy + ih / 2, ih * 0.9); }
   if (hype) {                                   // 연쇄: 금빛 집중선

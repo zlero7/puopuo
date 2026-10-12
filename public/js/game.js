@@ -97,7 +97,9 @@ function fit() {
   game.rs = rs;
   cv.style.width = (LW * s) + 'px'; cv.style.height = (viewH() * s) + 'px';
 }
-function setSize(W) { LW = game.fullLW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
+// PC 2인 대전: 양쪽 판 바깥(이름표 옆)에 초상 카드를 놓을 자리. 그리기 좌표는 그대로 두고 화면만 오른쪽으로 밀어서 그림
+const SIDE_W = 196, sideX = () => game.compact ? 0 : (game.side || 0);
+function setSize(W, side = 0) { game.side = side; LW = game.fullLW = W + side * 2; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
 
 const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
 const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
@@ -134,7 +136,7 @@ function botAi(kind, lv) {
 function build(mode) {
   const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W);
+  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W, vs && n === 2 ? SIDE_W : 0);
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
   f1.tone = vs ? TONES.red : TONES.green; f1.char = stats.char || 'lumi';

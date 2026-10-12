@@ -265,8 +265,13 @@ function drawPair(c, cx, cy, s, a, b, bob) {
 }
 
 function render(t) {
-  const W = LW, rs = game.rs || DPR;
-  ctx.setTransform(rs, 0, 0, rs, 0, -VIEW_Y0 * rs); ctx.clearRect(0, 0, W, CANVAS_H);
+  const W = LW, rs = game.rs || DPR, sx = sideX();
+  ctx.setTransform(rs, 0, 0, rs, sx * rs, -VIEW_Y0 * rs); ctx.clearRect(-sx, 0, W, CANVAS_H);
+  if (sx && game.fields.length === 2) {   // PC 2인: 이름표 옆(판 바깥)에 나와 상대의 초상 카드
+    const [a, b] = game.fields;
+    drawVsPortrait(ctx, a, a.ox - sx + 6, 2, sx - 16, 140, t);
+    drawVsPortrait(ctx, b, b.ox + b.fw + 10, 2, sx - 16, 140, t);
+  }
   for (const f of game.fields) inMini(ctx, f, () => f.draw(t));
   const me = game.fields[0]; if (!me) return;
   ctx.save();
@@ -378,9 +383,9 @@ function render(t) {
 }
 // 시작 연출: 각자 고른 스타일(뿌요뿌요/테트리스)과 VS, 준비→시작
 function drawIntro(t) {
-  const W = LW, k = game.introT, go = k <= 650;
+  const W = LW - sideX() * 2, k = game.introT, go = k <= 650;
   ctx.save();
-  ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(0, 0, W, CANVAS_H);
+  ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(-sideX(), 0, LW, CANVAS_H);
   if (!go) {
     for (const f of game.fields) {
       const cx = f.ox + f.fw / 2, cy = OY + FH * 0.36, tone = f.tone || TONES.red;
