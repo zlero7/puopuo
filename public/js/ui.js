@@ -55,7 +55,7 @@ function setHints(kind) {
     : game.mode === 'local' ? '<span>1P <kbd>WASD</kbd> <kbd>Q E</kbd> 회전 <kbd>R</kbd> 홀드</span><span>2P <kbd>방향키</kbd> <kbd>. /</kbd> 회전 <kbd>,</kbd> 홀드</span><span><kbd>Esc</kbd> 일시정지</span>'
     : (() => { const b = { ...DEF_KEYS, ...(stats.keys || {}) }, n = a => keyName(b[a][0]).replace('방향키 ', '');
       return `<span><kbd>${n('left')} ${n('right')}</kbd> 이동</span><span><kbd>${n('ccw')} ${n('cw')}</kbd> 회전</span><span><kbd>${n('hard')}</kbd> 하드드롭</span>` +
-        `<span><kbd>${n('hold')}</kbd> 홀드</span>` + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
+        `<span><kbd>${n('hold')}</kbd> 홀드</span>` + (game.vs && playersOf(game.mode) > 2 ? '<span><kbd>Tab</kbd> 공격 대상</span>' : '') + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
 }
 // 캐릭터 고르기 화면(카드 8장)
 function renderChars(focusId) {

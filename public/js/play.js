@@ -444,20 +444,28 @@ function choosePick(o) {
   if (!((me.chain || 0) > 0 || (me.chainN || 0) > 0 || me.atkOpen)) me.opp = o;
   try { tone(760, 0.05, 'square', 0.04); tone(1140, 0.07, 'square', 0.04, 1, 0.05); } catch (_) {}
 }
+const canPick = () => { const me = game.fields[0]; return game.state === 'play' && game.vs && game.fields.length >= 3 && me && me.human && !me.remote && !me.dead && game.mode !== 'local' && game.mode !== 'replay'; };
+function cycleTarget(step = 1) {             // 다음(또는 이전) 상대로
+  if (!canPick()) return;
+  const me = game.fields[0], alive = game.fields.filter(o => o !== me && !o.dead);
+  if (!alive.length) return;
+  const i = alive.indexOf(me.pick && alive.includes(me.pick) ? me.pick : me.opp);
+  choosePick(alive[((i < 0 ? -1 : i) + step + alive.length) % alive.length]);
+}
 cv.addEventListener('pointerdown', e => {
   const me = game.fields[0];
-  if (game.state !== 'play' || !game.vs || game.fields.length < 3 || !me || !me.human || me.remote || game.mode === 'local' || game.mode === 'replay') return;
+  if (!canPick()) return;
   const r = cv.getBoundingClientRect(), k = r.width / LW, x = (e.clientX - r.left) / k - sideX(), y = (e.clientY - r.top) / k + VIEW_Y0;
   const inR = (rx, ry, rw, rh) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
   const alive = game.fields.filter(o => o !== me && !o.dead);
   if (!alive.length) return;
   let pick = null;
   if (game.compact) {
-    if (inR(PX - 78, VIEW_Y0, 156, -VIEW_Y0 + 34)) { const i = alive.indexOf(me.opp); pick = alive[(i + 1) % alive.length]; }   // 공격 대상 카드: 다음 상대
+    if (inR(PX - 78, VIEW_Y0, 156, -VIEW_Y0 + 34)) { e.preventDefault(); cycleTarget(1); return; }   // 공격 대상 카드: 다음 상대
     else pick = alive.find(o => { const b = miniBox(o); return inR(b.x - 4, b.y, SW * b.k + 8, CANVAS_H * b.k); });
   } else {
     pick = alive.find(o => inR(o.ox, cardTop() ? -game.top : 0, o.fw, (cardTop() ? game.top : 0) + OY + FH));
-    if (!pick && inR(PX - 70, OY + 520, 140, 70)) { const i = alive.indexOf(me.opp); pick = alive[(i + 1) % alive.length]; }   // 가운데 '공격 대상' 표시
+    if (!pick && inR(PX - 70, OY + 520, 140, 70)) { e.preventDefault(); cycleTarget(1); return; }   // 가운데 '공격 대상' 표시
   }
   if (pick) { e.preventDefault(); choosePick(pick); }
 });

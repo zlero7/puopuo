@@ -37,6 +37,7 @@ window.addEventListener('keydown', e => {
     for (let pi = 0; pi < 2; pi++) { const a = LOCAL_KEYS[pi][lk]; if (a) { e.preventDefault(); playerAction(pi, a, true, e.repeat); return; } }
     return;
   }
+  if (k === 'Tab' && !keyMap().tab) { e.preventDefault(); if (!e.repeat) cycleTarget(e.shiftKey ? -1 : 1); return; }   // 3~4인: Tab(Shift+Tab 거꾸로)으로 공격 대상 바꾸기
   const a = keyMap()[lk];
   if (!a) return;
   e.preventDefault();
