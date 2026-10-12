@@ -78,7 +78,7 @@ let LW = 840, VIEW_Y0 = 0;
 const viewH = () => CANVAS_H - VIEW_Y0;
 // 세로 폰(2~4인 · 통상/피버/퓨전): 내 판을 크게, 상대 판들은 오른쪽 칸(홀드 아래)에 작게(compact)
 // 상대 1명은 한 칸 크게, 2~3명은 두 줄 두 칸에 나눠서
-const MINI_Y = OY + 392;
+const MINI_Y = OY + 364, CTOP = 92;   // CTOP: 세로 폰 위쪽 초상 띠 높이
 const isMini = f => !!game.compact && f !== game.fields[0];
 function miniBox(f) {
   const ops = game.fields.length - 1, j = Math.max(0, game.fields.indexOf(f) - 1), H = CANVAS_H - MINI_Y - 4;
@@ -95,7 +95,7 @@ function inMini(c, f, fn) {
 function fit() {
   const pad = document.getElementById('pad');
   game.compact = game.vs && game.fields.length >= 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
-  if (game.vs) VIEW_Y0 = game.compact ? 0 : (game.baseY0 || 0);   // 폰 3~4인은 위쪽 카드 줄 없이
+  if (game.vs) VIEW_Y0 = game.compact ? -CTOP : (game.baseY0 || 0);   // 세로 폰: 위쪽에 초상 띠
   game.narrow = window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
   LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW) - (game.narrow ? (game.side || 0) + (game.sideR || 0) : 0);
   const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
@@ -110,7 +110,7 @@ function fit() {
 // 그리기 좌표는 그대로 두고 화면만 밀어서 그림(왼쪽 side, 오른쪽 sideR, 위 top)
 const SIDE_W = 196, TOP_H = 112, sideX = () => game.compact || game.narrow ? 0 : (game.side || 0);   // 세로 폰은 옆 카드 없이(판이 작아지지 않게)
 const cardTop = () => !game.compact && game.top > 0;
-const tagOff = f => isMini(f) || cardTop();     // 이름표를 초상 카드가 대신하는 판
+const tagOff = f => !!game.compact || cardTop();     // 이름표를 초상 카드가 대신하는 판(세로 폰 · 3~4인)
 function setSize(W, side = 0, sideR = side, top = 0) {
   game.side = side; game.sideR = sideR; game.top = top; LW = game.fullLW = W + side + sideR;
   game.baseY0 = game.vs ? -top : 58; VIEW_Y0 = game.baseY0; fit();
