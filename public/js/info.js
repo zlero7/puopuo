@@ -105,7 +105,7 @@ function infoRank(seq) {
     if (seq !== infoSeq) return;
     const s = m.season, master = !m.placing && m.group === 5;
     const sub = m.placing ? `배치 ${m.placed}/${m.need} · ${m.pw}승 ${m.pl}패` : master ? `${m.rp} RP` : `${m.rp} / 100 RP`;
-    const note = m.placing ? (m.need >= 10 ? '첫 배치 · 해가 바뀐 첫 배치는 10판이에요(MMR 초기화).' : '같은 해 새 시즌은 5판 배치 · 아주 잘하거나 못하지 않으면 지난 티어를 그대로 이어가요.')
+    const note = m.placing ? (m.first ? '첫 배치 5판 · 해가 바뀐 첫 배치도 5판이에요(MMR 초기화).' : '같은 해 새 시즌은 5판 배치 · 아주 잘하거나 못하지 않으면 지난 티어를 그대로 이어가요.')
       : '승급 직후 한 번은 강등을 막아 줘요.';
     const hero = `<div class="rkhero">${emCv(m.group, m.placing ? 0 : m.div)}<div><div class="t">${esc(m.placing ? '배치 중' : m.text)}</div>` +
       `<div class="s">${STYLE_KO[rkStyle]} · ${esc(s.name)} (${s.months}) · ${s.daysLeft}일 남음</div><div class="s">${sub}</div>` +

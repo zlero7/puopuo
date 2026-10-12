@@ -51,13 +51,13 @@ function charImg(c, k, id, x, y, w, h) {
   const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
   c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
 }
-// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(96×96) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
+// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(96×96, 카드 테두리 조각은 잘라 냄) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
 const FACE = { calm: 0, hype: 1, joy: 2, worry: 3 };
 function drawCharFace(c, id, x, y, size, expr = 0) {
   if (!charImgOk('face')) { drawChar(c, id, x, y, size, expr === 3 ? 'sad' : 'happy'); return; }
   const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), h = size / 2, r = size * 0.2;
   c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.fillStyle = '#fff'; c.fill(); c.clip();
-  c.drawImage(CHAR_IMG.face, expr * 96, i * 96, 96, 96, x - h, y - h, size, size); c.restore();
+  c.imageSmoothingQuality = 'high'; c.drawImage(CHAR_IMG.face, expr * 96, i * 96, 96, 96, x - h, y - h, size, size); c.restore();
   c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
   c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
 }

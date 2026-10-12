@@ -1,4 +1,4 @@
-// 랭크전 서버 테스트: 대기열 → 매칭 → 결과 보고(엇갈리면 무효) → 배치 10시리즈 → 티어·RP → 순위표, 도중 이탈은 패배
+// 랭크전 서버 테스트: 대기열 → 매칭 → 결과 보고(엇갈리면 무효) → 배치 5시리즈 → 티어·RP → 순위표, 도중 이탈은 패배
 // 실행: node tests/rank.js
 const { spawn } = require('child_process');
 const path = require('path'), os = require('os'), fs = require('fs'), http = require('http');
@@ -36,18 +36,18 @@ async function series(W, L, oneLoss) {
     for (let g = 0; g < 2; g++) { for (const c of [A, B]) c.send({ t: 'ready' }); await A.wait('start'); await B.wait('start'); A.send({ t: 'rres', win: true }); B.send({ t: 'rres', win: false }); }
     const [d1a, d1b] = [await A.wait('rdone'), await B.wait('rdone')];
     ok(d1a.score[0] === 2 && d1a.score[1] === 0, '엇갈린 보고는 무효 처리(2:0으로 끝)');
-    ok(d1a.placing && d1a.placed === 1 && d1a.text === '배치 1/10' && d1b.text === '배치 1/10', `배치 진행: ${d1a.text}`);
+    ok(d1a.placing && d1a.placed === 1 && d1a.text === '배치 1/5' && d1b.text === '배치 1/5', `배치 진행: ${d1a.text}`);
     let last;
-    for (let i = 2; i <= 10; i++) last = await series(A, B, i % 3 === 0);
-    ok(last[0].event === 'placed' && !last[0].placing, `배치 완료(10승): A → ${last[0].text}`);
-    ok(!last[1].placing, `배치 완료(10패): B → ${last[1].text}`);
+    for (let i = 2; i <= 5; i++) last = await series(A, B, i % 3 === 0);
+    ok(last[0].event === 'placed' && !last[0].placing, `배치 완료(5승): A → ${last[0].text}`);
+    ok(!last[1].placing, `배치 완료(5패): B → ${last[1].text}`);
     const after = await series(A, B);
     ok(after[0].d > 0 && after[1].d < 0 && /RP/.test(after[0].text), `배치 후 시리즈: A ${after[0].d > 0 ? '+' : ''}${after[0].d} RP → ${after[0].text} · B ${after[1].d} RP → ${after[1].text}`);
     ok(after[0].opp && after[0].opp.name === 'B' && after[0].opp.char === 'kuro' && /RP/.test(after[0].opp.text), `결과에 상대 정보: ${after[0].opp.name} · ${after[0].opp.text}`);
     await new Promise(r => setTimeout(r, 500));
     const top = await get('/rank/top?style=puyo'), me = await get('/rank/me?style=tetris&token=tokenBBBBBBBBBBBBBBBB');
     ok(top.rows.length === 1 && top.rows[0].name === 'A' && top.rows[0].place === 1, `순위표(뿌요, 플래티넘 이상): 1위 ${top.rows[0] && top.rows[0].name} ${top.rows[0] && top.rows[0].label} ${top.rows[0] && top.rows[0].rp} RP`);
-    ok(me.text === after[1].text && /시즌/.test(me.season.name) && me.matches.length === 11 && me.matches[0].opp.name === 'A', `내 정보(B 테트리스): ${me.text} · ${me.season.name} · 랭크 기록 ${me.matches.length}경기`);
+    ok(me.text === after[1].text && /시즌/.test(me.season.name) && me.matches.length === 6 && me.matches[0].opp.name === 'A', `내 정보(B 테트리스): ${me.text} · ${me.season.name} · 랭크 기록 ${me.matches.length}경기`);
     ok(fs.existsSync(FILE), '파일로 저장');
     A.ws.close(); B.ws.close();
     // 도중 이탈은 패배(배치 1판으로 셈)
