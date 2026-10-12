@@ -239,15 +239,15 @@ function releaseGarb(from) { for (const f of game.fields) if (f.held) f.held.del
 function droppable(f) { let h = 0; if (f.held) for (const v of f.held.values()) h += v; return Math.max(0, f.pending - Math.min(f.pending, h)); }
 
 class Field {
-  constructor(ox, oy, human, name) { this.kind = 'puyo'; this.sx = ox; this.ox = ox + (SW - FW) / 2; this.oy = oy; this.human = human; this.name = name; this.opp = null; this.ai = { delay: 170, noise: 400, pot: 0.6, miss: 0.12, greedy: 0, atk: 0.6, soft: true }; this.reset(); }
+  constructor(ox, oy, human, name) { this.kind = 'puyo'; this.sx = ox; this.ox = ox + (SW - FW) / 2; this.oy = oy; this.human = human; this.name = name; this.opp = null; this.ai = { delay: 170, noise: 400, pot: 0.6, miss: 0.12, greedy: 0, soft: true }; this.reset(); }
 
   get fw() { return FW; }
 
   reset() {
     this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
     this.fv = { gauge: 0, on: false, t: 0, lv: 0, stash: null, hit: false }; this.forcePair = null;   // 피버(fever.js)
-    this.idx = 0; this.score = 0; this.chain = 0; this.maxChain = 0; this.pending = 0; this.carry = 0; this.atkCarry = 0; this.trayBump = 0; this.hit = 0;
-    this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lineCarry = 0; this.lineOut = 0; this.lineAtk = 0;
+    this.idx = 0; this.score = 0; this.chain = 0; this.maxChain = 0; this.pending = 0; this.carry = 0; this.trayBump = 0; this.hit = 0;
+    this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lineCarry = 0; this.lineOut = 0;
     this.acBonus = false; this.held = null; this.atkOpen = false; this.blockedAt = 0; this.dangerOn = false; this.holdP = null; this.canHold = true;
     this.pops = 0; this.level = 1; this.phase = 'none'; this.piece = null; this.acc = 0; this.settleT = 0;
     this.particles = []; this.texts = []; this.trails = []; this.shake = 0; this.flash = 0;
@@ -402,7 +402,7 @@ class Field {
     this.acc += dt;
     if (this.acc >= iv) {
       this.acc -= iv;
-      if (canFall) { p.y++; if (this.soft && this.human) this.score++; }
+      if (canFall) { p.y++; if (this.soft) this.score++; }          // 빠르게 내리기 1줄에 1점(CPU도 같음)
       else { this.lock(); }
     }
   }
@@ -510,11 +510,13 @@ class Field {
     this.pops += total;
     if (!game.vs) this.level = 1 + Math.floor(this.pops / 40);
     if (game.vs && !this.remote && (this.chain === 1 || !this.opp || this.opp.dead)) this.opp = pickTarget(this, this.chain === 1 ? null : this.opp && this.opp.kind);
-    const tp = targetPt(); this.carry += step; let units = Math.floor(this.carry / tp); this.carry -= units * tp;
-    if (this.chain === 1 && this.acBonus) {        // 전멸 보너스: 다음 연쇄 첫 단계에 방해뿌요 30개(테트리스 상대는 2100점)
+    if (this.chain === 1 && this.acBonus) {        // 전멸 보너스(원작): 다음 연쇄 첫 단계 점수에 2100점을 더함 → 점수에도 들어가고 방해도 그만큼(평소 30개, 마진 타임엔 더 많이)
       this.acBonus = false;
-      if (this.opp && this.opp.kind === 'tetris') this.lineCarry += 2100; else units += 30;
+      if (!this.remote) this.score += 2100;
+      this.texts.push({ txt: '+2100', x: FW / 2, y: FH * 0.4, age: 0, dur: 1200, col: '#ffd93d', size: 30 });
+      if (this.opp && this.opp.kind === 'tetris') this.lineCarry += 2100; else this.carry += 2100;
     }
+    const tp = targetPt(); this.carry += step; let units = Math.floor(this.carry / tp); this.carry -= units * tp;
     const n = this.popList.length;
     for (const p of [...this.popList]) for (let d = 0; d < 4; d++) {
       const ny = p.r + DY[d], nx = p.col + DX[d];
@@ -566,8 +568,6 @@ class Field {
   attack(units, x, y) {
     if (!game.vs || units <= 0 || this.remote || game.rule === 'bigbang') return;
     let n = units;
-    if (!this.human) { this.atkCarry += units * this.ai.atk; n = Math.floor(this.atkCarry); this.atkCarry -= n; }
-    if (n <= 0) return;
     this.sent += n;
     const c = Math.min(this.pending, n);
     const rx = x - this.ox, ry = y - this.oy;
@@ -589,7 +589,6 @@ class Field {
       emit(this, { t: 'off', n: c, x: x - this.ox, y: y - this.oy, ch: this.chain });
       if (units <= before) lines = 0;
     }
-    if (!this.human) { this.lineAtk += lines * this.ai.atk; lines = Math.floor(this.lineAtk); this.lineAtk -= lines; }
     this.lineOut += lines; this.sent += lines; this.lastAtkXY = [x, y];
   }
 
