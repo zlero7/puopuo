@@ -794,7 +794,7 @@ class Field {
     const tone = this.tone || TONES.red;
     // 이름표
     c.save();
-    if (!isMini(this)) {                 // 세로 폰의 작은 상대 판은 이름표 대신 위쪽 초상 카드에 이름이 나옴
+    if (!tagOff(this)) {                 // 초상 카드가 이름을 대신하면(폰 작은 상대 판 · 3~4인) 이름표 생략
       slab(c, this.ox + 14, 2, FW - 28, 32, tone, 4);
       outlined(c, this.name, this.ox + FW / 2, 19, 20, '#fff', tone.d, 6);
       drawOppRank(c, this, this.ox + FW - 10, 17);

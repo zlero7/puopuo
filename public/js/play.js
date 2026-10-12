@@ -266,12 +266,13 @@ function drawPair(c, cx, cy, s, a, b, bob) {
 
 function render(t) {
   const W = LW, rs = game.rs || DPR, sx = sideX();
-  ctx.setTransform(rs, 0, 0, rs, sx * rs, -VIEW_Y0 * rs); ctx.clearRect(-sx, 0, W, CANVAS_H);
-  if (sx && game.fields.length === 2) {   // PC 2인: 이름표 옆(판 바깥)에 나와 상대의 초상 카드
+  ctx.setTransform(rs, 0, 0, rs, sx * rs, -VIEW_Y0 * rs); ctx.clearRect(-sx, VIEW_Y0, W, viewH());
+  if (cardTop()) for (const f of game.fields) drawVsPortrait(ctx, f, f.ox + 8, 4 - game.top, f.fw - 16, game.top + 30, t);   // 3~4인: 판 위(이름표 대신)
+  else if (sx && game.fields.length === 2) {   // 2인: 이름표 옆(판 바깥)에 나와 상대
     const [a, b] = game.fields;
     drawVsPortrait(ctx, a, a.ox - sx + 6, 2, sx - 16, 140, t);
     drawVsPortrait(ctx, b, b.ox + b.fw + 10, 2, sx - 16, 140, t);
-  }
+  } else if (sx && game.fields[0]) drawVsPortrait(ctx, game.fields[0], game.fields[0].ox - sx + 6, VIEW_Y0 + 2, sx - 16, 140, t);   // 연습: 판 왼쪽
   for (const f of game.fields) inMini(ctx, f, () => f.draw(t));
   const me = game.fields[0]; if (!me) return;
   ctx.save();
@@ -365,7 +366,7 @@ function render(t) {
   ctx.restore();
   for (const f of game.fields) inMini(ctx, f, () => {   // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
     if (!f.char) return;
-    if (!isMini(f) && !(sideX() && game.fields.length === 2)) drawCharFace(ctx, f.char, f.ox + 14, 18, 46, moodOf(f));   // 이름표 얼굴: 초상 카드가 없을 때만
+    if (!tagOff(f) && !sideX()) drawCharFace(ctx, f.char, f.ox + 14, 18, 46, moodOf(f));   // 이름표 얼굴: 초상 카드가 없을 때만
     drawCut(ctx, f);
     if (game.state === 'over' && game.vs && (f.won || f.dead)) {
       const ch = charOf(f.char), txt = f.won ? ch.win : ch.lose;
@@ -385,7 +386,7 @@ function render(t) {
 function drawIntro(t) {
   const W = LW - sideX() * 2, k = game.introT, go = k <= 650;
   ctx.save();
-  ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(-sideX(), 0, LW, CANVAS_H);
+  ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(-sideX(), VIEW_Y0, LW, viewH());
   if (!go) {
     for (const f of game.fields) {
       const cx = f.ox + f.fw / 2, cy = OY + FH * 0.36, tone = f.tone || TONES.red;

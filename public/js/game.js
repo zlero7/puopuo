@@ -88,18 +88,26 @@ function inMini(c, f, fn) {
 function fit() {
   const pad = document.getElementById('pad');
   game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
-  LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW);
+  game.narrow = window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW) - (game.narrow ? (game.side || 0) + (game.sideR || 0) : 0);
   const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;
-  const s = Math.max(0.3, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
+  const s = Math.max(0.2, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
   const rs = game.lowFx ? Math.max(1, s) : DPR * Math.max(1, s);   // 가볍게 모드: 내부 해상도 1배(느린 폰)
   if (cv.width !== Math.round(LW * rs) || cv.height !== Math.round(viewH() * rs)) { cv.width = Math.round(LW * rs); cv.height = Math.round(viewH() * rs); }
   game.rs = rs;
   cv.style.width = (LW * s) + 'px'; cv.style.height = (viewH() * s) + 'px';
 }
-// PC 2인 대전: 양쪽 판 바깥(이름표 옆)에 초상 카드를 놓을 자리. 그리기 좌표는 그대로 두고 화면만 오른쪽으로 밀어서 그림
-const SIDE_W = 196, sideX = () => game.compact ? 0 : (game.side || 0);
-function setSize(W, side = 0) { game.side = side; LW = game.fullLW = W + side * 2; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
+// 초상 카드 자리: 2인은 양쪽 판 바깥(이름표 옆) · 연습은 판 왼쪽 · 3~4인은 판 위(이름표 대신).
+// 그리기 좌표는 그대로 두고 화면만 밀어서 그림(왼쪽 side, 오른쪽 sideR, 위 top)
+const SIDE_W = 196, TOP_H = 112, sideX = () => game.compact || game.narrow ? 0 : (game.side || 0);   // 세로 폰은 옆 카드 없이(판이 작아지지 않게)
+const cardTop = () => !game.compact && game.top > 0;
+const tagOff = f => isMini(f) || cardTop();     // 이름표를 초상 카드가 대신하는 판
+function setSize(W, side = 0, sideR = side, top = 0) {
+  game.side = side; game.sideR = sideR; game.top = top; LW = game.fullLW = W + side + sideR;
+  game.baseY0 = game.vs ? -top : 58; VIEW_Y0 = game.baseY0; fit();
+}
+const sizeFor = (vs, n) => vs ? [slotX(n - 1) + SW + 20, n === 2 ? SIDE_W : 0, n === 2 ? SIDE_W : 0, n > 2 ? TOP_H : 0] : [OX1 + SW + PANEL_W, SIDE_W, 0, 0];
 
 const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
 const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
@@ -136,7 +144,7 @@ function botAi(kind, lv) {
 function build(mode) {
   const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W, vs && n === 2 ? SIDE_W : 0);
+  setSize(...sizeFor(vs, n));
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
   f1.tone = vs ? TONES.red : TONES.green; f1.char = stats.char || 'lumi';

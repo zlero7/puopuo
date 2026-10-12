@@ -115,7 +115,7 @@ function drawVsPortrait(c, f, x, y, w, h, t) {
   } else if (worry) {
     c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); c.globalAlpha = 0.75 + 0.25 * Math.sin(t / 110);
     outlined(c, '위험!', 0, 0, 20, '#fff', '#e8283c', 6); c.restore();
-  } else if (won || lost && game.state === 'over') {
+  } else if (game.vs && (won || lost && game.state === 'over')) {
     c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12);
     outlined(c, won ? '승리' : '패배', 0, 0, 20, won ? '#ffe066' : '#fff', won ? '#c2410c' : '#4b4a5e', 6); c.restore();
   }

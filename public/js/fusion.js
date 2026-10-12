@@ -318,7 +318,7 @@ class FField {
   draw(t) {
     const c = ctx, tone = this.tone || TONES.red, gx = this.ox + TGX;
     c.save();
-    if (!isMini(this)) { slab(c, this.ox + 14, 2, SW - 28, 32, tone, 4); outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6); }   // 세로 폰 작은 판은 초상 카드에 이름
+    if (!tagOff(this)) { slab(c, this.ox + 14, 2, SW - 28, 32, tone, 4); outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6); }   // 세로 폰 작은 판은 초상 카드에 이름
     const sy = this.oy + FH + 16;
     slab(c, this.ox + 6, sy, SW - 12, 50, TONES.white, 4);
     c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#6d6b80'; c.font = '15px ' + FONT(); c.fillText('점수', this.ox + 30, sy + 26);

@@ -569,9 +569,11 @@ class TField {
     const tone = this.tone || TONES.red;
     c.save();
     const GW = TW * TC, gx = this.ox + TGX;
-    slab(c, gx + 4, 2, GW - 8, 32, tone, 4);
-    outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6);
-    drawOppRank(c, this, this.ox + SW - 10, 17);
+    if (!tagOff(this)) {                 // 3~4인은 판 위 초상 카드가 이름표 대신
+      slab(c, gx + 4, 2, GW - 8, 32, tone, 4);
+      outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6);
+      drawOppRank(c, this, this.ox + SW - 10, 17);
+    }
     const sy = this.oy + FH + 16;
     slab(c, gx - 8, sy, GW + 16, 50, TONES.white, 4);
     c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#6d6b80'; c.font = '15px ' + FONT();

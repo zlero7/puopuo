@@ -194,7 +194,7 @@ function startReplay(rp) {
   const ps = rp.players, vs = ps.length > 1;
   game.mode = 'replay'; game.vs = vs; game.diff = rp.diff; game.soloMode = rp.solo;
   seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = [];
-  setSize(vs ? slotX(ps.length - 1) + SW + 20 : OX1 + SW + PANEL_W, ps.length === 2 ? SIDE_W : 0);
+  setSize(...sizeFor(vs, ps.length));
   game.myStyle = ps[0].style; game.oppStyle = vs ? ps[1].style : null;
   game.fields = ps.map((p, i) => { const f = mkField(p.style, slotX(i), false, p.name); f.remote = true; f.tone = vs ? PLAYER_TONES[i] : TONES.green; if (CHARS.some(c => c.id === p.char)) f.char = p.char; return f; });
   if (vs) for (const f of game.fields) f.opp = pickTarget(f);
