@@ -294,7 +294,10 @@ function render(t) {
     ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 294, 100, 48);
     outlined(ctx, game.mode === 'local' ? '홀드' : `홀드 (${hk})`, PX, OY + 274, 19, '#fff', TONES.purple.d, 5);
     ctx.save(); ctx.globalAlpha = me.canHold === false ? 0.35 : 1;
-    if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
+    if (me.kind === 'fusion' && me.holdPc) {    // 퓨전: 맡긴 조각(블록 또는 뿌요 쌍)
+      if (me.holdPc.t === 'm') drawMino(ctx, me.holdPc.k, PX, OY + 318, 15, 1);
+      else { ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS); drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[0] }], []); }
+    } else if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
     else if (!isT && me.holdP) {          // 홀드한 뿌요 쌍을 옆으로 눕혀 표시
       ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS);
       drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);
