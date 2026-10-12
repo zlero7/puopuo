@@ -56,16 +56,30 @@
   .band-top {
     position: fixed; left: 0; top: 0; z-index: 5; height: calc(var(--bandH) + env(safe-area-inset-top, 0px));
     padding-top: env(safe-area-inset-top, 0px);
-    width: min(62vw, 720px); background: linear-gradient(90deg, #ff2b47, #ff6a1f 70%, #ff8f1f);
+    width: max-content; min-width: min(62vw, 720px); max-width: 100vw; padding-right: 110px; box-sizing: border-box;   /* 매칭 표시가 붙으면 띠가 늘어남 */
+    background: linear-gradient(90deg, #ff2b47, #ff6a1f 70%, #ff8f1f);
     clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%); display: flex; align-items: center;
   }
   .band-top h1 {
-    margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
+    white-space: nowrap; margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
     font-size: clamp(24px, 4.4vh, 42px); color: #fff; letter-spacing: 1px; text-shadow: 0 3px 0 rgba(120, 10, 20, 0.35);
   }
   .backbtn { flex: none; margin-left: clamp(10px, 3vw, 40px); width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
     background: #fff; color: #ff2b47; font-family: var(--head); font-size: 24px; line-height: 1; box-shadow: 0 3px 0 rgba(120, 10, 20, 0.35); }
   .backbtn:not(.hidden) + h1 { padding-left: 12px; }
+  /* 매칭 중 표시(제목 오른쪽): 누르면 대전 화면으로 */
+  .mmbadge { flex: none; display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 6px 14px; border: 0; border-radius: 999px; cursor: pointer;
+    background: rgba(255,255,255,0.95); color: #c4152f; font-family: var(--head); font-size: clamp(14px, 2vh, 18px); box-shadow: 0 3px 0 rgba(120,10,20,0.35); white-space: nowrap; }
+  .mmbadge small { font-family: var(--font); font-size: 0.8em; color: #6d6b80; }
+  .mmbadge .tm { font-variant-numeric: tabular-nums; background: #ff2b47; color: #fff; border-radius: 999px; padding: 1px 9px; font-size: 0.85em; }
+  .mmbadge .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2b47; animation: mmblink 1s infinite; }
+  @keyframes mmblink { 50% { opacity: 0.2; } }
+  .mmbadge i { font-style: normal; }
+  @media (max-width: 760px) {
+    .mmbadge small, .mmbadge i { display: none; } .mmbadge { margin-left: 8px; padding: 5px 10px; gap: 6px; font-size: 14px; }
+    body:has(.mmbadge:not(.hidden)) .band-top h1 { font-size: 20px; }   /* 매칭 표시가 있으면 제목을 조금 작게 */
+    .band-top { padding-right: 96px; }
+  }
   .band-white {
     position: fixed; top: 0; right: 0; z-index: 4; height: calc(var(--bandH) * 0.62 + env(safe-area-inset-top, 0px)); width: 46vw;
     background: #fff; clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
@@ -429,7 +443,7 @@
 </style>
 </head>
 <body>
-  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1></div>
+  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1><button id="mmBadge" class="mmbadge hidden" aria-label="매칭 화면으로"></button></div>
   <div class="band-white"></div>
   <button id="bSettings" class="gear" aria-label="설정">⚙ 설정</button>
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">

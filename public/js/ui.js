@@ -75,7 +75,7 @@ function renderChars(focusId) {
 function showScreen(id, focusId) {
   document.querySelectorAll('.screen').forEach(el => el.classList.toggle('hidden', el.id !== 'sc-' + id));
   cur = id; $('bandTitle').textContent = TITLES[id];
-  $('bBack').classList.toggle('hidden', id === 'main');
+  $('bBack').classList.toggle('hidden', id === 'main'); if (typeof drawWait === 'function') drawWait();
   if (id !== 'main') guardBack();
   renderRecords();
   if (id === 'stats') renderStats();
@@ -96,7 +96,7 @@ function openMenu(id = 'main', focusId) {
   showScreen(id, focusId);
 }
 function showGame() {
-  document.body.classList.add('ingame'); $('bBack').classList.add('hidden'); guardBack();
+  document.body.classList.add('ingame'); $('bBack').classList.add('hidden'); $('mmBadge').classList.add('hidden'); guardBack();
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
   if (game.adv) { $('bandTitle').textContent = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1}`; setHints('game'); fit(); return; }
   const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
@@ -105,7 +105,6 @@ function showGame() {
 }
 function menuBack() {
   if (cur === 'main') return;
-  if (cur === 'vs') cancelWait();
   if (cur === 'solo' || cur === 'psolo') { showScreen('ai', 't-solo'); return; }
   showScreen('main', 't-' + cur);
 }
