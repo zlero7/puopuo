@@ -272,19 +272,20 @@ function render(t) {
   ctx.save();
   // 다음 (뿌요: 2쌍 / 테트리스: 5개 + 홀드)
   const isT = me.kind === 'tetris';
-  slab(ctx, PX - 70, OY - 8, 140, 250, TONES.yellow, 6);
-  ctx.fillStyle = '#fff'; ctx.fillRect(PX - 54, OY + 30, 108, 200);
-  ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 34, 100, 192);
-  outlined(ctx, '다음', PX, OY + 13, 22, '#fff', TONES.yellow.d, 6);
-  if (effOn(me, 'blind')) outlined(ctx, '?', PX, OY + 130, 70, '#fff', TONES.purple.d, 10);    // 파티: 미리보기 가리기
-  else if (me.kind === 'fusion') { if (!me.dead) drawFusionNext(ctx, me, t); }
+  const D = game.compact ? 58 : 0;     // 세로 폰: 위쪽을 상대 초상에 내주고 '다음' 칸을 줄임
+  slab(ctx, PX - 70, OY - 8 + D, 140, 250 - D, TONES.yellow, 6);
+  ctx.fillStyle = '#fff'; ctx.fillRect(PX - 54, OY + 30 + D, 108, 200 - D);
+  ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 34 + D, 100, 192 - D);
+  outlined(ctx, '다음', PX, OY + 13 + D, 22, '#fff', TONES.yellow.d, 6);
+  if (effOn(me, 'blind')) outlined(ctx, '?', PX, OY + 130 + D / 2, 70, '#fff', TONES.purple.d, 10);    // 파티: 미리보기 가리기
+  else if (me.kind === 'fusion') { if (!me.dead) drawFusionNext(ctx, me, t, OY + 70 + D, D ? 3 : 4); }
   else if (me.phase !== 'none' && !me.dead) {
     if (isT) {
       for (let i = 0; i < 5; i++) { const k = me.peekK ? me.peekK(i) : tPieceAt(me.idx + i); if (k) drawMino(ctx, k, PX, OY + 62 + i * 36, i ? 12 : 15, i ? 0.85 : 1); }
     } else {
       const n1 = me.pairQ ? me.pairQ[0] : pairAt(me.idx), n2 = me.pairQ ? me.pairQ[1] : pairAt(me.idx + 1);   // 퍼즐은 남은 쌍
-      if (n1) drawPair(ctx, PX, OY + 92, 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
-      if (n2) drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
+      if (n1) drawPair(ctx, PX, D ? OY + 134 : OY + 92, (D ? 0.84 : 1) * 40 / CS, n1[0], n1[1], Math.sin(t / 300) * 2);   // 판 크기와 상관없이 같은 크기로
+      if (n2) drawPair(ctx, PX, D ? OY + 202 : OY + 182, (D ? 0.62 : 0.78) * 40 / CS, n2[0], n2[1], 0);
     }
   }
   {                                    // 홀드(뿌요·테트리스 공통)
@@ -304,12 +305,7 @@ function render(t) {
     }
     ctx.restore();
   }
-  if (game.vs && game.compact && game.fields[1]) {   // 세로 폰: 상대 얼굴·이름을 오른쪽 칸 위에 크게(상대 판은 작게 그려져서)
-    const o = game.fields[1], tn = o.tone || TONES.blue;
-    slab(ctx, PX - 72, 6, 144, 66, tn, 5);
-    drawCharFace(ctx, o.char || 'lumi', PX - 38, 39, 56, moodOf(o));
-    outlined(ctx, o.name, PX + 26, 39, Math.min(17, 110 / Math.max(2, o.name.length)), '#fff', tn.d, 5);
-  }
+  if (game.vs && game.compact && game.fields[1]) drawVsPortrait(ctx, game.fields[1], PX - 74, 2, 148, OY + 40, t);   // 세로 폰: 상대 초상(상반신·표정·이름)
   if (game.vs && game.compact) {             // 세로 폰: VS 엠블럼 대신 상대 판(작게). 시리즈·공격력은 한 줄로
     const sr = game.series, bits = [];
     if (sr) bits.push(`${sr.me} : ${sr.op}`);

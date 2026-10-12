@@ -371,9 +371,9 @@ class FField {
   }
 }
 // '다음' 칸: 퓨전 조각 미리보기
-function drawFusionNext(c, me, t) {
-  for (let i = 0; i < 4; i++) {
-    const pc = fuPieceAt(me.idx + i), y = OY + 70 + i * 46, s = i ? 0.8 : 1;
+function drawFusionNext(c, me, t, y0 = OY + 70, n = 4) {
+  for (let i = 0; i < n; i++) {
+    const pc = fuPieceAt(me.idx + i), y = y0 + i * 46, s = i ? 0.8 : 1;
     if (pc.t === 'm') drawMino(c, pc.k, PX, y, (i ? 11 : 14), i ? 0.85 : 1);
     else { c.save(); c.translate(PX, y); c.scale(0.55 * s * 40 / CS, 0.55 * s * 40 / CS); drawPuyos(c, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: pc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: pc.ab[0] }], []); c.restore(); }
   }

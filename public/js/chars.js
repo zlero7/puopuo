@@ -38,9 +38,9 @@ function charAi(base, ch, kind) {
 
 /* ---------- 캐릭터 그림 ----------
    img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 300×354 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
-   모두 CHARS 순서대로 가로 한 줄 */
-const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image() } : null;
-const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128] };
+   chars_vs.webp: 대전 초상(배경 포함 상반신) 240×176 · 모두 CHARS 순서대로 가로 한 줄 */
+const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image(), vs: new Image() } : null;
+const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128], vs: [240, 176] };
 if (CHAR_IMG) for (const k in CHAR_IMG) {
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
   CHAR_IMG[k].src = `img/chars_${k}.webp`;
@@ -70,6 +70,55 @@ function moodOf(f) {
   const g = f.grid, top = g ? g.findIndex(row => row.some(v => v)) : -1;          // 판이 위쪽까지 차면 걱정
   if (top >= 0 && top <= (f.kind === 'puyo' ? 3 : 6)) return FACE.worry;
   return FACE.calm;
+}
+// 대전 초상(세로 폰에서 상대): 상반신 그림 + 지금 표정 · 이름 띠. 연쇄 중엔 금빛으로 들썩, 위험하면 빨갛게 떨림, 지면 흑백
+function drawVsPortrait(c, f, x, y, w, h, t) {
+  const ch = charOf(f.char || 'lumi'), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), mood = moodOf(f);
+  const lost = game.state === 'over' ? !f.won : f.dead, won = game.state === 'over' && f.won;
+  const hype = !lost && mood === FACE.hype, worry = !lost && mood === FACE.worry, k = Math.min(14, w * 0.08);
+  const poly = (x, y, w, h, k) => { c.beginPath(); c.moveTo(x + k, y); c.lineTo(x + w, y); c.lineTo(x + w - k, y + h); c.lineTo(x, y + h); c.closePath(); };
+  c.save();
+  if (worry) c.translate(Math.sin(t / 28) * 1.6, Math.cos(t / 37) * 0.8);
+  c.fillStyle = 'rgba(0,0,0,0.18)'; poly(x, y + 6, w, h, k); c.fill();
+  const edge = hype || won ? '#ffb000' : worry && Math.sin(t / 110) > 0 ? '#e8283c' : ch.d;
+  c.fillStyle = edge; poly(x, y, w, h, k); c.fill();
+  c.fillStyle = '#fff'; poly(x + 4, y + 4, w - 8, h - 8, k * 0.9); c.fill();
+  c.save(); poly(x + 7, y + 7, w - 14, h - 14, k * 0.85); c.clip();
+  const ix = x + 7, iy = y + 7, iw = w - 14, ih = h - 14;
+  if (charImgOk('vs')) {
+    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sw = 240 / z, sh = sw * ih / iw;
+    if (lost) c.filter = 'grayscale(1) brightness(0.8)';
+    c.drawImage(CHAR_IMG.vs, i * 240 + (240 - sw) / 2, Math.max(0, (176 - sh) * 0.35), sw, Math.min(176, sh), ix, iy, iw, ih);
+    c.filter = 'none';
+  } else { c.fillStyle = ch.c; c.fillRect(ix, iy, iw, ih); drawChar(c, ch.id, ix + iw / 2, iy + ih / 2, ih * 0.9); }
+  if (hype) {                                   // 연쇄: 금빛 집중선
+    c.save(); c.globalAlpha = 0.5; c.strokeStyle = '#fff6b0'; c.lineWidth = 2;
+    for (let a = 0; a < 14; a++) { const r = a / 14 * Math.PI * 2 + t / 400, cx = ix + iw / 2, cy = iy + ih / 2; c.beginPath(); c.moveTo(cx + Math.cos(r) * iw * 0.42, cy + Math.sin(r) * ih * 0.5); c.lineTo(cx + Math.cos(r) * iw, cy + Math.sin(r) * iw); c.stroke(); }
+    c.restore();
+  }
+  if (worry) { c.fillStyle = `rgba(232,40,60,${0.16 + 0.1 * Math.sin(t / 110)})`; c.fillRect(ix, iy, iw, ih); }
+  const g = c.createLinearGradient(0, iy + ih * 0.55, 0, iy + ih); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(20,16,50,0.55)');
+  c.fillStyle = g; c.fillRect(ix, iy, iw, ih);
+  c.restore();
+  // 이름 띠(비스듬히) · 표정 배지
+  c.save(); c.translate(x + w * 0.4, y + h - 12); c.rotate(-0.06);
+  const nw = Math.min(w * 0.78, 20 + f.name.length * 15);
+  c.fillStyle = ch.d; poly(-nw / 2 - 3, -14, nw + 6, 28, 8); c.fill();
+  c.fillStyle = ch.c; poly(-nw / 2, -11, nw, 22, 7); c.fill();
+  outlined(c, f.name, 0, 1, Math.min(17, (nw - 10) / Math.max(2, f.name.length) * 1.1), '#fff', ch.d, 5);
+  c.restore();
+  drawCharFace(c, ch.id, x + w - 24, y + h - 22, 38, mood);
+  if (hype && (f.chain || 0) >= 2) {            // 지금 연쇄 수
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); const sc = 1 + 0.08 * Math.sin(t / 70); c.scale(sc, sc);
+    outlined(c, `${f.chain}연쇄!`, 0, 0, 20, '#ffe066', '#c2410c', 6); c.restore();
+  } else if (worry) {
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); c.globalAlpha = 0.75 + 0.25 * Math.sin(t / 110);
+    outlined(c, '위험!', 0, 0, 20, '#fff', '#e8283c', 6); c.restore();
+  } else if (won || lost && game.state === 'over') {
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12);
+    outlined(c, won ? '승리' : '패배', 0, 0, 20, won ? '#ffe066' : '#fff', won ? '#c2410c' : '#4b4a5e', 6); c.restore();
+  }
+  c.restore();
 }
 // 카드(캐릭터 고르기 화면)
 function drawCharCard(c, id, x, y, w, h) {
