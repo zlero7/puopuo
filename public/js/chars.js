@@ -39,7 +39,7 @@ function charAi(base, ch, kind) {
 /* ---------- 캐릭터 그림 ----------
    img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 300×354 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
    모두 CHARS 순서대로 가로 한 줄 */
-const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image() } : null;
+const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image() } : null;
 const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128] };
 if (CHAR_IMG) for (const k in CHAR_IMG) {
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
@@ -50,6 +50,26 @@ const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWi
 function charImg(c, k, id, x, y, w, h) {
   const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
   c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
+}
+// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(96×96) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
+const FACE = { calm: 0, hype: 1, joy: 2, worry: 3 };
+function drawCharFace(c, id, x, y, size, expr = 0) {
+  if (!charImgOk('face')) { drawChar(c, id, x, y, size, expr === 3 ? 'sad' : 'happy'); return; }
+  const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), h = size / 2, r = size * 0.2;
+  c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.fillStyle = '#fff'; c.fill(); c.clip();
+  c.drawImage(CHAR_IMG.face, expr * 96, i * 96, 96, 96, x - h, y - h, size, size); c.restore();
+  c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
+  c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
+}
+// 지금 판 상황에 맞는 표정: 끝나면 이긴 쪽 아주 기쁨 · 진 쪽 걱정, 연쇄 중엔 신남, 방해가 많이 쌓였거나 위험하면 걱정
+function moodOf(f) {
+  if (game.state === 'over') return f.won ? FACE.joy : f.dead ? FACE.worry : FACE.calm;
+  if (f.dead) return FACE.worry;
+  if (f.cut || (f.chain || 0) >= 2) return FACE.hype;
+  if (f.pending >= 12 || f.dangerOn) return FACE.worry;
+  const g = f.grid, top = g ? g.findIndex(row => row.some(v => v)) : -1;          // 판이 위쪽까지 차면 걱정
+  if (top >= 0 && top <= (f.kind === 'puyo' ? 3 : 6)) return FACE.worry;
+  return FACE.calm;
 }
 // 카드(캐릭터 고르기 화면)
 function drawCharCard(c, id, x, y, w, h) {
@@ -112,7 +132,7 @@ function drawChar(c, id, x, y, size, mood = 'happy') {
 function cutIn(f, level) {
   if (!f.char) return;
   const ch = charOf(f.char), line = ch.lines[Math.min(3, Math.max(0, level - 1))];
-  f.cut = { id: ch.id, line, age: 0, dur: 1100 };
+  f.cut = { id: ch.id, line, age: 0, dur: 1100, big: level >= 3 };
   if (!f.remote || game.mode === 'replay') voice(ch, level);
 }
 function voice(ch, level) {
@@ -125,7 +145,7 @@ function drawCut(c, f) {
   const e = k.age / k.dur, inX = Math.min(1, k.age / 160), outA = e > 0.8 ? 1 - (e - 0.8) / 0.2 : 1, ch = charOf(k.id);
   c.save(); c.globalAlpha = outA; c.translate(f.ox + f.fw / 2 + (1 - inX) * -120, f.oy + 70);
   slab(c, -f.fw / 2 + 10, -34, f.fw - 20, 68, { c: ch.col, d: ch.d }, 5);
-  drawCharBust(c, ch.id, -f.fw / 2 + 52, 0, 62);
+  drawCharFace(c, ch.id, -f.fw / 2 + 52, 0, 60, k.big ? FACE.joy : FACE.hype);   // 컷인: 신난 얼굴(큰 연쇄면 아주 기쁜 얼굴)
   outlined(c, k.line, 26, 2, Math.min(30, 300 / Math.max(3, k.line.length)), '#fff', ch.d, 7);
   c.restore();
 }

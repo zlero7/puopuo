@@ -358,12 +358,13 @@ function render(t) {
   ctx.restore();
   for (const f of game.fields) inMini(ctx, f, () => {   // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
     if (!f.char) return;
-    drawChar(ctx, f.char, f.ox + 12, 18, 38, f.dead ? 'sad' : 'happy');
+    drawCharFace(ctx, f.char, f.ox + 14, 18, 46, moodOf(f));   // 이름표 얼굴: 상황에 따라 표정
     drawCut(ctx, f);
     if (game.state === 'over' && game.vs && (f.won || f.dead)) {
       const ch = charOf(f.char), txt = f.won ? ch.win : ch.lose;
       slab(ctx, f.ox + 16, OY + FH * 0.66, f.fw - 32, 40, { c: '#ffffff', d: ch.d }, 4);
-      outlined(ctx, txt, f.ox + f.fw / 2, OY + FH * 0.66 + 20, Math.min(19, 300 / txt.length + 4), '#22212e', '#fff', 4);
+      outlined(ctx, txt, f.ox + f.fw / 2 + 26, OY + FH * 0.66 + 20, Math.min(19, 260 / txt.length + 4), '#22212e', '#fff', 4);
+      drawCharFace(ctx, f.char, f.ox + 44, OY + FH * 0.66 + 18, 62, f.won ? FACE.joy : FACE.worry);   // 이긴 쪽 아주 기쁜 얼굴 · 진 쪽 걱정하는 얼굴
     }
   });
   if (game.rule === 'bigbang') drawBigBang(ctx);
