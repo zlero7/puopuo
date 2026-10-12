@@ -69,6 +69,7 @@ function recordGame() {
   stats.history = stats.history.slice(0, 100);
   saveStats();
   if (cat === 'ranked' && game.rkPending) attachRank(game.rkPending);   // 랭크전 결과가 이 판 기록보다 먼저 왔음
+  if (cat === 'ranked' && game.ffPending) forfeitRow(game.ffPending);   // 상대가 이 판 도중에 기권: 판 기록 다음에 기권승 한 줄
 }
 const fmtTime = ms => { const m = Math.round(ms / 60000); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };
 const wins = () => stats.ai.reduce((a, x) => a + x.w, 0) + stats.online.w;

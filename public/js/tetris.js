@@ -11,6 +11,8 @@
      연쇄가 끝나면 한 번에 아래에서 구멍 한 칸짜리 줄로 올라옴(한 번에 최대 7줄) */
 const TW = 10, TH = 22, TVIS = 20, TC = 28;
 const TGX = (SW - TW * TC) / 2, TGY = FH - TVIS * TC;
+// 고정 지연: 바닥에 닿으면 1초 뒤 고정. 바닥에서 이동·회전하면 남은 시간이 0.5초로 다시 채워짐(블록 하나에 15번까지) — T스핀 넣을 시간
+const LOCK_DELAY = 1000, LOCK_RESET = 500;
 const TKEYS = ['', 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'G'];
 const TCOL = { I: '#22cfee', O: '#ffd22e', T: '#b35af0', S: '#46d457', Z: '#ff4658', J: '#2f68f0', L: '#ff9324', G: '#a9a6bd' };
 const TSHAPE = { I: ['....', 'XXXX', '....', '....'], O: ['XX', 'XX'], T: ['.X.', 'XXX', '...'], S: ['.XX', 'XX.', '...'],
@@ -201,7 +203,7 @@ class TField {
     if (!this.valid(p)) { if (this.bbOn()) { this.bbFinish(); return; } if (game.rule === 'party') { partyReset(this); return; } this.die(); return; }
     const item = nextItem(this); if (item) p.it = { i: rnd(4), k: item };      // 파티: 조각의 한 칸에 ★아이템
     if (this.valid({ ...p, y: 1 })) p.y = 1;
-    this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.lowest = p.y; this.lastRot = false; this.soft = false;
+    this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.landed = false; this.lowest = p.y; this.lastRot = false; this.soft = false;
     if (!this.human) this.planAI();
   }
   die() {
@@ -218,7 +220,8 @@ class TField {
     this.canHold = false; if (this.human) sfx.hold();
   }
   onGround() { return !this.valid({ ...this.cur, y: this.cur.y + 1 }); }
-  lockReset() { if (this.onGround() && this.resets < 15) { this.lockT = 0; this.resets++; } }
+  // 이동·회전: 한 번이라도 바닥에 닿은 조각이면 남은 시간이 0.5초보다 적을 때 0.5초로 채움(조각 하나에 15번까지, 회전으로 잠깐 떠도 횟수에 들어감)
+  lockReset() { if (this.landed && this.resets < 15) { this.lockT = Math.min(this.lockT, LOCK_DELAY - LOCK_RESET); this.resets++; } }
   moveX(d) {
     if (this.phase !== 'drop') return false;
     const p = { ...this.cur, x: this.cur.x + d };
@@ -278,11 +281,11 @@ class TField {
       this.acc -= iv;
       if (this.valid({ ...this.cur, y: this.cur.y + 1 })) {
         this.cur.y++; this.lastRot = false; if (this.soft && this.human) this.score++;
-        if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; }
+        if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; this.lockT = 0; }   // 더 아래 줄로 내려가면 시간·횟수 새로
       } else { this.acc = 0; break; }
     }
-    if (this.onGround()) { this.lockT += dt; if (this.lockT >= 500) this.lock(false); }
-    else this.lockT = 0;
+    if (this.onGround()) { this.landed = true; this.lockT += dt; if (this.lockT >= LOCK_DELAY) this.lock(false); }
+    else if (!this.landed) this.lockT = 0;      // 닿은 뒤 회전으로 잠깐 뜬 동안은 시간이 멈춰 있을 뿐 처음으로 돌아가지 않음
   }
 
   // T스핀 판정: 3코너 규칙, 앞쪽 두 칸이 모두 막혔거나 5번째 킥이면 정식, 아니면 미니
@@ -556,7 +559,7 @@ class TField {
     else {                                             // 연속된 내리기는 한 번에(소프트드롭)
       let n = 0; while (path[n] === 'D') n++;
       for (let i = 0; i < n && this.valid({ ...this.cur, y: this.cur.y + 1 }); i++) { this.cur.y++; this.lastRot = false; }
-      if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; }
+      if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; this.lockT = 0; }
     }
   }
 

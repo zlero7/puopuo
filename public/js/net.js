@@ -36,9 +36,13 @@ function onNet(m) {
       if (game.mode !== 'online' || !game.ranked) break;
       game.rankRes = m;
       // 내 기록의 이번 판 줄에 RP 변화 · 상대 티어를 붙임(마지막 판이 아직 안 끝났으면 기록할 때 붙임)
-      if (game.recorded) attachRank(m); else game.rkPending = m;
+      if (m.why) { if (game.state === 'play' && !game.recorded) game.ffPending = m; else forfeitRow(m); }   // 기권·다음 판 안 함으로 끝남: 판 기록과 따로 '기권승/기권패' 한 줄(판이 끝나 기록된 뒤에)
+      else if (game.recorded) attachRank(m); else game.rkPending = m;
       if (!overlay.classList.contains('hidden')) {
-        $('ovSub').textContent = rankLine(m); if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m);
+        $('ovSub').textContent = rankSub(m);
+        if (m.why) $('ovTitle').textContent = rankTitle(m) || (m.win ? '랭크전 승리!' : '랭크전 패배');
+        else if (rankTitle(m)) $('ovTitle').textContent = rankTitle(m);
+        $('resultBox').className = 'result t-' + (m.win ? 'yellow' : 'blue');
         game.autoNextT = 0; overlayBtns('menu'); showRankRes(m); rankFx(m);
       }
       break;
@@ -61,7 +65,7 @@ function onNet(m) {
         const order = [m.you, ...m.styles.map((_, i) => i).filter(i => i !== m.you)];
         game.netN = m.styles.length;
         if (m.ranked) { if (!game.ranked || game.rankRes) game.series = null; game.ranked = true; game.rankRes = null; } else game.ranked = false;
-        game.mySeat = m.you; game.rjudge = null; game.rkPending = null;
+        game.mySeat = m.you; game.rjudge = null; game.rkPending = null; game.rankLeft = false; game.ffPending = null;
         game.botOpp = m.bot && CHARS.some(c => c.id === m.bot.char) ? { name: String(m.bot.name).slice(0, 10), char: m.bot.char, lv: +m.bot.lv || 0 } : null;
         start('online', m.seed, { me: m.styles[m.you], op: m.styles[order[1]], ops: order.slice(2).map(i => m.styles[i]) }, m.board, m.rule || 'tsu');
         game.seatField = {}; order.forEach((s, i) => { game.fields[i].seat = s; game.seatField[s] = game.fields[i]; game.fields[i].rankEm = m.ranks ? m.ranks[s] : null; });
@@ -79,7 +83,7 @@ function onNet(m) {
       game.oppLeft = true; game.resetOnline = true;
       if (game.state === 'over' || (game.fields[1] && game.fields[1].dead)) {   // 이미 끝난 판(기권 포함): 결과는 그대로, 다시 하기만 막음
         game.net = false;
-        if (!overlay.classList.contains('hidden')) { overlayBtns('menu'); $('ovSub').textContent += ' · 상대가 나갔습니다'; }
+        if (!overlay.classList.contains('hidden')) { overlayBtns('menu'); if (!game.rankRes) $('ovSub').textContent += ' · 상대가 나갔습니다'; }
       } else if (game.net) { game.net = false; showMessage('상대가 나갔습니다', '메뉴에서 새 대전을 시작하세요.'); }
       break;
     case 'g': onGame(m.d, m.f); break;
@@ -129,7 +133,7 @@ $('bJoin').addEventListener('click', () => {
 $('code').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') $('bJoin').click(); });
 $('srv').addEventListener('keydown', e => e.stopPropagation());
 $('bRematch').addEventListener('click', () => { nsend({ t: 'ready', style: stats.style || 'puyo' }); $('ovSub').textContent = '상대를 기다리는 중…'; });
-$('bLeave').addEventListener('click', () => { nsend({ t: 'leave' }); game.net = false; openMenu('vs', 't-quick'); });
+$('bLeave').addEventListener('click', () => { if (rankLeave()) return; nsend({ t: 'leave' }); game.net = false; openMenu('vs', 't-quick'); });
 
 document.querySelectorAll('#pad button').forEach(btn => {
   const k = btn.dataset.k;
@@ -151,10 +155,21 @@ function attachRank(m) {
   if (!h || h.cat !== 'ranked' || h.rk) return;
   h.rk = { d: m.d, event: m.event, placing: m.event === 'placed' || m.placing, after: m.text, group: m.group, div: m.div, opp: m.opp, score: m.score }; saveStats();
 }
+const rankSub = m => rankLine(m) + (m.why ? ` · ${m.win ? '상대 기권' : '기권'}` : '');
+// 기권으로 끝난 시리즈: 기록에 따로 한 줄(승패 · 시리즈 점수 · RP 변화)
+function forfeitRow(m) {
+  game.rkPending = null; game.ffPending = null;
+  stats = loadStats();                                 // 승패 횟수는 판마다 이미 셌으니 더하지 않음
+  const me = game.fields[0], op = game.fields[1];
+  stats.history.unshift({ d: Date.now(), m: `랭크전 · ${op ? op.name : '상대'} · ${m.win ? '상대 기권' : '기권'}`, r: m.win ? 'w' : 'l', sc: 0, ch: 0, k: me && me.kind === 'tetris' ? 't' : 'p', rp: null, cat: 'ranked',
+    mc: (me && me.char) || 'lumi', oc: [(op && op.char) || 'lumi'], on: op ? op.name : '', pl: null, sr: m.score,
+    rk: { d: m.d, event: m.event, placing: m.event === 'placed' || m.placing, after: m.text, group: m.group, div: m.div, opp: m.opp, score: m.score } });
+  stats.history = stats.history.slice(0, 100); saveStats();
+}
 // 화면에서 판이 끝난 뒤 서버 판정이 왔을 때: 승패가 다르면 서버 쪽으로 고치고(기록·결과 화면 포함) 시리즈 점수 맞춤
 function fixOver(m) {
   const me = game.fields[0], win = m.loser !== game.mySeat;
-  if (!game.ranked || game.mode !== 'online' || !me) return;
+  if (!game.ranked || game.mode !== 'online' || !me || game.rankLeft) return;   // 내가 기권하고 나가는 중이면 기권 결과 화면 유지
   const was = `${!!me.won}${game.series ? game.series.me + ':' + game.series.op : ''}`;
   syncSeries();
   if (!!me.won !== win) {

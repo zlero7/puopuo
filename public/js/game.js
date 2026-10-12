@@ -87,7 +87,7 @@ function inMini(c, f, fn) {
 }
 function fit() {
   const pad = document.getElementById('pad');
-  game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
   LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW);
   const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;

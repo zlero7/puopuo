@@ -109,6 +109,7 @@ class FField {
     this.pops = 0; this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lines = 0; this.level = 1;
     this.phase = 'none'; this.cur = null; this.particles = []; this.texts = []; this.trails = []; this.shake = 0; this.flash = 0; this.hit = 0; this.trayBump = 0;
     this.dead = false; this.won = false; this.soft = false; this.lastDir = 0; this.das = 0; this.rep = 0; this.acc = 0; this.lockT = 0; this.resets = 0;
+    this.landed = false; this.lowest = 0; this.lastRot = false; this.lastKick = 0; this.tspin = 0; this.blockedAt = 0; this.holdPc = null; this.canHold = true;
     this.queue = []; this.net = null; this.aiT = 0; this.tgt = null; this.resT = 0; this.flashCells = null; this.sentNow = 0;
   }
   encode() { return this.grid.map(r => r.map(fuEnc).join('')).join(''); }
@@ -118,30 +119,49 @@ class FField {
 
   spawn() {
     if (this.remote) { this.phase = 'wait'; this.cur = null; return; }
-    const pc = fuPieceAt(this.idx++);
+    this.spawnPc(fuPieceAt(this.idx++)); this.canHold = true;
+  }
+  spawnPc(pc) {
     const p = pc.t === 'p' ? { t: 'p', x: 4, y: 1, o: 0, a: pc.ab[0], b: pc.ab[1] } : { t: 'm', k: pc.k, x: pc.k === 'O' ? 4 : 3, y: 0, r: 0 };
     if (!this.fits(p) || (p.t === 'm' && fuMinoCells(p).some(([x, y]) => this.grid[y][x]))) { this.die(); return; }
+    if (p.t === 'm' && this.fits({ ...p, y: 1 }) && !fuMinoCells({ ...p, y: 1 }).some(([x, y]) => this.grid[y][x])) p.y = 1;   // 테트리스처럼 한 줄 아래에서 나와 바로 보이게
     this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.soft = false; this.chainN = 0;
+    this.landed = false; this.lowest = p.y; this.lastRot = false; this.lastKick = 0; this.blockedAt = 0;
     if (!this.human) this.planAI();
+  }
+  // 홀드: 지금 조각(뿌요 쌍이든 블록이든)을 맡기고 맡긴 조각(없으면 다음 조각)을 꺼냄. 한 번 놓을 때까지 한 번만
+  hold() {
+    if (this.phase !== 'drop' || !this.cur || !this.canHold) return;
+    const q = this.cur, keep = q.t === 'p' ? { t: 'p', ab: [q.a, q.b] } : { t: 'm', k: q.k };
+    const next = this.holdPc || fuPieceAt(this.idx++);
+    this.holdPc = keep; this.spawnPc(next); this.canHold = false;
+    if (this.human) sfx.rot();
   }
   fits(p) { return p.t === 'p' ? fuPairFits(this.grid, p) : fuMinoFits(this.grid, p); }
   die() { if (this.dead) return; this.dead = true; this.phase = 'dead'; this.cur = null; if (!this.remote) emit(this, { t: 'dead' }); }
-  moveX(d) { if (this.phase !== 'drop') return false; const p = { ...this.cur, x: this.cur.x + d }; if (!this.fits(p)) return false; this.cur = p; if (this.onGround()) this.lockReset(); if (this.human) sfx.move(); return true; }
+  moveX(d) { if (this.phase !== 'drop') return false; const p = { ...this.cur, x: this.cur.x + d }; if (!this.fits(p)) return false; this.cur = p; this.lastRot = false; this.lockReset(); if (this.human) sfx.move(); return true; }
   rotate(dir) {
     if (this.phase !== 'drop') return false;
     const q = this.cur;
     if (q.t === 'p') {
       const o = (q.o + dir + 4) % 4;
-      for (const p of [{ ...q, o }, { ...q, o, x: q.x - DX[o], y: q.y - DY[o] }]) if (this.fits(p)) { this.cur = p; if (this.human) sfx.rot(); return true; }
+      for (const p of [{ ...q, o }, { ...q, o, x: q.x - DX[o], y: q.y - DY[o] }]) if (this.fits(p)) { this.cur = p; this.lockReset(); if (this.human) sfx.rot(); return true; }
+      // 양옆이 막혔으면 빠르게 두 번 눌러 반 바퀴(퀵턴), 바닥에 닿아 있으면 한 칸 밀어 올림
+      const now = performance.now();
+      if (this.human && now - this.blockedAt > 350) { this.blockedAt = now; if (this.human) sfx.move(); return false; }
+      this.blockedAt = 0;
+      const o2 = (q.o + 2) % 4;
+      for (const p of [{ ...q, o: o2 }, { ...q, o: o2, x: q.x - DX[o2], y: q.y - DY[o2] }]) if (this.fits(p)) { this.cur = p; this.lockReset(); if (this.human) sfx.rot(); return true; }
       return false;
     }
     if (q.k === 'O') return false;
     const to = (q.r + dir + 4) % 4, kicks = (q.k === 'I' ? K_I : K_JLSTZ)[`${q.r}>${to}`];
-    for (const [kx, ky] of kicks) { const p = { ...q, r: to, x: q.x + kx, y: q.y - ky }; if (this.fits(p)) { this.cur = p; this.lockReset(); if (this.human) sfx.rot(); return true; } }
+    for (let i = 0; i < kicks.length; i++) { const [kx, ky] = kicks[i], p = { ...q, r: to, x: q.x + kx, y: q.y - ky }; if (this.fits(p)) { this.cur = p; this.lastRot = true; this.lastKick = i; this.lockReset(); if (this.human) sfx.rot(); return true; } }
     return false;
   }
   onGround() { return !this.fits({ ...this.cur, y: this.cur.y + 1 }); }
-  lockReset() { if (this.resets < 15) { this.lockT = 0; this.resets++; } }
+  // 고정 시간(테트리스와 같음): 바닥에 닿으면 1초, 닿은 뒤 이동·회전하면 남은 시간이 0.5초로 채워짐(조각 하나에 15번까지)
+  lockReset() { if (this.landed && this.resets < 15) { this.lockT = Math.min(this.lockT, LOCK_DELAY - LOCK_RESET); this.resets++; } }
   hardDrop() { if (this.phase !== 'drop') return; let n = 0; while (!this.onGround()) { this.cur.y++; n++; } if (this.human) this.score += n * 2; this.lock(); }
 
   update(dt, active) {
@@ -160,18 +180,27 @@ class FField {
       const inp = game.inp[this.pi || 0];
       this.soft = inp.down;
       const dir = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
-      if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }
-      else if (dir) { this.das += dt; if (this.das > 170) { this.rep += dt; while (this.rep >= 40) { this.rep -= 40; this.moveX(dir); } } }
+      if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }   // 이동 속도는 테트리스와 같음
+      else if (dir) { this.das += dt; if (this.das > 167) { this.rep += dt; while (this.rep >= 33) { this.rep -= 33; if (!this.moveX(dir)) { this.rep = 0; break; } } } }
     } else { this.aiAct(dt); if (this.phase !== 'drop') return; }
-    const iv = this.soft ? 30 : this.fallIv();
+    const iv = this.soft ? Math.max(15, this.fallIv() / 20) : this.fallIv();
     this.acc += dt;
-    while (this.acc >= iv) { this.acc -= iv; if (!this.onGround()) { this.cur.y++; if (this.soft && this.human) this.score++; } else { this.acc = 0; break; } }
-    if (this.onGround()) { this.lockT += dt; if (this.lockT >= (this.cur.t === 'p' ? 250 : 500)) this.lock(); } else this.lockT = 0;
+    while (this.acc >= iv) {
+      this.acc -= iv;
+      if (!this.onGround()) {
+        this.cur.y++; this.lastRot = false; if (this.soft && this.human) this.score++;
+        if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; this.lockT = 0; }   // 더 아래 줄로 내려가면 시간·횟수 새로
+      } else { this.acc = 0; break; }
+    }
+    if (this.onGround()) { this.landed = true; this.lockT += dt; if (this.lockT >= LOCK_DELAY) this.lock(); }
+    else if (!this.landed) this.lockT = 0;      // 닿은 뒤 회전으로 잠깐 뜬 동안은 시간이 멈춰 있을 뿐
   }
   lock() {
     const p = this.cur; this.cur = null;
+    this.tspin = p.t === 'm' ? tspinOf(this.grid, p, this.lastRot, this.lastKick) : 0;   // T스핀(테트리스와 같은 3코너 규칙, 뿌요도 막힌 칸으로 셈)
     if (p.t === 'p') { const [[x1, y1], [x2, y2]] = fuPairCells(p); this.grid[y1][x1] = { k: 'p', c: p.a }; this.grid[y2][x2] = { k: 'p', c: p.b }; }
     else if (fuPlaceMino(this.grid, fuMinoCells(p), TKEYS.indexOf(p.k))) { this.sync(); this.die(); return; }
+    if (this.tspin) { this.doubles++; this.score += this.tspin === 2 ? 400 : 100; }
     sfx.land(); this.chainN = 0; this.sentNow = 0;
     this.sync();
     this.phase = 'resolve'; this.resT = 60;
@@ -182,11 +211,12 @@ class FField {
     const rows = fuFullRows(this.grid);
     if (rows.length) {
       this.chainN++; this.lines += rows.length; this.pops += rows.length;
-      const units = FU_LINE_ATK[Math.min(rows.length, FU_LINE_ATK.length - 1)] + this.chainN;
+      const ts = this.chainN === 1 ? this.tspin : 0; this.tspin = 0;          // 놓자마자 지운 줄이 T스핀이면 공격 2배(미니는 그대로)
+      const units = (FU_LINE_ATK[Math.min(rows.length, FU_LINE_ATK.length - 1)] + this.chainN) * (ts === 2 ? 2 : 1);
       this.score += [0, 100, 300, 500, 800][Math.min(4, rows.length)] * this.chainN + 200 * Math.max(0, rows.length - 4);
       for (const r of rows) for (let c = 0; c < FW_W; c++) this.burst(c, r, '#ffffff');
       this.grid = fuRemoveRows(this.grid, rows);
-      this.texts.push({ txt: `${rows.length}줄!` + (this.chainN > 1 ? ` ${this.chainN}연쇄` : ''), x: SW / 2, y: FH * 0.45, age: 0, dur: 1100, col: '#7ff0ff', size: 30 });
+      this.texts.push({ txt: (ts ? `T스핀${ts === 1 ? ' 미니' : ''} ` : '') + `${rows.length}줄!` + (this.chainN > 1 ? ` ${this.chainN}연쇄` : ''), x: SW / 2, y: FH * 0.45, age: 0, dur: 1100, col: ts ? '#d8a6ff' : '#7ff0ff', size: 30 });
       sfx.tclear(rows.length, 0); this.attack(units); this.sync(); this.resT = 280; return;
     }
     const gs = fuGroups(this.grid);
@@ -201,6 +231,7 @@ class FField {
       this.texts.push({ txt: `${this.chainN}연쇄!`, x: SW / 2, y: FH * 0.35, age: 0, dur: 1100, col: CH_COL[(this.chainN - 1) % CH_COL.length], size: 30 + Math.min(this.chainN, 8) * 2 });
       sfx.pop(this.chainN); if (this.chainN >= 2) cutIn(this, this.chainN - 1); this.attack(units); this.sync(); this.resT = 380; return;
     }
+    if (this.tspin) { this.texts.push({ txt: `T스핀${this.tspin === 1 ? ' 미니' : ''}`, x: SW / 2, y: FH * 0.45, age: 0, dur: 1000, col: '#d8a6ff', size: 28 }); this.tspin = 0; }
     this.maxChain = Math.max(this.maxChain, this.chainN);
     if (this.chainN >= 2) this.chains2++;
     if (this.pending > 0 && !this.garbDone) { this.dropGarbage(); return; }
@@ -270,6 +301,20 @@ class FField {
   }
 
   /* ---------- 그리기 ---------- */
+  // 뿌요 쌍이 떨어질 자리(갈라져 떨어지는 것까지)
+  drawPairGhost(c, p, sY) {
+    const g = { ...p }; while (this.fits({ ...g, y: g.y + 1 })) g.y++;
+    const cells = fuPairCells(g).map(([x, y], i) => [x, y, i ? p.b : p.a]).sort((a, b) => b[1] - a[1]), top = {};
+    for (const [x] of cells) if (top[x] == null) { let r = 0; while (r < FW_H && !this.grid[r][x]) r++; top[x] = r; }
+    c.save();
+    for (const [x, , col] of cells) {
+      const r = --top[x]; if (r < FW_H - FW_VIS) continue;
+      const cx = TGX + (x + 0.5) * TC, cy = sY(r) + TC / 2;
+      c.globalAlpha = 0.85; c.strokeStyle = PAL[col].m; c.lineWidth = 2.5; c.beginPath(); c.arc(cx, cy, TC * 0.22, 0, Math.PI * 2); c.stroke();
+      c.globalAlpha = 0.35; c.fillStyle = PAL[col].s; c.fill();
+    }
+    c.restore();
+  }
   draw(t) {
     const c = ctx, tone = this.tone || TONES.red, gx = this.ox + TGX;
     c.save();
@@ -303,7 +348,10 @@ class FField {
         const gp = { ...p }; if (!this.remote) while (this.fits({ ...gp, y: gp.y + 1 })) gp.y++;
         if (!this.remote) for (const [x, y] of fuMinoCells(gp)) { c.save(); c.globalAlpha = 0.3; c.strokeStyle = TCOL[p.k]; c.lineWidth = 2; rr(c, TGX + x * TC + 3, sY(y) + 3, TC - 6, TC - 6, 4); c.stroke(); c.restore(); }
         for (const [x, y] of fuMinoCells(p)) if (y >= FW_H - FW_VIS - 1) drawBlock(c, TGX + x * TC, sY(y), TC, TCOL[p.k]);
-      } else if (p.t === 'p') { const [[x1, y1], [x2, y2]] = fuPairCells(p); drawCell(x1, y1, { k: 'p', c: p.a }); drawCell(x2, y2, { k: 'p', c: p.b }); }
+      } else if (p.t === 'p') {
+        if (!this.remote && stats.ghost !== false) this.drawPairGhost(c, p, sY);
+        const [[x1, y1], [x2, y2]] = fuPairCells(p); drawCell(x1, y1, { k: 'p', c: p.a }); drawCell(x2, y2, { k: 'p', c: p.b });
+      }
     }
     if (puyos.length) { c.save(); c.translate(TGX, TGY); c.scale(TC / CS, TC / CS); drawPuyos(c, puyos, []); c.restore(); }
     for (const q of this.particles) { c.globalAlpha = clamp(q.life / q.max, 0, 1); c.fillStyle = q.col; c.beginPath(); c.arc(q.x, q.y, q.r, 0, Math.PI * 2); c.fill(); }

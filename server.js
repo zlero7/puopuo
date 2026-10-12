@@ -46,6 +46,12 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       res.end(data);
     });
+  } else if (/^\/img\/[\w-]+\.(webp|png)$/.test(url)) {   // 그림(티어 엠블럼 등). 경로 탈출 불가: 영문·숫자·-·_ 이름만
+    fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': url.endsWith('.webp') ? 'image/webp' : 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    });
   } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
     let body;
@@ -136,7 +142,7 @@ function leave(ws) {
     return;
   }
   const who = room.seats.indexOf(ws);
-  if (room.ranked && !room.ranked.ended && room.players.length === 1) rankedEnd(room, room.seats.indexOf(room.players[0]));   // 랭크전 도중 나가면 나간 쪽 패배
+  if (room.ranked && !room.ranked.ended && room.players.length === 1) rankedEnd(room, room.seats.indexOf(room.players[0]), '나감');   // 랭크전 도중 나가면 나간 쪽 패배(기권)
   for (const p of room.players) send(p, { t: 'left', who, rest: room.players.length });
   if (room.players.length < 2) { rooms.delete(room.code); for (const p of room.players) p.room = null; }
 }

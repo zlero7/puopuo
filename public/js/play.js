@@ -28,8 +28,17 @@ function forfeit() {
     if (game.fields.length === 2) game.fields[1].won = true;
     game.state = 'over'; recordGame();
   }
+  if (rankLeave()) return;
   nsend({ t: 'leave' }); game.net = false;
   openMenu('vs', 't-quick');
+}
+// 랭크전 시리즈 도중 나가기(기권): 바로 메뉴로 가지 않고 서버가 보내는 결과(RP 변화)를 보여 줌. 처리했으면 true
+function rankLeave() {
+  if (game.mode !== 'online' || !game.ranked || game.rankRes || !net.ws) return false;
+  nsend({ t: 'leave' }); game.net = false; game.rankLeft = true; game.autoNextT = 0;
+  showResult('blue', '랭크전 기권', '결과 계산 중…', [], 'menu');
+  setTimeout(() => { if (game.rankLeft && !game.rankRes && game.state !== 'menu') $('ovSub').textContent = '서버 응답이 없어요. 메뉴로 나가도 기권패로 기록돼요.'; }, 4000);
+  return true;
 }
 function showResult(tone, title, sub, chips, kind) {
   $('resultBox').className = 'result t-' + tone;
@@ -200,7 +209,7 @@ function update(dt) {
       const win = f.find(x => x.won);
       showResult('purple', '리플레이 끝', `${d.getMonth() + 1}/${d.getDate()} 경기 · ${who}${win ? ` · ${win.name} 승리` : ''}`,
         f.map(x => [x.name, `${x.score.toLocaleString()}점 · ${x.kind === 'tetris' ? `${x.maxChain} REN` : `${x.maxChain}연쇄`}`]), 'replay');
-    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && !game.puzzle) {
+    } else if (game.overT > 1400 && overlay.classList.contains('hidden') && game.recorded && !game.puzzle && !game.rankLeft) {
       const me = game.fields[0], online = game.mode === 'online';
       const isT = me.kind === 'tetris';
       const chips = [['점수', me.score.toLocaleString()], isT ? ['최고 REN', `${me.maxChain} REN`] : ['최고 연쇄', `${me.maxChain}연쇄`],
@@ -213,10 +222,12 @@ function update(dt) {
         if (many) chips[3] = ['순위', `${me.place || 1}위 / ${game.fields.length}명`];
         const sr = game.series, done = sr && sr.to > 1 && (sr.me >= sr.to || sr.op >= sr.to), mid = sr && sr.to > 1 && !done;
         if (game.ranked && online) {             // 랭크전: 판 사이엔 자동으로 다음 판, 끝나면 레이팅 변화
-          showResult(me.won ? 'yellow' : 'blue', done && game.rankRes && rankTitle(game.rankRes) || (done ? (sr.me > sr.op ? '랭크전 승리!' : '랭크전 패배') : me.won ? '승리!' : '패배'),
-            done || game.oppLeft ? (game.rankRes ? rankLine(game.rankRes) : '레이팅 계산 중…') : `시리즈 ${sr.me} : ${sr.op} (2선승) · 랭크전`, chips, done || game.oppLeft || !net.ws ? 'menu' : 'rnext');
-          if ((done || game.oppLeft) && game.rankRes) { showRankRes(game.rankRes); rankFx(game.rankRes); }
-          if (!done && !game.oppLeft) game.autoNextT = 3500;
+          const rr = game.rankRes, end = done || game.oppLeft || !!(rr && rr.why);    // 기권으로 끝났으면 시리즈 결과
+          const won = rr && end ? rr.win : me.won;
+          showResult(won ? 'yellow' : 'blue', end && rr && rankTitle(rr) || (rr && rr.why ? (rr.win ? '랭크전 승리!' : '랭크전 패배') : done ? (sr.me > sr.op ? '랭크전 승리!' : '랭크전 패배') : me.won ? '승리!' : '패배'),
+            end ? (rr ? rankSub(rr) : '레이팅 계산 중…') : `시리즈 ${sr.me} : ${sr.op} (2선승) · 랭크전`, chips, end || !net.ws ? 'menu' : 'rnext');
+          if (end && rr) { showRankRes(rr); rankFx(rr); }
+          if (!end) game.autoNextT = 3500;
           return;
         }
         if (game.adv && !mid) {                  // 어드벤처: 별 저장 후 다음 스테이지 / 다시 도전
@@ -283,7 +294,10 @@ function render(t) {
     ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 294, 100, 48);
     outlined(ctx, game.mode === 'local' ? '홀드' : `홀드 (${hk})`, PX, OY + 274, 19, '#fff', TONES.purple.d, 5);
     ctx.save(); ctx.globalAlpha = me.canHold === false ? 0.35 : 1;
-    if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
+    if (me.kind === 'fusion' && me.holdPc) {    // 퓨전: 맡긴 조각(블록 또는 뿌요 쌍)
+      if (me.holdPc.t === 'm') drawMino(ctx, me.holdPc.k, PX, OY + 318, 15, 1);
+      else { ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS); drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[0] }], []); }
+    } else if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
     else if (!isT && me.holdP) {          // 홀드한 뿌요 쌍을 옆으로 눕혀 표시
       ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS);
       drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);

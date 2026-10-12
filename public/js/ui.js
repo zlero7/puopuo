@@ -184,7 +184,16 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
 $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = cleanName($('pName').value); $('pName').value = stats.name; saveStats(); });
 // 랭크 티어 엠블럼: 브론즈·실버·골드·플래티넘·다이아·마스터(-1은 배치 중). div: 세부 티어 1~3(별 개수)
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
+// 티어 엠블럼 그림(img/tiers.webp): 브론즈 1·2·3 → … → 다이아 3, 마스터 순서로 한 줄(칸마다 128px). 불러오기 전·배치 중은 아래 도형으로
+const TIER_IMG = new Image(), TIER_CELL = 128;
+TIER_IMG.onload = () => { if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
+TIER_IMG.src = 'img/tiers.webp';
 function drawTierEmblem(c, x, y, size, group, div) {
+  const i = group === 5 ? 15 : group >= 0 && group < 5 && div >= 1 && div <= 3 ? group * 3 + div - 1 : -1;
+  if (i >= 0 && TIER_IMG.complete && TIER_IMG.naturalWidth) {
+    const s = size * 1.1;                     // 그림 안 여백만큼 조금 크게
+    c.drawImage(TIER_IMG, i * TIER_CELL, 0, TIER_CELL, TIER_CELL, x - s / 2, y - s / 2, s, s); return;
+  }
   const [col, dk] = TIER_COL[group] || ['#cfd1dc', '#6d6b80'], r = size / 2;
   c.save(); c.translate(x, y);
   c.beginPath(); c.moveTo(0, -r); c.lineTo(r * 0.85, -r * 0.55); c.lineTo(r * 0.7, r * 0.45); c.lineTo(0, r); c.lineTo(-r * 0.7, r * 0.45); c.lineTo(-r * 0.85, -r * 0.55); c.closePath();
