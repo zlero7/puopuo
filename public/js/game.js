@@ -175,6 +175,7 @@ function build(mode) {
   // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
   const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
   game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
+  game.fields.forEach((f, i) => { if (i && !f.human && !f.remote && mode !== 'online') f.name = `AI ${charOf(f.char).name}`; });   // AI 상대 이름: 'AI 핀'처럼 캐릭터 이름(랭크전 AI와 같게)
   if (mode === 'online' && game.botOpp) { const b = game.fields[1]; b.char = game.botOpp.char; b.name = game.botOpp.name; b.isBot = true; }   // 랭크전 AI 상대: 판은 서버가 돌리고 이름·캐릭터만 여기서
   for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
