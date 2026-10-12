@@ -153,18 +153,16 @@ $('srv').addEventListener('keydown', e => e.stopPropagation());
 $('bRematch').addEventListener('click', () => { nsend({ t: 'ready', style: stats.style || 'puyo' }); $('ovSub').textContent = '상대를 기다리는 중…'; });
 $('bLeave').addEventListener('click', () => { if (rankLeave()) return; nsend({ t: 'leave' }); game.net = false; openMenu('vs', 't-quick'); });
 
-document.querySelectorAll('#pad button').forEach(btn => {
-  const k = btn.dataset.k;
+// 터치 버튼: #pad는 1P(로컬 대전) · 나, #pad2는 로컬 대전 2P. 다시 보기에선 ◀ ▶가 배속
+document.querySelectorAll('#pad button, #pad2 button').forEach(btn => {
+  const k = btn.dataset.k, pi = btn.closest('#pad2') ? 1 : 0, act = { down: 'soft', menu: 'pause' }[k] || k;
   btn.addEventListener('pointerdown', e => {
     e.preventDefault(); btn.classList.add('on');
     if (stats.vib !== false && navigator.vibrate) try { navigator.vibrate(8); } catch (_) {}   // 짧은 진동(안드로이드)
-    if (k === 'left' || k === 'right') playerAction(0, k, true); else if (k === 'down') playerAction(0, 'soft', true);
-    else if (k === 'hard') { const f = human(); if (f) f.hardDrop(); }
-    else if (k === 'menu') openPause();
-    else if (k === 'hold') { const f = human(); if (f && f.hold) f.hold(); }
-    else { const f = human(); if (f) f.rotate(k === 'cw' ? 1 : -1); }
+    if (game.mode === 'replay') { if (k === 'left' || k === 'right') replaySpeed(k === 'left' ? -1 : 1); else if (k === 'menu') openPause(); return; }
+    playerAction(pi, act, true);
   });
-  const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
+  const up = () => { btn.classList.remove('on'); if (game.mode !== 'replay' && (k === 'left' || k === 'right' || k === 'down')) playerAction(pi, act, false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
 // 랭크전 결과(RP 변화)를 기록의 이번 판 줄에 붙임

@@ -87,20 +87,28 @@ function miniBox(f) {
   const inRow = Math.min(2, ops - Math.floor(j / 2) * 2), col = j % 2;
   return { k, x: PX - (inRow * w + (inRow - 1) * 6) / 2 + col * (w + 6), y: MINI_Y + Math.floor(j / 2) * (CANVAS_H * k + 4) };
 }
-function miniPt(f, x, y) { const b = miniBox(f); return [b.x + (x - f.ox) * b.k, b.y + y * b.k]; }
+const slotOx = f => f.sx != null ? f.sx : f.ox;   // 판 칸 왼쪽(뿌요는 판이 칸보다 좁으면 가운데 정렬이라 칸 기준으로)
+function miniPt(f, x, y) { const b = miniBox(f); return [b.x + (x - slotOx(f)) * b.k, b.y + y * b.k]; }
+function miniBoard(f) { const b = miniBox(f); return { x: b.x + (f.ox - slotOx(f)) * b.k, y: b.y + OY * b.k, w: f.fw * b.k, h: FH * b.k, k: b.k }; }   // 작은 판의 실제 판 영역
 function inMini(c, f, fn) {
   if (!isMini(f)) { fn(); return; }
-  const b = miniBox(f); c.save(); c.translate(b.x, b.y); c.scale(b.k, b.k); c.translate(-f.ox, 0); fn(); c.restore();
+  const b = miniBox(f); c.save(); c.translate(b.x, b.y); c.scale(b.k, b.k); c.translate(-slotOx(f), 0); fn(); c.restore();
 }
 function fit() {
-  const pad = document.getElementById('pad');
-  game.compact = game.vs && game.fields.length >= 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
-  if (game.vs) VIEW_Y0 = game.compact ? -CTOP : (game.baseY0 || 0);   // 세로 폰: 위쪽에 초상 띠
-  game.narrow = window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  // 화면 폭: 모바일에서 화면을 돌린 직후엔 이전(넓은) 캔버스 때문에 innerWidth가 넓게 남아서 문서 폭(clientWidth)과 비교
+  const pad = document.getElementById('pad'), vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth), vh = window.innerHeight, portrait = vh > vw;
+  // 세로 화면(폰 · 태블릿): 내 판을 크게, 상대 판들은 오른쪽에 작게
+  // (로컬 대전은 두 사람 판을 같은 크기로 두려고 제외)
+  game.compact = game.vs && game.mode !== 'local' && game.fields.length >= 2 && ['tsu', 'fever', 'fusion', 'bigbang', 'party', 'swap'].includes(game.rule) && vw <= 1100 && portrait;
+  if (game.vs) VIEW_Y0 = game.compact ? -CTOP : (game.baseY0 || 0);   // 세로 화면: 위쪽에 초상 띠
+  game.narrow = vw <= 1100 && portrait;
   LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW) - (game.narrow ? (game.side || 0) + (game.sideR || 0) : 0);
-  const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
+  const pcs = getComputedStyle(pad), padSide = pcs.display !== 'none' && pcs.position === 'fixed';   // 가로 폰: 버튼이 양옆에 떠 있음
+  const pad2 = document.getElementById('pad2'), p2H = pad2 && getComputedStyle(pad2).display !== 'none' ? pad2.offsetHeight + 12 : 0;   // 로컬 대전 2P 버튼
+  const padH = (pcs.display === 'none' || padSide ? 0 : pad.offsetHeight + 16) + p2H;
+  const sideW = padSide ? 2 * ((pad.querySelector('button') || {}).offsetWidth || 0) * 2 + 60 : 0;   // 양옆 버튼 두 칸씩 + 여백
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;
-  const s = Math.max(0.2, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
+  const s = Math.max(0.2, Math.min(1.6, (vw - 16 - sideW) / LW, (vh - bands - padH) / viewH()));
   const rs = game.lowFx ? Math.max(1, s) : DPR * Math.max(1, s);   // 가볍게 모드: 내부 해상도 1배(느린 폰)
   if (cv.width !== Math.round(LW * rs) || cv.height !== Math.round(viewH() * rs)) { cv.width = Math.round(LW * rs); cv.height = Math.round(viewH() * rs); }
   game.rs = rs;
@@ -174,8 +182,10 @@ function build(mode) {
   if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
   // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
   const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
-  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
+  const prev = game.sameOpp && game.lastChars && game.lastChars.length === game.fields.length ? game.lastChars : null;
+  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || (prev && prev[i] !== f1.char && prev[i]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
   game.fields.forEach((f, i) => { if (i && !f.human && !f.remote && mode !== 'online') f.name = `AI ${charOf(f.char).name}`; });   // AI 상대 이름: 'AI 핀'처럼 캐릭터 이름(랭크전 AI와 같게)
+  game.lastChars = game.fields.map(f => f.char);
   if (mode === 'online' && game.botOpp) { const b = game.fields[1]; b.char = game.botOpp.char; b.name = game.botOpp.name; b.isBot = true; }   // 랭크전 AI 상대: 판은 서버가 돌리고 이름·캐릭터만 여기서
   for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
@@ -216,6 +226,7 @@ function start(mode, seed, styles, board, rule) {
   else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
+  game.sameOpp = game.keepSeries && !!game.series && !game.adv;   // 시리즈 다음 판: 같은 상대(캐릭터·이름 그대로)
   game.keepSeries = false;
   const sd = seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed;
   seedSeq(sd); game.replay = null;

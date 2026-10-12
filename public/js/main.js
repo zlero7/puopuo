@@ -26,12 +26,12 @@ function frame(ts) {
   try { step(ts); } catch (e) { if (frameErrs++ < 5) console.error(e); }
 }
 // 느린 기기 자동 감지: 게임 중 3초 평균 한 프레임이 26ms(약 38fps)보다 길면 '가볍게' 모드(설정에서 직접 켤 수도 있음)
-const perf = { t: 0, n: 0, sum: 0 };
+const perf = { t: 0, n: 0, sum: 0, base: 1e9 };   // base: 이 기기의 기본 프레임 간격(30Hz로 묶인 기기를 느린 기기로 오해하지 않게)
 function watchPerf(dt) {
-  if (game.state !== 'play' || game.lowFx) { perf.t = perf.n = perf.sum = 0; return; }
+  if (game.state !== 'play' || game.lowFx || stats.lowFx === false) { perf.t = perf.n = perf.sum = 0; return; }   // 설정에서 직접 끈 사람은 자동으로 켜지 않음
   if (dt > 250) return;   // 탭을 갔다 온 직후의 긴 프레임은 빼고
-  perf.t += dt; perf.n++; perf.sum += dt;
-  if (perf.t >= 3000) { if (perf.sum / perf.n > 26) { game.lowFx = true; fit(); } perf.t = perf.n = perf.sum = 0; }
+  perf.t += dt; perf.n++; perf.sum += dt; if (dt > 4) perf.base = Math.min(perf.base, dt);
+  if (perf.t >= 3000) { if (perf.sum / perf.n > Math.max(26, perf.base * 1.6)) { game.lowFx = true; fit(); } perf.t = perf.n = perf.sum = 0; }
 }
 function step(ts) {
   const dt = Math.min(50, ts - (last || ts)); last = ts;

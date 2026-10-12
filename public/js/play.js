@@ -268,11 +268,11 @@ function render(t) {
   const W = LW, rs = game.rs || DPR, sx = sideX();
   ctx.setTransform(rs, 0, 0, rs, sx * rs, -VIEW_Y0 * rs); ctx.clearRect(-sx, VIEW_Y0, W, viewH());
   if (cardTop()) {                       // 3~4인: 판 위(이름표 대신). 내 공격 대상 카드는 노란 테두리(눌러서 바꾸기)
-    const tg = game.fields[0] && game.fields[0].opp;
+    const tg = shownTarget(), ui = canPick();
     for (const f of game.fields) {
-      if (f === tg && !f.dead && game.state === 'play') { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 5; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t / 160); ctx.strokeRect(f.ox + 2, -game.top - 1, f.fw - 4, game.top + 40); ctx.restore(); }
+      if (f === tg && ui) { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 5; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t / 160); ctx.strokeRect(f.ox + 2, -game.top - 1, f.fw - 4, game.top + 40); ctx.restore(); }
       drawVsPortrait(ctx, f, f.ox + 8, 4 - game.top, f.fw - 16, game.top + 30, t);
-      if (f === tg && !f.dead) { ctx.save(); ctx.translate(f.ox + 52, 14 - game.top); ctx.rotate(-0.06); outlined(ctx, '공격 대상 ✔', 0, 0, 15, '#fff', '#22212e', 5); ctx.restore(); }
+      if (f === tg && ui) { ctx.save(); ctx.translate(f.ox + 52, 14 - game.top); ctx.rotate(-0.06); outlined(ctx, '공격 대상 ✔', 0, 0, 15, '#fff', '#22212e', 5); ctx.restore(); }
     }
   }
   else if (sx && game.fields.length === 2) {   // 2인: 이름표 옆(판 바깥)에 나와 상대
@@ -318,7 +318,7 @@ function render(t) {
     ctx.restore();
   }
   if (game.vs && game.compact && game.fields[1]) {   // 세로 폰: 위쪽 띠에 [내 초상 · VS · 상대 초상]. 3~4인은 상대 자리에 지금 공격 대상
-    const many = game.fields.length > 2, tg = many && me.opp && game.fields.includes(me.opp) ? me.opp : game.fields[1];
+    const many = game.fields.length > 2, tg = many && shownTarget() || game.fields[1], ui = many && canPick();
     const top = VIEW_Y0 + 4, ch = -VIEW_Y0 + 26, mx = (OX1 + 150 + PX - 74) / 2;
     drawVsPortrait(ctx, me, OX1, top, 150, ch, t);
     drawVsPortrait(ctx, tg, PX - 74, top, 148, ch, t);
@@ -331,15 +331,20 @@ function render(t) {
     const sr = game.series, bits = [];             // 시리즈 · 공격력은 VS 아래 한 줄
     if (sr) bits.push(`${sr.me} : ${sr.op}`);
     if (game.marginLv) bits.push(`×${(70 / targetPt()).toFixed(1)}`);
-    if (bits.length) { slab(ctx, mx - 44, top + ch * 0.62, 88, 26, TONES.white, 3); outlined(ctx, bits.join(' · '), mx, top + ch * 0.62 + 13, 15, '#22212e', '#fff', 4); }
-    if (many) {
+    let iy = top + ch * 0.6;
+    if (bits.length) { slab(ctx, mx - 44, iy, 88, 26, TONES.white, 3); outlined(ctx, bits.join(' · '), mx, iy + 13, 15, '#22212e', '#fff', 4); iy += 30; }
+    const ri = game.rule === 'bigbang' ? bigbangInfo() : game.rule === 'party' ? partyInfo() : null;   // 빅뱅 라운드·시간 / 파티 남은 시간
+    if (ri) { slab(ctx, mx - 56, iy, 112, 26, ri.tone, 3); outlined(ctx, ri.txt, mx, iy + 13, 14, '#fff', ri.tone.d, 4); }
+    if (ui) {
       ctx.save(); ctx.translate(PX, top + ch + 22); ctx.rotate(-0.04);   // 카드 아래 띠: 크게(눌러서 바꾸기)
       slab(ctx, -74, -17, 148, 34, TONES.yellow, 3);
       outlined(ctx, '공격 대상 ✔', 0, 1, 21, '#fff', TONES.yellow.d, 5);
       ctx.restore();
+    }
+    if (many) {
       for (const f of game.fields.slice(1)) {    // 작은 판마다 얼굴 · 공격 대상은 노란 테두리
-        const b = miniBox(f), w = SW * b.k;
-        if (f === tg && !f.dead) { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t / 160); ctx.strokeRect(b.x - 2, b.y + OY * b.k - 2, w + 4, FH * b.k + 4); ctx.restore(); }
+        const b = miniBox(f), r = miniBoard(f);
+        if (f === tg && ui) { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t / 160); ctx.strokeRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4); ctx.restore(); }
         if (f.char) drawChar(ctx, f.char, b.x + 10, b.y + 9, 20, f.dead ? 'sad' : 'happy');
       }
     }
@@ -359,10 +364,11 @@ function render(t) {
     ctx.fillStyle = gr; ctx.fillText('VS', 0, 3);
     ctx.restore();
     const sr = game.series;                    // 시리즈 점수(선승제 / 같은 상대와의 누적)
-    if (game.fields.length > 2 && me.opp && !me.dead && game.state === 'play') {   // 3~4인: 지금 공격 대상
-      slab(ctx, PX - 66, y + 50, 132, 54, me.opp.tone || TONES.blue, 4);
-      outlined(ctx, '공격 대상 ✔', PX, y + 64, 13, '#fff', (me.opp.tone || TONES.blue).d, 4);
-      outlined(ctx, me.opp.name, PX, y + 86, 20, '#fff', (me.opp.tone || TONES.blue).d, 5);
+    const stg = shownTarget();
+    if (game.fields.length > 2 && stg && canPick()) {   // 3~4인: 지금 공격 대상
+      slab(ctx, PX - 66, y + 50, 132, 54, stg.tone || TONES.blue, 4);
+      outlined(ctx, '공격 대상 ✔', PX, y + 64, 13, '#fff', (stg.tone || TONES.blue).d, 4);
+      outlined(ctx, stg.name, PX, y + 86, 20, '#fff', (stg.tone || TONES.blue).d, 5);
     } else if (sr) {
       slab(ctx, PX - 62, y + 50, 124, 46, TONES.white, 4);
       outlined(ctx, `${sr.me} : ${sr.op}`, PX, y + 74, 28, '#22212e', '#fff', 4);
@@ -410,11 +416,11 @@ function render(t) {
 }
 // 시작 연출: 각자 고른 스타일(뿌요뿌요/테트리스)과 VS, 준비→시작
 function drawIntro(t) {
-  const W = LW - sideX() * 2, k = game.introT, go = k <= 650;
+  const W = LW - sideX() - (sideX() ? game.sideR || 0 : 0), k = game.introT, go = k <= 650;   // 카드 자리를 뺀 판 영역 폭
   ctx.save();
   ctx.fillStyle = 'rgba(20,16,50,0.5)'; ctx.fillRect(-sideX(), VIEW_Y0, LW, viewH());
   if (!go) {
-    for (const f of game.fields) {
+    for (const f of game.fields) inMini(ctx, f, () => {   // 세로 폰의 작은 상대 판은 그 판 위에 작게
       const cx = f.ox + f.fw / 2, cy = OY + FH * 0.36, tone = f.tone || TONES.red;
       const e = Math.min(1, (2000 - k) / 260), off = (1 - e) * (f.ox < W / 2 ? -80 : 80);
       ctx.save(); ctx.translate(cx + off, cy); ctx.rotate(-0.05); ctx.globalAlpha = e;
@@ -422,7 +428,7 @@ function drawIntro(t) {
       outlined(ctx, f.name, 0, -18, 26, '#fff', tone.d, 7);
       outlined(ctx, STYLE_KO[f.kind], 0, 22, 34, '#ffe066', tone.d, 8);
       ctx.restore();
-    }
+    });
   }
   const msg = go ? '시작!' : '준비…', age = go ? 650 - k : 2000 - k;
   const sc = 0.6 + 0.4 * Math.min(1, age / 180) + (go ? 0.15 * Math.max(0, 1 - age / 200) : 0);
@@ -447,12 +453,14 @@ function choosePick(o) {
   if (!((me.chain || 0) > 0 || (me.chainN || 0) > 0 || me.atkOpen)) me.opp = o;
   try { tone(760, 0.05, 'square', 0.04); tone(1140, 0.07, 'square', 0.04, 1, 0.05); } catch (_) {}
 }
-const canPick = () => { const me = game.fields[0]; return game.state === 'play' && game.vs && game.fields.length >= 3 && me && me.human && !me.remote && !me.dead && game.mode !== 'local' && game.mode !== 'replay'; };
+// 화면에 보여 줄 공격 대상: 직접 고른 상대(연쇄 중이라 아직 안 바뀌었어도) → 지금 대상
+function shownTarget() { const me = game.fields[0]; if (!me) return null; return me.pick && !me.pick.dead && game.fields.includes(me.pick) ? me.pick : me.opp; }
+const canPick = () => { const me = game.fields[0]; return (game.state === 'play' || game.state === 'intro') && game.vs && game.fields.length >= 3 && me && me.human && !me.remote && !me.dead && game.mode !== 'local' && game.mode !== 'replay'; };
 function cycleTarget(step = 1) {             // 다음(또는 이전) 상대로
   if (!canPick()) return;
   const me = game.fields[0], alive = game.fields.filter(o => o !== me && !o.dead);
   if (!alive.length) return;
-  const i = alive.indexOf(me.pick && alive.includes(me.pick) ? me.pick : me.opp);
+  const i = alive.indexOf(shownTarget());
   choosePick(alive[((i < 0 ? -1 : i) + step + alive.length) % alive.length]);
 }
 cv.addEventListener('pointerdown', e => {

@@ -535,9 +535,10 @@ class Field {
       const dy = ay > FH - 110 ? -58 : 58;
       this.texts.push({ txt: label, x: ax, y: ay + dy, age: -120, dur: 1400, col: '#fff', size: 38 + (cols.size - 2) * 6,
         rainbow: [...cols].map(c => PAL[c].m), wobble: true });
-      ring(this.ox + ax, this.oy + ay + dy, '#ffffff', 12, 80 + cols.size * 14, 480, 6);
-      for (const c of cols) ring(this.ox + ax, this.oy + ay + dy, PAL[c].m, 8, 56 + cols.size * 10, 420, 4);
-      burst(this.ox + ax, this.oy + ay + dy, '#fff6c2', 10 + cols.size * 6, 0.32);
+      const mk = isMini(this) ? miniBox(this).k : 1, [qx, qy] = isMini(this) ? miniPt(this, this.ox + ax, this.oy + ay + dy) : [this.ox + ax, this.oy + ay + dy];   // 세로 폰 작은 판이면 그 자리에 작게
+      ring(qx, qy, '#ffffff', 12 * mk, (80 + cols.size * 14) * mk, 480, 6 * mk);
+      for (const c of cols) ring(qx, qy, PAL[c].m, 8 * mk, (56 + cols.size * 10) * mk, 420, 4 * mk);
+      burst(qx, qy, '#fff6c2', Math.ceil((10 + cols.size * 6) * mk), 0.32 * mk);
       setTimeout(() => sfx.double(cols.size), 110);
     }
   }

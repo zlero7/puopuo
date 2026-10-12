@@ -78,10 +78,12 @@ function partyTick() {
 }
 function drawParty(c) {
   const left = Math.max(0, PARTY_T - (game.el || 0)), base = OY + 376, m = Math.floor(left / 60000), s = Math.floor(left / 1000) % 60;
-  slab(c, PX - 66, base, 132, 36, left < 10000 ? TONES.red : TONES.purple, 4);
-  outlined(c, `파티 ${m}:${String(s).padStart(2, '0')}`, PX, base + 18, 18, '#fff', (left < 10000 ? TONES.red : TONES.purple).d, 5);
-  for (const f of game.fields) {                  // 걸린 효과(판 위쪽)
-    if (!f.eff) continue;
+  if (!game.compact) {                           // 세로 폰: 남은 시간은 위쪽 띠(ruleInfo)
+    slab(c, PX - 66, base, 132, 36, left < 10000 ? TONES.red : TONES.purple, 4);
+    outlined(c, `파티 ${m}:${String(s).padStart(2, '0')}`, PX, base + 18, 18, '#fff', (left < 10000 ? TONES.red : TONES.purple).d, 5);
+  }
+  for (const f of game.fields) inMini(c, f, () => {   // 걸린 효과(판 위쪽) · 작은 판은 그 판 위에 작게
+    if (!f.eff) return;
     let x = f.ox + 8;
     for (const k of ITEM_KEYS) {
       const it = ITEMS[k]; if (!it.tag || !effOn(f, k)) continue;
@@ -90,8 +92,10 @@ function drawParty(c) {
       outlined(c, `${it.tag} ${sec}`, x + 29, OY + 18, 13, '#fff', '#22212e', 4);
       x += 64;
     }
-  }
+  });
 }
+// 세로 폰 위쪽 띠에 넣을 규칙 정보 한 줄
+function partyInfo() { const left = Math.max(0, PARTY_T - (game.el || 0)); return { txt: `파티 ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`, tone: left < 10000 ? TONES.red : TONES.purple }; }
 // 아이템 별 표시
 function drawStar(c, x, y, r, col = '#ffe066') {
   c.save(); c.translate(x, y); c.beginPath();
