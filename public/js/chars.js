@@ -43,7 +43,7 @@ const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Im
 const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128], vs: [240, 176] };
 if (CHAR_IMG) for (const k in CHAR_IMG) {
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
-  CHAR_IMG[k].src = `img/chars_${k}.webp`;
+  CHAR_IMG[k].src = `img/chars_${k}.webp?v=2`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 }
 const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth;
 // 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
