@@ -130,9 +130,9 @@ const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전
 const SOLO_KO = { marathon: '마라톤', sprint: '스프린트', ultra: '울트라', endless: '끝없이' };
 const fmtClock = ms => { const s = ms / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(2).padStart(5, '0')}`; };
 const AI_PUYO = [
-  { delay: 420, noise: 1500, pot: 0,    miss: 0.35, greedy: 1, atk: 0.35, soft: false }, // 쉬움
-  { delay: 190, noise: 500,  pot: 0.45, miss: 0.12, greedy: 0, atk: 0.6,  soft: true },  // 보통
-  { delay: 95,  noise: 60,   pot: 1.1,  miss: 0,    greedy: 0, atk: 0.85, soft: true },  // 어려움
+  { delay: 420, noise: 1500, pot: 0,    miss: 0.35, greedy: 1, soft: false }, // 쉬움
+  { delay: 190, noise: 500,  pot: 0.45, miss: 0.12, greedy: 0, soft: true },  // 보통
+  { delay: 95,  noise: 60,   pot: 1.1,  miss: 0,    greedy: 0, soft: true },  // 어려움
 ];
 const AI_TETRIS = [
   { delay: 380, noise: 3,   miss: 0.25, atk: 0.35, hard: false, holdUse: false, tspin: 0,   look: false },
@@ -174,7 +174,7 @@ function build(mode) {
     f.tone = PLAYER_TONES[i];
     if (human) f.pi = 1;
     else if (mode === 'online') f.remote = true;
-    // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 · atk: 공격 배율
+    // 뿌요 CPU — delay: 조작 간격 · noise: 판단 흔들림 · pot: 연쇄 설계 의지 · miss: 실수 확률 · greedy: 작은 연쇄 즉시 발사 (공격량은 사람과 같음)
     // 테트리스 CPU — hard: 하드드롭 사용 · holdUse: 홀드 사용 · tspin: T스핀 의지 · look: 다음 조각까지 내다보기
     else f.ai = aiPreset(f.kind, lv);
     game.fields.push(f);
