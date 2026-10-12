@@ -108,6 +108,7 @@ function drawVsPortrait(c, f, x, y, w, h, t) {
   outlined(c, f.name, 0, 1, Math.min(17, (nw - 10) / Math.max(2, f.name.length) * 1.1), '#fff', ch.d, 5);
   c.restore();
   drawCharFace(c, ch.id, x + w - 24, y + h - 22, 38, mood);
+  if (typeof drawOppRank === 'function') drawOppRank(c, f, x + 24, y + 22);   // 랭크전 상대 티어(설정에서 켰을 때)
   if (hype && (f.chain || 0) >= 2) {            // 지금 연쇄 수
     c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); const sc = 1 + 0.08 * Math.sin(t / 70); c.scale(sc, sc);
     outlined(c, `${f.chain}연쇄!`, 0, 0, 20, '#ffe066', '#c2410c', 6); c.restore();

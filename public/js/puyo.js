@@ -794,9 +794,11 @@ class Field {
     const tone = this.tone || TONES.red;
     // 이름표
     c.save();
-    slab(c, this.ox + 14, 2, FW - 28, 32, tone, 4);
-    outlined(c, this.name, this.ox + FW / 2, 19, 20, '#fff', tone.d, 6);
-    drawOppRank(c, this, this.ox + FW - 10, 17);
+    if (!isMini(this)) {                 // 세로 폰의 작은 상대 판은 이름표 대신 위쪽 초상 카드에 이름이 나옴
+      slab(c, this.ox + 14, 2, FW - 28, 32, tone, 4);
+      outlined(c, this.name, this.ox + FW / 2, 19, 20, '#fff', tone.d, 6);
+      drawOppRank(c, this, this.ox + FW - 10, 17);
+    }
     // 점수판
     const sy = this.oy + FH + 16;
     slab(c, this.ox + 6, sy, FW - 12, 50, TONES.white, 4);
