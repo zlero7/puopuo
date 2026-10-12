@@ -439,6 +439,23 @@
     .rkhero { flex-direction: column; text-align: center; }
     .rkhero canvas { width: 96px; height: 96px; }
     .tile .td { display: none; }                 /* 좁은 화면: 타일 설명은 아래 설명 칸(#mDesc)에서만 */
+    /* 메인 메뉴 타일(폰): 제목은 왼쪽 가운데, 그림은 오른쪽 절반, 작은 뿌요 아이콘은 숨김(서로 겹치지 않게) */
+    #sc-main .tile { min-height: 170px; }
+    #sc-main .tile .art { left: auto !important; right: 5% !important; top: 12% !important; width: 50% !important; height: 76% !important; }
+    #sc-main .tile .tt { left: 7% !important; right: auto !important; top: 50% !important; bottom: auto !important; transform: translateY(-50%); text-align: left; font-size: clamp(30px, 9vw, 40px); max-width: 44%; }
+    #sc-main .tile .ico { display: none; }
+    #sc-main .tile .rec { left: 7% !important; right: auto !important; top: auto !important; bottom: 9% !important; font-size: 13px; padding: 2px 10px; }
+    /* 캐릭터 고르기(폰): 두 줄씩 정사각 카드 */
+    #sc-chars { grid-template-columns: 1fr 1fr !important; grid-auto-rows: auto !important; }
+    #sc-chars .tile { aspect-ratio: 1 / 1; min-height: 0; }
+    #sc-chars .charcard .mine { font-size: 11px; padding: 1px 7px; top: 7%; right: 8%; }
+    /* 어드벤처 스테이지(폰): 키를 키워 얼굴 그림 아래에 스테이지 이름·별이 오게 */
+    #sc-adv .advst { min-height: 250px; }
+    #sc-adv .advst canvas { top: 7%; height: 50%; }
+    #sc-adv .advst .tt { bottom: 19%; font-size: 26px; }
+    #sc-adv .advst .tt small { font-size: 13px; margin-bottom: 2px; }
+    #sc-adv .advst .rec { bottom: 5%; font-size: 18px; }
+    body.ingame #hints { visibility: hidden; }  /* 게임 중 키보드 안내는 폰에서 숨김(터치 버튼을 씀) */
     .tag { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .tile, .tile[data-act]:focus .ico { transition: none; animation: none; } }
