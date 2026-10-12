@@ -28,7 +28,7 @@ function swapField(f) {
   g.score = f.score; g.sent = f.sent; g.maxChain = Math.max(g.maxChain, f.maxChain);
   g.opp = f.opp; g.lastHitBy = f.lastHitBy; g.seat = f.seat; g.dead = false;
   g.swapAt = (Math.floor((game.el || 0) / SWAP_T) + 1) * SWAP_T;
-  for (const o of game.fields) { if (o.opp === f) o.opp = g; if (o.lastHitBy === f) o.lastHitBy = g; }
+  for (const o of game.fields) { if (o.opp === f) o.opp = g; if (o.lastHitBy === f) o.lastHitBy = g; if (o.pick === f) o.pick = g; }
   if (game.seatField && f.seat != null) game.seatField[f.seat] = g;
   game.fields[i] = g;
   f.phase = 'swapped'; f.piece = null; f.cur = null;

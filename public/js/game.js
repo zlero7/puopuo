@@ -181,13 +181,14 @@ function build(mode) {
 }
 // 판 위 결과 띠 글자
 const endLabel = f => f.won ? '승리!' : !game.vs ? '게임 오버' : game.fields.length > 2 && f.place ? `${f.place}위` : '패배';
-// 공격 대상: 2명이면 상대. 3명 이상이면 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
+// 공격 대상: 2명이면 상대. 3명 이상이면 직접 고른 사람(카드·작은 판을 눌러서) → 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
 // kind를 주면 그 스타일(뿌요/테트리스) 상대를 먼저 고름(공격 변환이 섞이지 않게)
 function pickTarget(f, kind) {
   let alive = game.fields.filter(o => o !== f && !o.dead);
   if (!alive.length) return f.opp || null;
   if (kind && alive.some(o => o.kind === kind)) alive = alive.filter(o => o.kind === kind);
   if (alive.length === 1) return alive[0];
+  if (f.pick && alive.includes(f.pick)) return f.pick;
   if (f.lastHitBy && alive.includes(f.lastHitBy)) return f.lastHitBy;
   return alive.reduce((a, b) => (b.score > a.score ? b : a));
 }
