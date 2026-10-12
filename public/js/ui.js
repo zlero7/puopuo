@@ -5,7 +5,7 @@
 let keyWait = null;
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
-  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
+  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('lowFx').checked = stats.lowFx === true; $('vib').checked = stats.vib !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
@@ -37,6 +37,8 @@ window.addEventListener('keydown', e => {          // 키 설정 입력(다른 �
 }, true);
 $('oppRank').addEventListener('change', () => { stats = loadStats(); stats.oppRank = $('oppRank').checked; saveStats(); });
 $('ghost').addEventListener('change', () => { stats = loadStats(); stats.ghost = $('ghost').checked; saveStats(); });
+$('lowFx').addEventListener('change', () => { stats = loadStats(); stats.lowFx = $('lowFx').checked; saveStats(); game.lowFx = stats.lowFx; fit(); });   // 끄면 자동 감지만
+$('vib').addEventListener('change', () => { stats = loadStats(); stats.vib = $('vib').checked; saveStats(); });
 $('cbMode').addEventListener('change', () => { stats = loadStats(); stats.cb = $('cbMode').checked; saveStats(); if (game.state === 'menu') drawArts(); });
 $('rankBot').addEventListener('change', () => { stats = loadStats(); stats.rankBot = $('rankBot').checked; saveStats(); });
 $('bKeyReset').addEventListener('click', () => { stats = loadStats(); stats.keys = null; saveStats(); keyWait = null; renderKeys(); });

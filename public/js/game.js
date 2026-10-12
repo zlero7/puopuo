@@ -92,7 +92,7 @@ function fit() {
   const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;
   const s = Math.max(0.3, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
-  const rs = DPR * Math.max(1, s);
+  const rs = game.lowFx ? Math.max(1, s) : DPR * Math.max(1, s);   // 가볍게 모드: 내부 해상도 1배(느린 폰)
   if (cv.width !== Math.round(LW * rs) || cv.height !== Math.round(viewH() * rs)) { cv.width = Math.round(LW * rs); cv.height = Math.round(viewH() * rs); }
   game.rs = rs;
   cv.style.width = (LW * s) + 'px'; cv.style.height = (viewH() * s) + 'px';

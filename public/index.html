@@ -414,6 +414,9 @@
 
   @media (pointer: coarse), (max-width: 760px) { #game .pad { display: flex; } }
   @media (pointer: coarse) { #hints { visibility: hidden; } }      /* 터치 기기: 키보드 안내는 숨김 */
+  body.ingame { overflow: hidden !important; overscroll-behavior: none; }   /* 게임 중 화면이 밀리거나 당겨서 새로고침되지 않게 */
+  body.ingame #cv, .pad { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .pad button { -webkit-touch-callout: none; }
   /* 세로 폰: 터치 버튼을 크게 두 줄로 */
   @media (max-width: 760px) and (orientation: portrait) {
     .pad { --pb: min(64px, calc((100vw - 16px - 3 * var(--pg)) / 4)); flex-wrap: wrap; max-width: calc(4 * var(--pb) + 3 * var(--pg) + 4px); }
@@ -471,6 +474,8 @@
       <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
       <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
       <h3>게임</h3>
+      <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
+      <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>
       <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
       <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
       <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>

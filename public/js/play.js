@@ -54,7 +54,7 @@ function showMessage(title, sub) {
 game.fx = { rings: [], sparks: [] };
 const ring = (x, y, col, r0, r1, dur, w = 5) => game.fx.rings.push({ x, y, col, r0, r1, dur, w, age: 0 });
 const burst = (x, y, col, n, sp = 0.35) => { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = sp * (0.4 + Math.random() * 0.8);
-  game.fx.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 380 + Math.random() * 300, max: 680, r: 2 + Math.random() * 3.5, col }); } };
+  if (game.lowFx && Math.random() < 0.6) continue; game.fx.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 380 + Math.random() * 300, max: 680, r: 2 + Math.random() * 3.5, col }); } };
 
 // 공격 구슬: 연쇄 위치에서 출발해 크게 호를 그리며 상대 방해뿌요 칸으로 날아감(상쇄는 내 칸으로 짧게)
 game.launch = (from, to, n, x, y, kind, ch) => {
@@ -89,8 +89,8 @@ function impact(o) {
 }
 function updateFx(dt) {
   for (const o of game.orbs) {
-    o.t += dt; const [x, y] = orbPos(o); o.trail.push([x, y]); if (o.trail.length > 16) o.trail.shift();
-    if (Math.random() < 0.5) game.fx.sparks.push({ x, y, vx: (Math.random() - 0.5) * 0.08, vy: (Math.random() - 0.5) * 0.08, life: 260, max: 260, r: 1.5 + Math.random() * 2, col: o.col });
+    o.t += dt; const [x, y] = orbPos(o); o.trail.push([x, y]); if (o.trail.length > (game.lowFx ? 6 : 16)) o.trail.shift();
+    if (Math.random() < (game.lowFx ? 0.15 : 0.5)) game.fx.sparks.push({ x, y, vx: (Math.random() - 0.5) * 0.08, vy: (Math.random() - 0.5) * 0.08, life: 260, max: 260, r: 1.5 + Math.random() * 2, col: o.col });
   }
   game.orbs = game.orbs.filter(o => { if (o.t >= o.dur) { impact(o); return false; } return true; });
   for (const r of game.fx.rings) r.age += dt;
@@ -303,6 +303,12 @@ function render(t) {
       drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);
     }
     ctx.restore();
+  }
+  if (game.vs && game.compact && game.fields[1]) {   // 세로 폰: 상대 얼굴·이름을 오른쪽 칸 위에 크게(상대 판은 작게 그려져서)
+    const o = game.fields[1], tn = o.tone || TONES.blue;
+    slab(ctx, PX - 72, 6, 144, 66, tn, 5);
+    drawCharFace(ctx, o.char || 'lumi', PX - 38, 39, 56, moodOf(o));
+    outlined(ctx, o.name, PX + 26, 39, Math.min(17, 110 / Math.max(2, o.name.length)), '#fff', tn.d, 5);
   }
   if (game.vs && game.compact) {             // 세로 폰: VS 엠블럼 대신 상대 판(작게). 시리즈·공격력은 한 줄로
     const sr = game.series, bits = [];

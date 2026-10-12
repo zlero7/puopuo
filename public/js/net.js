@@ -157,6 +157,7 @@ document.querySelectorAll('#pad button').forEach(btn => {
   const k = btn.dataset.k;
   btn.addEventListener('pointerdown', e => {
     e.preventDefault(); btn.classList.add('on');
+    if (stats.vib !== false && navigator.vibrate) try { navigator.vibrate(8); } catch (_) {}   // 짧은 진동(안드로이드)
     if (k === 'left' || k === 'right') playerAction(0, k, true); else if (k === 'down') playerAction(0, 'soft', true);
     else if (k === 'hard') { const f = human(); if (f) f.hardDrop(); }
     else if (k === 'menu') openPause();
