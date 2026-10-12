@@ -510,8 +510,10 @@ class Field {
     this.pops += total;
     if (!game.vs) this.level = 1 + Math.floor(this.pops / 40);
     if (game.vs && !this.remote && (this.chain === 1 || !this.opp || this.opp.dead)) this.opp = pickTarget(this, this.chain === 1 ? null : this.opp && this.opp.kind);
-    if (this.chain === 1 && this.acBonus) {        // 전멸 보너스(원작): 다음 연쇄 첫 단계 점수에 2100점을 더해 방해를 계산(평소 30개, 마진 타임엔 더 많이)
+    if (this.chain === 1 && this.acBonus) {        // 전멸 보너스(원작): 다음 연쇄 첫 단계 점수에 2100점을 더함 → 점수에도 들어가고 방해도 그만큼(평소 30개, 마진 타임엔 더 많이)
       this.acBonus = false;
+      if (!this.remote) this.score += 2100;
+      this.texts.push({ txt: '+2100', x: FW / 2, y: FH * 0.4, age: 0, dur: 1200, col: '#ffd93d', size: 30 });
       if (this.opp && this.opp.kind === 'tetris') this.lineCarry += 2100; else this.carry += 2100;
     }
     const tp = targetPt(); this.carry += step; let units = Math.floor(this.carry / tp); this.carry -= units * tp;
