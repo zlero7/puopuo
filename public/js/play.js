@@ -333,7 +333,14 @@ function render(t) {
     if (game.marginLv) bits.push(`×${(70 / targetPt()).toFixed(1)}`);
     if (bits.length) { slab(ctx, mx - 44, top + ch * 0.62, 88, 26, TONES.white, 3); outlined(ctx, bits.join(' · '), mx, top + ch * 0.62 + 13, 15, '#22212e', '#fff', 4); }
     if (many) {
-      ctx.save(); ctx.translate(PX - 36, top + 14); ctx.rotate(-0.06); outlined(ctx, me.pick === tg ? '공격 대상 ✔' : '공격 대상 ▸', 0, 0, 14, '#fff', '#22212e', 5); ctx.restore();
+      ctx.save(); ctx.translate(PX, top + ch + 22); ctx.rotate(-0.04);   // 카드 아래 띠: 크게(눌러서 바꾸기)
+      slab(ctx, -74, -17, 148, 34, me.pick === tg ? TONES.yellow : TONES.white, 3);
+      if (me.pick === tg) outlined(ctx, '공격 대상 ✔', 0, 1, 21, '#fff', TONES.yellow.d, 5);
+      else {                                       // 오른쪽 화살표: 누르면 다음 상대
+        outlined(ctx, '공격 대상', -8, 1, 21, '#22212e', '#fff', 5);
+        ctx.fillStyle = '#e8283c'; ctx.beginPath(); ctx.moveTo(48, -8); ctx.lineTo(62, 0); ctx.lineTo(48, 8); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
       for (const f of game.fields.slice(1)) {    // 작은 판마다 얼굴 · 공격 대상은 노란 테두리
         const b = miniBox(f), w = SW * b.k;
         if (f === tg && !f.dead) { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t / 160); ctx.strokeRect(b.x - 2, b.y + OY * b.k - 2, w + 4, FH * b.k + 4); ctx.restore(); }
@@ -461,7 +468,7 @@ cv.addEventListener('pointerdown', e => {
   if (!alive.length) return;
   let pick = null;
   if (game.compact) {
-    if (inR(PX - 78, VIEW_Y0, 156, -VIEW_Y0 + 34)) { e.preventDefault(); cycleTarget(1); return; }   // 공격 대상 카드: 다음 상대
+    if (inR(PX - 78, VIEW_Y0, 156, -VIEW_Y0 + 72)) { e.preventDefault(); cycleTarget(1); return; }   // 공격 대상 카드: 다음 상대
     else pick = alive.find(o => { const b = miniBox(o); return inR(b.x - 4, b.y, SW * b.k + 8, CANVAS_H * b.k); });
   } else {
     pick = alive.find(o => inR(o.ox, cardTop() ? -game.top : 0, o.fw, (cardTop() ? game.top : 0) + OY + FH));
