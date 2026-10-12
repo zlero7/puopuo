@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= 캐릭터 =================
-   - 모두 이 게임만의 오리지널 캐릭터이고, 그림은 캔버스로 직접 그림(외부 이미지 없음)
+   - 모두 이 게임만의 오리지널 캐릭터. 그림은 img/chars_*.webp(카드 · 얼굴 · 마스코트 아이콘), 불러오기 전에는 캔버스로 그린 간단한 모양
    - 사람 플레이어에게는 모양(초상·컷인 대사·목소리 음높이)만 바뀌고 실력 차이는 없음
    - CPU로 나올 때는 성격(ai)에 따라 플레이 방식이 달라짐 */
 const CHARS = [
@@ -36,8 +36,41 @@ function charAi(base, ch, kind) {
   return a;
 }
 
-/* ---------- 초상 그리기 ---------- */
+/* ---------- 캐릭터 그림 ----------
+   img/chars_card.webp: 카드(일러스트 + 이름·소개) 300×298 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
+   모두 CHARS 순서대로 가로 한 줄 */
+const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image() } : null;
+const CHAR_CELL = { card: [300, 298], bust: [160, 160], icon: [128, 128] };
+if (CHAR_IMG) for (const k in CHAR_IMG) {
+  CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
+  CHAR_IMG[k].src = `img/chars_${k}.webp`;
+}
+const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth;
+// 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
+function charImg(c, k, id, x, y, w, h) {
+  const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
+  c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
+}
+// 카드(캐릭터 고르기 화면)
+function drawCharCard(c, id, x, y, w, h) {
+  if (!charImgOk('card')) { drawChar(c, id, x + w / 2, y + h / 2, Math.min(w, h) * 0.8); return; }
+  charImg(c, 'card', id, x, y, w, h);
+}
+// 얼굴(대화창 · 컷인 · 어드벤처): 둥근 네모 안에, 테두리는 캐릭터 색
+function drawCharBust(c, id, x, y, size) {
+  if (!charImgOk('bust')) { drawChar(c, id, x, y, size); return; }
+  const ch = charOf(id), h = size / 2, r = size * 0.18;
+  c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.clip(); charImg(c, 'bust', id, x - h, y - h, size, size); c.restore();
+  c.save(); c.lineWidth = Math.max(2, size * 0.05); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
+  c.lineWidth = Math.max(1, size * 0.02); c.strokeStyle = ch.d; c.stroke(); c.restore();
+}
+// 작은 초상(이름표 · 기록 · 순위표 · 메뉴 그림): 마스코트 아이콘. 진 쪽(sad)은 색을 빼서
 function drawChar(c, id, x, y, size, mood = 'happy') {
+  if (charImgOk('icon')) {
+    const s = size * 1.08;
+    c.save(); if (mood === 'sad') c.filter = 'grayscale(0.8) brightness(0.95)';
+    charImg(c, 'icon', id, x - s / 2, y - s / 2, s, s); c.restore(); return;
+  }
   const ch = charOf(id), r = size / 2;
   c.save(); c.translate(x, y);
   const ear = (dx, dy, rr, col) => { c.fillStyle = col; c.beginPath(); c.arc(dx, dy, rr, 0, Math.PI * 2); c.fill(); };
@@ -92,7 +125,7 @@ function drawCut(c, f) {
   const e = k.age / k.dur, inX = Math.min(1, k.age / 160), outA = e > 0.8 ? 1 - (e - 0.8) / 0.2 : 1, ch = charOf(k.id);
   c.save(); c.globalAlpha = outA; c.translate(f.ox + f.fw / 2 + (1 - inX) * -120, f.oy + 70);
   slab(c, -f.fw / 2 + 10, -34, f.fw - 20, 68, { c: ch.col, d: ch.d }, 5);
-  drawChar(c, ch.id, -f.fw / 2 + 52, 0, 60);
+  drawCharBust(c, ch.id, -f.fw / 2 + 52, 0, 62);
   outlined(c, k.line, 26, 2, Math.min(30, 300 / Math.max(3, k.line.length)), '#fff', ch.d, 7);
   c.restore();
 }

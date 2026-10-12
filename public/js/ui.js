@@ -69,7 +69,10 @@ function renderChars(focusId) {
   }
   sec.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.id === 'ch-' + mine));
   requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => {
-    const g = fitCanvas(c); if (!g) return; drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+    const g = fitCanvas(c); if (!g) return;
+    if (charImgOk('card')) { g.x.save(); g.x.beginPath(); rr(g.x, 0, 0, g.w, g.h, 10); g.x.clip(); drawCharCard(g.x, c.dataset.char, 0, 0, g.w, g.h); g.x.restore(); }   // 카드 그림에 이름·소개가 있음
+    else drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+    c.closest('.charcard').classList.toggle('cardimg', !!charImgOk('card'));
   }));
 }
 function showScreen(id, focusId) {

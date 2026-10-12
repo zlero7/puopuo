@@ -81,10 +81,13 @@ function dlgShow() {
   const [who, text] = DLG.lines[DLG.i], id = who === 'me' ? stats.char || 'lumi' : who, ch = charOf(id);
   $('dlgName').textContent = who === 'me' ? `${ch.name} (나)` : ch.name;
   $('dlgName').style.background = ch.col;
-  const cv2 = $('dlgFace'), g = fitCanvas(cv2);
-  if (g) drawChar(g.x, id, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.82, 'happy');
+  dlgFace();
   DLG.shown = 0; clearInterval(DLG.t);
   DLG.t = setInterval(() => { DLG.shown++; $('dlgText').textContent = text.slice(0, DLG.shown); if (DLG.shown >= text.length) clearInterval(DLG.t); if (DLG.shown % 2) voice(ch, 0); }, 28);
+}
+function dlgFace() {            // 대화창 얼굴(지금 말하는 캐릭터)
+  const [who] = DLG.lines[DLG.i] || [], id = who === 'me' ? stats.char || 'lumi' : who, g = fitCanvas($('dlgFace'));
+  if (g && id) drawCharBust(g.x, id, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.94);
 }
 function dlgNext() {
   const text = DLG.lines[DLG.i][1];
@@ -122,7 +125,7 @@ function renderAdv() {
     t.addEventListener('mouseenter', () => t.focus({ preventScroll: true }));
     t.addEventListener('focus', () => { $('mDesc').textContent = t.dataset.desc; });
   });
-  requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => { const g = fitCanvas(c); if (g) drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy'); }));
+  requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => { const g = fitCanvas(c); if (g) drawCharBust(g.x, c.dataset.char, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.86); }));
 }
 function advPlay(i, skipTalk, c = advChap) {
   advChap = c;
