@@ -251,6 +251,7 @@ Esc(모바일은 Ⅱ 버튼)를 누르면 연습·AI 대전은 일시정지되�
 | `public/js/fusion.js` | 퓨전 판(FField)·계산·CPU |
 | `public/js/chars.js` | 오리지널 캐릭터·초상 그리기·컷인 |
 | `public/js/adventure.js` | 어드벤처 스테이지·대화창·진행 저장 |
+| `public/img/tiers.webp` | 티어 엠블럼 그림(브론즈 1 ~ 다이아 3, 마스터 16칸 한 줄, 칸마다 128px) |
 | `public/js/puzzle.js` | 튜토리얼 단계·퍼즐 판, 목표 확인·결과 |
 | `public/js/puyo.js` | 뿌요뿌요 판, AI 시뮬레이션, 뿌요 그리기 |
 | `public/js/tetris.js` | 테트리스 판 |

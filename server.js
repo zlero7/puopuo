@@ -46,6 +46,12 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       res.end(data);
     });
+  } else if (/^\/img\/[\w-]+\.(webp|png)$/.test(url)) {   // 그림(티어 엠블럼 등). 경로 탈출 불가: 영문·숫자·-·_ 이름만
+    fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': url.endsWith('.webp') ? 'image/webp' : 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    });
   } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
     let body;
