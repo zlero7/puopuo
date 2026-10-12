@@ -136,7 +136,7 @@ function leave(ws) {
     return;
   }
   const who = room.seats.indexOf(ws);
-  if (room.ranked && !room.ranked.ended && room.players.length === 1) rankedEnd(room, room.seats.indexOf(room.players[0]));   // 랭크전 도중 나가면 나간 쪽 패배
+  if (room.ranked && !room.ranked.ended && room.players.length === 1) rankedEnd(room, room.seats.indexOf(room.players[0]), '나감');   // 랭크전 도중 나가면 나간 쪽 패배(기권)
   for (const p of room.players) send(p, { t: 'left', who, rest: room.players.length });
   if (room.players.length < 2) { rooms.delete(room.code); for (const p of room.players) p.room = null; }
 }
