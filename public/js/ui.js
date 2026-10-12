@@ -186,7 +186,8 @@ $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = 
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 // 티어 엠블럼 그림(img/tiers.webp): 브론즈 1·2·3 → … → 다이아 3, 마스터 순서로 한 줄(칸마다 128px). 불러오기 전·배치 중은 아래 도형으로
 const TIER_IMG = new Image(), TIER_CELL = 128;
-TIER_IMG.onload = () => { if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
+TIER_IMG.onload = () => { if (!window.gameReady) return;   // 아직 스크립트를 다 읽기 전이면 시작할 때 그림
+  if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
 TIER_IMG.src = 'img/tiers.webp';
 function drawTierEmblem(c, x, y, size, group, div) {
   const i = group === 5 ? 15 : group >= 0 && group < 5 && div >= 1 && div <= 3 ? group * 3 + div - 1 : -1;
@@ -326,6 +327,20 @@ $('fImport').addEventListener('change', () => {
     if (!ok) { alert('기록 파일이 아니거나 손상됐어요.'); return; }
     if (!confirm('지금 이 브라우저의 기록을 파일의 기록으로 바꿀까요? (랭크전 기록도 함께 옮겨져요)')) return;
     try { for (const [k, s] of Object.entries(v.data)) localStorage.setItem(k, s); } catch (e) { alert('저장 공간이 부족해서 다 불러오지 못했어요.'); }
+    try { sessionStorage.setItem('puyo-imported', '1'); } catch (e) {}
     location.reload();
   });
 });
+
+// 기록을 불러온 직후: 이 서버에서 랭크를 찾았는지 알려 줌(랭크는 랭크전을 한 서버에 저장되고, 파일에는 그 랭크를 찾는 열쇠(토큰)만 들어 있음)
+function importedNotice() {
+  let on = false; try { on = sessionStorage.getItem('puyo-imported') === '1'; sessionStorage.removeItem('puyo-imported'); } catch (e) {}
+  if (!on) return;
+  const say = lines => dialog(lines.map(t => ['lumi', t]));
+  if (!location.protocol.startsWith('http')) { say(['기록을 불러왔어! 랭크는 서버에 접속해야 볼 수 있어.']); return; }
+  Promise.all(['puyo', 'tetris'].map(st => fetch(rankUrl('me', st)).then(r => r.json()).catch(() => null))).then(([p, t]) => {
+    const has = m => m && (m.w + m.l > 0 || m.hist && m.hist.length);
+    if (has(p) || has(t)) say(['기록을 불러왔어!', `랭크도 그대로야 — 뿌요뿌요 ${p ? p.text : '-'} · 테트리스 ${t ? t.text : '-'}`]);
+    else say(['기록(전적·어드벤처·퍼즐·설정)은 불러왔어.', '그런데 이 서버에는 이 파일의 랭크 기록이 없어. 랭크는 랭크전을 한 서버에만 저장돼서, 다른 서버(다른 주소)로는 옮겨지지 않아.']);
+  });
+}
