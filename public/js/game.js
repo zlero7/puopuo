@@ -76,18 +76,26 @@ function padOverlay(a) {
 // 연습(1인)은 방해뿌요 칸이 필요 없어서 위쪽을 잘라 필드를 더 크게 보여줌
 let LW = 840, VIEW_Y0 = 0;
 const viewH = () => CANVAS_H - VIEW_Y0;
-// 세로 폰(2인 · 통상/피버): 내 판을 크게, 상대 판은 오른쪽 칸(홀드 아래)에 작게(compact)
+// 세로 폰(2~4인 · 통상/피버/퓨전): 내 판을 크게, 상대 판들은 오른쪽 칸(홀드 아래)에 작게(compact)
+// 상대 1명은 한 칸 크게, 2~3명은 두 줄 두 칸에 나눠서
 const MINI_Y = OY + 392;
-const miniK = () => Math.min(140 / SW, (CANVAS_H - MINI_Y - 4) / CANVAS_H);
-const isMini = f => !!game.compact && f === game.fields[1];
-function miniPt(f, x, y) { const k = miniK(); return [PX - SW * k / 2 + (x - f.ox) * k, MINI_Y + y * k]; }
+const isMini = f => !!game.compact && f !== game.fields[0];
+function miniBox(f) {
+  const ops = game.fields.length - 1, j = Math.max(0, game.fields.indexOf(f) - 1), H = CANVAS_H - MINI_Y - 4;
+  if (ops <= 1) { const k = Math.min(140 / SW, H / CANVAS_H); return { k, x: PX - SW * k / 2, y: MINI_Y }; }
+  const rows = Math.ceil(ops / 2), k = Math.min(68 / SW, (H / rows - 4) / CANVAS_H), w = SW * k;
+  const inRow = Math.min(2, ops - Math.floor(j / 2) * 2), col = j % 2;
+  return { k, x: PX - (inRow * w + (inRow - 1) * 6) / 2 + col * (w + 6), y: MINI_Y + Math.floor(j / 2) * (CANVAS_H * k + 4) };
+}
+function miniPt(f, x, y) { const b = miniBox(f); return [b.x + (x - f.ox) * b.k, b.y + y * b.k]; }
 function inMini(c, f, fn) {
   if (!isMini(f)) { fn(); return; }
-  const k = miniK(); c.save(); c.translate(PX - SW * k / 2, MINI_Y); c.scale(k, k); c.translate(-f.ox, 0); fn(); c.restore();
+  const b = miniBox(f); c.save(); c.translate(b.x, b.y); c.scale(b.k, b.k); c.translate(-f.ox, 0); fn(); c.restore();
 }
 function fit() {
   const pad = document.getElementById('pad');
-  game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  game.compact = game.vs && game.fields.length >= 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
+  if (game.vs) VIEW_Y0 = game.compact ? 0 : (game.baseY0 || 0);   // 폰 3~4인은 위쪽 카드 줄 없이
   game.narrow = window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
   LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW) - (game.narrow ? (game.side || 0) + (game.sideR || 0) : 0);
   const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;

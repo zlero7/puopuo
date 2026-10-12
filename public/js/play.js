@@ -311,7 +311,18 @@ function render(t) {
     }
     ctx.restore();
   }
-  if (game.vs && game.compact && game.fields[1]) drawVsPortrait(ctx, game.fields[1], PX - 74, 2, 148, OY + 40, t);   // 세로 폰: 상대 초상(상반신·표정·이름)
+  if (game.vs && game.compact && game.fields[1]) {   // 세로 폰: 상대 초상(상반신·표정·이름). 3~4인은 지금 공격 대상
+    const many = game.fields.length > 2, tg = many && me.opp && game.fields.includes(me.opp) ? me.opp : game.fields[1];
+    drawVsPortrait(ctx, tg, PX - 74, 2, 148, OY + 40, t);
+    if (many) {
+      ctx.save(); ctx.translate(PX - 40, 16); ctx.rotate(-0.06); outlined(ctx, '공격 대상', 0, 0, 14, '#fff', '#22212e', 5); ctx.restore();
+      for (const f of game.fields.slice(1)) {    // 작은 판마다 얼굴 · 공격 대상은 노란 테두리
+        const b = miniBox(f), w = SW * b.k, h = CANVAS_H * b.k;
+        if (f === tg && !f.dead) { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 3; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t / 160); ctx.strokeRect(b.x - 2, b.y + OY * b.k - 2, w + 4, FH * b.k + 4); ctx.restore(); }
+        if (f.char) drawChar(ctx, f.char, b.x + 10, b.y + 9, 20, f.dead ? 'sad' : 'happy');
+      }
+    }
+  }
   if (game.vs && game.compact) {             // 세로 폰: VS 엠블럼 대신 상대 판(작게). 시리즈·공격력은 한 줄로
     const sr = game.series, bits = [];
     if (sr) bits.push(`${sr.me} : ${sr.op}`);
