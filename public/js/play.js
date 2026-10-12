@@ -272,7 +272,7 @@ function render(t) {
     for (const f of game.fields) {
       if (f === tg && !f.dead && game.state === 'play') { ctx.save(); ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 5; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t / 160); ctx.strokeRect(f.ox + 2, -game.top - 1, f.fw - 4, game.top + 40); ctx.restore(); }
       drawVsPortrait(ctx, f, f.ox + 8, 4 - game.top, f.fw - 16, game.top + 30, t);
-      if (f === tg && !f.dead) { ctx.save(); ctx.translate(f.ox + 52, 14 - game.top); ctx.rotate(-0.06); outlined(ctx, game.fields[0].pick === f ? '공격 대상 ✔' : '공격 대상', 0, 0, 15, '#fff', '#22212e', 5); ctx.restore(); }
+      if (f === tg && !f.dead) { ctx.save(); ctx.translate(f.ox + 52, 14 - game.top); ctx.rotate(-0.06); outlined(ctx, '공격 대상 ✔', 0, 0, 15, '#fff', '#22212e', 5); ctx.restore(); }
     }
   }
   else if (sx && game.fields.length === 2) {   // 2인: 이름표 옆(판 바깥)에 나와 상대
@@ -334,12 +334,8 @@ function render(t) {
     if (bits.length) { slab(ctx, mx - 44, top + ch * 0.62, 88, 26, TONES.white, 3); outlined(ctx, bits.join(' · '), mx, top + ch * 0.62 + 13, 15, '#22212e', '#fff', 4); }
     if (many) {
       ctx.save(); ctx.translate(PX, top + ch + 22); ctx.rotate(-0.04);   // 카드 아래 띠: 크게(눌러서 바꾸기)
-      slab(ctx, -74, -17, 148, 34, me.pick === tg ? TONES.yellow : TONES.white, 3);
-      if (me.pick === tg) outlined(ctx, '공격 대상 ✔', 0, 1, 21, '#fff', TONES.yellow.d, 5);
-      else {                                       // 오른쪽 화살표: 누르면 다음 상대
-        outlined(ctx, '공격 대상', -8, 1, 21, '#22212e', '#fff', 5);
-        ctx.fillStyle = '#e8283c'; ctx.beginPath(); ctx.moveTo(48, -8); ctx.lineTo(62, 0); ctx.lineTo(48, 8); ctx.closePath(); ctx.fill();
-      }
+      slab(ctx, -74, -17, 148, 34, TONES.yellow, 3);
+      outlined(ctx, '공격 대상 ✔', 0, 1, 21, '#fff', TONES.yellow.d, 5);
       ctx.restore();
       for (const f of game.fields.slice(1)) {    // 작은 판마다 얼굴 · 공격 대상은 노란 테두리
         const b = miniBox(f), w = SW * b.k;
@@ -365,7 +361,7 @@ function render(t) {
     const sr = game.series;                    // 시리즈 점수(선승제 / 같은 상대와의 누적)
     if (game.fields.length > 2 && me.opp && !me.dead && game.state === 'play') {   // 3~4인: 지금 공격 대상
       slab(ctx, PX - 66, y + 50, 132, 54, me.opp.tone || TONES.blue, 4);
-      outlined(ctx, me.pick === me.opp ? '공격 대상 ✔' : '공격 대상', PX, y + 64, 13, '#fff', (me.opp.tone || TONES.blue).d, 4);
+      outlined(ctx, '공격 대상 ✔', PX, y + 64, 13, '#fff', (me.opp.tone || TONES.blue).d, 4);
       outlined(ctx, me.opp.name, PX, y + 86, 20, '#fff', (me.opp.tone || TONES.blue).d, 5);
     } else if (sr) {
       slab(ctx, PX - 62, y + 50, 124, 46, TONES.white, 4);
