@@ -365,7 +365,7 @@ function render(t) {
   ctx.restore();
   for (const f of game.fields) inMini(ctx, f, () => {   // 캐릭터: 이름표 초상 · 컷인 · 끝났을 때 대사
     if (!f.char) return;
-    if (!isMini(f)) drawCharFace(ctx, f.char, f.ox + 14, 18, 46, moodOf(f));   // 이름표 얼굴: 상황에 따라 표정
+    if (!isMini(f) && !(sideX() && game.fields.length === 2)) drawCharFace(ctx, f.char, f.ox + 14, 18, 46, moodOf(f));   // 이름표 얼굴: 초상 카드가 없을 때만
     drawCut(ctx, f);
     if (game.state === 'over' && game.vs && (f.won || f.dead)) {
       const ch = charOf(f.char), txt = f.won ? ch.win : ch.lose;
