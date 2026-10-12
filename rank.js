@@ -11,13 +11,13 @@ const path = require('path');
    - 한 시리즈(2선승)마다 RP가 바뀜: 기본 ±20, 숨은 실력 점수에 비해 티어가 낮으면 더 얻고 덜 잃음(반대도). 10~35 사이
      2:0 승리는 +3, 1:2 패배는 3 덜 잃음. 승급 직후 한 시리즈는 져도 그 세부 티어 아래로 안 내려감(강등 보호)
    - 연도·시즌: 한 해에 시즌 6개(2달씩, 이름 '2026 시즌 5'). 연도가 바뀌면 숨은 실력 점수를 완전 초기화
-   - 배치: 처음 하는 사람과 '그 해 첫 랭크전'은 10시리즈 → 숨은 실력 점수로 티어(최대 플래티넘 3, 25 RP에서 시작)
-           같은 해 다음 시즌은 5시리즈 → 지난 시즌 끝 티어 그대로 시작하고 웬만하면 그대로.
+   - 배치: 언제나 5시리즈. 처음 하는 사람과 '그 해 첫 랭크전'은 숨은 실력 점수로 티어(최대 플래티넘 3, 25 RP에서 시작)
+           같은 해 다음 시즌은 지난 시즌 끝 티어 그대로 시작하고 웬만하면 그대로.
            5전 4승 이상이고 숨은 실력이 확실히 높으면 +1칸(5전 전승에 차이가 아주 크면 +2칸), 1승 이하이고 확실히 낮으면 −1칸
      배치 중에는 결과를 가리고 마지막에 공개
    - 순위표: 플래티넘 이상만. 시즌이 바뀔 때 지난 시즌 순위표를 저장 */
 const FILE = process.env.RANK_FILE || path.join(__dirname, 'data', 'ranks.json');
-const DIV = 100, MASTER = 15 * DIV, BOARD_MIN = 9 * DIV, MATCH_LOG = 50, PAGE = 10;
+const DIV = 100, MASTER = 15 * DIV, BOARD_MIN = 9 * DIV, MATCH_LOG = 50, PAGE = 10, PLACE = 5;
 const GROUPS = ['브론즈', '실버', '골드', '플래티넘', '다이아'];
 
 // 시각(RANK_NOW로 바꿔 시험할 수 있음) → 시즌 번호(2026년 1~2월 = 1, 해마다 6개씩)
@@ -35,7 +35,7 @@ let db = { players: {}, boards: {}, cur: seasonOf() };
 function blank(name, style) {
   const s = seasonOf();
   return { name: name || '플레이어', char: 'lumi', style, r: 1500, rd: 350, vol: 0.06, year: yearOf(s), season: s, yearPlaced: false,
-    need: 10, placed: 0, pw: 0, pl: 0, start: 0, total: 0, peak: 0, shield: false, w: 0, l: 0, sw: 0, sl: 0, hist: [], matches: [], at: now() };
+    need: PLACE, placed: 0, pw: 0, pl: 0, start: 0, total: 0, peak: 0, shield: false, w: 0, l: 0, sw: 0, sl: 0, hist: [], matches: [], at: now() };
 }
 try {
   const v = JSON.parse(fs.readFileSync(FILE, 'utf8')) || {};
@@ -43,6 +43,7 @@ try {
   for (const [key, p] of Object.entries(db.players)) {
     for (const [k, val] of Object.entries(blank(p.name, p.style))) if (p[k] === undefined) p[k] = val;   // 예전 형식에 빠진 값 채우기
     p.key = key;
+    if (p.placed < p.need && p.need > PLACE) p.need = Math.max(PLACE, p.placed + 1);   // 예전 10배치 중이던 기록: 5판(이미 5판 넘게 했으면 다음 판)에 끝냄
   }
 } catch (e) {
   if (e.code !== 'ENOENT') {         // 파일이 깨졌으면 새로 덮어쓰기 전에 따로 보관하고 알림(처음이면 파일이 없음)
@@ -94,7 +95,7 @@ function ensureSeason() {
   for (const st of STYLES) db.boards[s][st] = boardRows(Object.values(db.players).filter(p => p.style === st && p.season === s && doneThisSeason(p) && p.total >= BOARD_MIN));
   db.cur = cur; save();
 }
-// 한 사람 기록을 지금 시즌으로: 지난 시즌 기록 남기기, 연도가 바뀌면 숨은 점수 초기화 + 10배치, 같은 해면 5배치
+// 한 사람 기록을 지금 시즌으로: 지난 시즌 기록 남기기, 연도가 바뀌면 숨은 점수 초기화. 배치는 언제나 5판
 function roll(p) {
   ensureSeason();
   const cur = seasonOf(), y = yearOf(cur);
@@ -105,9 +106,9 @@ function roll(p) {
     p.hist = p.hist.slice(0, 12);
   }
   if (p.year !== y) {                                 // 새해: 완전 초기화
-    Object.assign(p, { r: 1500, rd: 350, vol: 0.06, year: y, yearPlaced: false, total: 0, need: 10 });
-  } else p.need = p.yearPlaced ? 5 : 10;             // 같은 해: 이미 배치를 끝냈으면 5배치
-  Object.assign(p, { season: cur, placed: 0, pw: 0, pl: 0, sw: 0, sl: 0, shield: false, start: p.total, peak: p.need === 5 ? p.total : 0 });
+    Object.assign(p, { r: 1500, rd: 350, vol: 0.06, year: y, yearPlaced: false, total: 0 });
+  }
+  Object.assign(p, { season: cur, need: PLACE, placed: 0, pw: 0, pl: 0, sw: 0, sl: 0, shield: false, start: p.total, peak: p.yearPlaced ? p.total : 0 });
   return p;
 }
 // 기록은 첫 시리즈를 마쳐야 저장됨(아무 토큰으로 대기열만 들어와도 파일이 커지지 않게). 그 전엔 같은 토큰이 오면 같은 빈 기록을 씀
@@ -167,9 +168,9 @@ function rpDelta(p, win, score) {   // 숨은 실력 점수에 비해 티어가 
   const mag = Math.max(10, Math.min(35, Math.abs(Math.round(d))));
   return win ? mag : -mag;
 }
-// 배치 끝: 10배치는 숨은 실력 점수로, 5배치는 지난 티어에서 웬만하면 그대로
+// 배치 끝: 그 해 첫 배치는 숨은 실력 점수로, 같은 해 다음 시즌 배치는 지난 티어에서 웬만하면 그대로
 function place(p) {
-  if (p.need === 10) return Math.floor(Math.min(mmrToTotal(p.r), 12 * DIV - 1) / DIV) * DIV + 25;
+  if (!p.yearPlaced) return Math.floor(Math.min(mmrToTotal(p.r), 12 * DIV - 1) / DIV) * DIV + 25;
   const gap = mmrToTotal(p.r) - p.start;
   let shift = 0;
   if (p.pw >= 4 && gap >= 200) shift = p.pw === 5 && gap >= 400 ? 2 : 1;
@@ -191,7 +192,7 @@ function apply(p, o, oppView, win, score) {
   let d = 0, event = null;
   if (wasPlacing) {
     p.placed++; win ? p.pw++ : p.pl++;
-    if (p.placed >= p.need) { p.total = place(p); p.peak = Math.max(p.peak, p.total); p.yearPlaced = true; event = 'placed'; d = p.need === 5 ? p.total - p.start : 0; }
+    if (p.placed >= p.need) { const first = !p.yearPlaced; p.total = place(p); p.peak = Math.max(p.peak, p.total); p.yearPlaced = true; event = 'placed'; d = first ? 0 : p.total - p.start; }
   } else {
     d = rpDelta(p, win, score);
     const floor = Math.floor(before / DIV) * DIV;
@@ -228,7 +229,7 @@ function report(winner, loser, score) {        // score: [이긴 쪽 승수, 진
 function view(p) {
   const placing = !doneThisSeason(p), t = tierOf(p.total), s = seasonInfo();
   const masterRk = !placing && p.total >= MASTER ? masterRank(p) : null;
-  return { placing, placed: p.placed, need: p.need, pw: p.pw, pl: p.pl,
+  return { placing, placed: p.placed, need: p.need, first: placing && !p.yearPlaced, pw: p.pw, pl: p.pl,
     label: placing ? '배치 중' : t.label, group: placing ? -1 : t.group, div: placing ? 0 : t.div, rp: placing ? 0 : t.rp, total: placing ? 0 : p.total,
     masterRank: masterRk, text: labelOfRec(p), sw: p.sw, sl: p.sl, w: p.w, l: p.l, peak: tierOf(p.peak).label, hist: p.hist, season: s };
 }

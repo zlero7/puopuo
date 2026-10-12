@@ -1,5 +1,5 @@
 // 랭크 규칙 테스트(서버 없이 rank.js 직접)
-// 티어 이름 · 10배치 · 잃은 만큼 내려가기 · 승급 보호 · 마스터 등수 · 같은 해 5배치(거의 그대로) · 새해 완전 초기화 · 순위표
+// 티어 이름 · 첫 5배치 · 잃은 만큼 내려가기 · 승급 보호 · 마스터 등수 · 같은 해 5배치(거의 그대로) · 새해 완전 초기화 · 순위표
 // 실행: node tests/rank-rules.js
 const os = require('os'), path = require('path'), fs = require('fs');
 process.env.RANK_FILE = path.join(os.tmpdir(), `rank-rules-${process.pid}.json`);
@@ -13,12 +13,12 @@ const set = (p, o) => { Object.assign(p, { placed: p.need, yearPlaced: true, ...
 ok(R.tierOf(0).label === '브론즈 1' && R.tierOf(250).label === '브론즈 3' && R.tierOf(300).label === '실버 1' && R.tierOf(1499).label === '다이아 3' && R.tierOf(1500).label === '마스터', '티어 순서: 브론즈 1 < … < 다이아 3 < 마스터');
 ok(R.seasonInfo().name === '2026 시즌 5' && R.seasonInfo().months === '9~10월', '시즌 이름: 2026 시즌 5 (9~10월)');
 
-// 생배 10시리즈
+// 생배 5시리즈
 const a = R.get(tok(1), 'puyo', 'A', 'kuro'), b = R.get(tok(2), 'puyo', 'B');
-for (let i = 0; i < 9; i++) R.report(a, b, [2, 0]);
-ok(R.view(a).text === '배치 9/10' && a.matches[0].d === null, '생배: 배치 중에는 결과를 가리고 배치 9/10');
+for (let i = 0; i < 4; i++) R.report(a, b, [2, 0]);
+ok(R.view(a).text === '배치 4/5' && R.view(a).first && a.matches[0].d === null, '생배: 배치 중에는 결과를 가리고 배치 4/5');
 const [ra] = R.report(a, b, [2, 1]);
-ok(ra.event === 'placed' && R.view(a).rp === 25 && a.total <= 1199, `생배 10승 → ${R.view(a).text} (최대 플래티넘 3)`);
+ok(ra.event === 'placed' && R.view(a).rp === 25 && a.total <= 1199, `생배 5승 → ${R.view(a).text} (최대 플래티넘 3)`);
 ok(ra.opp.name === 'B' && a.matches[0].opp.text.startsWith('배치'), '경기 기록에 상대 이름·당시 티어');
 
 // 잃은 만큼 내려가기 · 보호 · 마스터
@@ -48,7 +48,7 @@ const g = R.get(tok(8), 'puyo', 'G'); set(g, { total: 850, peak: 870, r: 1560, r
 const f = R.get(tok(9), 'puyo', 'F'); set(f, { total: 850, r: 1560, rd: 60 });
 at(2026, 11);                                                // 2026 시즌 6
 const g2 = R.get(tok(8), 'puyo'), f2 = R.get(tok(9), 'puyo');
-ok(g2.need === 5 && R.view(g2).text === '배치 0/5' && g2.hist[0].final === '골드 3', '같은 해 다음 시즌: 5배치, 지난 시즌 기록 남김');
+ok(g2.need === 5 && R.view(g2).text === '배치 0/5' && !R.view(g2).first && g2.hist[0].final === '골드 3', '같은 해 다음 시즌: 5배치, 지난 시즌 기록 남김');
 for (let i = 0; i < 4; i++) R.report(g2, f2, [2, 1]); R.report(f2, g2, [2, 1]);   // 4승 1패
 ok(R.view(g2).text === '골드 3 · 50 RP', `5배치 4승 1패, 실력 차이 크지 않음 → 그대로 ${R.view(g2).text}`);
 ok(R.view(f2).text === '골드 3 · 50 RP', `5배치 1승 4패, 실력 차이 크지 않음 → 그대로 ${R.view(f2).text}`);
@@ -60,10 +60,10 @@ const hf = R.get(tok(11), 'puyo', 'HF'); set(hf, { total: 600, r: 1400, rd: 60 }
 for (let i = 0; i < 5; i++) R.report(h, hf, [2, 0]);
 ok(R.view(h).text === '골드 3 · 0 RP' || R.view(h).text.startsWith('플래티넘'), `5배치 전승 + 실력이 훨씬 높음 → ${R.view(h).text}(골드 1에서 위로)`);
 
-// 새해: 완전 초기화, 그 해 첫 랭크전은 시즌 4라도 10배치
+// 새해: 완전 초기화, 그 해 첫 랭크전은 시즌 4라도 첫 배치(5판)
 at(2027, 7);                                                 // 2027 시즌 4
 const g3 = R.get(tok(8), 'puyo');
-ok(g3.need === 10 && g3.r === 1500 && g3.rd === 350 && g3.total === 0 && R.view(g3).text === '배치 0/10', '새해(2027 시즌 4에 처음): 숨은 점수 완전 초기화, 10배치');
+ok(g3.need === 5 && R.view(g3).first && g3.r === 1500 && g3.rd === 350 && g3.total === 0 && R.view(g3).text === '배치 0/5', '새해(2027 시즌 4에 처음): 숨은 점수 완전 초기화, 첫 배치 5판');
 
 R.flush(); try { fs.unlinkSync(process.env.RANK_FILE); } catch {}
 console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exitCode = fail ? 1 : 0;
