@@ -96,8 +96,7 @@ function onGame(d, from) {
   d = cleanEv(op, d); if (!d) return;                           // 상대가 보낸 이상한 값은 고치거나 버림
   if (d.to != null) { const t = game.seatField && game.seatField[d.to]; d = { ...d, to: t ? game.fields.indexOf(t) : undefined }; }   // 자리 번호 → 내 판 번호
   if (d.t === 'hi') {
-    op.name = cleanName(d.name || '상대'); if (CHARS.some(c => c.id === d.char)) op.char = d.char;
-    if (op.char === (stats.char || 'lumi')) op.char = CHARS[(CHARS.findIndex(c => c.id === op.char) + 1) % CHARS.length].id;   // 같은 캐릭터면 상대는 다른 캐릭터로 보여 줌
+    op.name = cleanName(d.name || '상대'); if (CHARS.some(c => c.id === d.char)) op.char = d.char;   // 나와 같은 캐릭터여도 그대로 보여 줌
     if (op.other) { op.other.name = op.name; op.other.char = op.char; } return;
   }
   if (d.t === 'st') recState(op, d); else recEv(op, d);         // 상대 판도 리플레이에 기록
