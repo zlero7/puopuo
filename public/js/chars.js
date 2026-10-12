@@ -37,10 +37,10 @@ function charAi(base, ch, kind) {
 }
 
 /* ---------- 캐릭터 그림 ----------
-   img/chars_card.webp: 카드(일러스트 + 이름·소개) 300×298 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
+   img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 300×354 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
    모두 CHARS 순서대로 가로 한 줄 */
 const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image() } : null;
-const CHAR_CELL = { card: [300, 298], bust: [160, 160], icon: [128, 128] };
+const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128] };
 if (CHAR_IMG) for (const k in CHAR_IMG) {
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
   CHAR_IMG[k].src = `img/chars_${k}.webp`;
