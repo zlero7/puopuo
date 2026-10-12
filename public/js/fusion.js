@@ -318,8 +318,7 @@ class FField {
   draw(t) {
     const c = ctx, tone = this.tone || TONES.red, gx = this.ox + TGX;
     c.save();
-    slab(c, this.ox + 14, 2, SW - 28, 32, tone, 4);
-    outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6);
+    if (!tagOff(this)) { slab(c, this.ox + 14, 2, SW - 28, 32, tone, 4); outlined(c, this.name, this.ox + SW / 2, 19, 20, '#fff', tone.d, 6); }   // 세로 폰 작은 판은 초상 카드에 이름
     const sy = this.oy + FH + 16;
     slab(c, this.ox + 6, sy, SW - 12, 50, TONES.white, 4);
     c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#6d6b80'; c.font = '15px ' + FONT(); c.fillText('점수', this.ox + 30, sy + 26);
@@ -371,9 +370,9 @@ class FField {
   }
 }
 // '다음' 칸: 퓨전 조각 미리보기
-function drawFusionNext(c, me, t) {
-  for (let i = 0; i < 4; i++) {
-    const pc = fuPieceAt(me.idx + i), y = OY + 70 + i * 46, s = i ? 0.8 : 1;
+function drawFusionNext(c, me, t, y0 = OY + 70, n = 4) {
+  for (let i = 0; i < n; i++) {
+    const pc = fuPieceAt(me.idx + i), y = y0 + i * 46, s = i ? 0.8 : 1;
     if (pc.t === 'm') drawMino(c, pc.k, PX, y, (i ? 11 : 14), i ? 0.85 : 1);
     else { c.save(); c.translate(PX, y); c.scale(0.55 * s * 40 / CS, 0.55 * s * 40 / CS); drawPuyos(c, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: pc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: pc.ab[0] }], []); c.restore(); }
   }

@@ -37,6 +37,7 @@ window.addEventListener('keydown', e => {
     for (let pi = 0; pi < 2; pi++) { const a = LOCAL_KEYS[pi][lk]; if (a) { e.preventDefault(); playerAction(pi, a, true, e.repeat); return; } }
     return;
   }
+  if (k === 'Tab' && !keyMap().tab && game.vs && game.fields.length > 2) { e.preventDefault(); if (!e.repeat) cycleTarget(e.shiftKey ? -1 : 1); return; }   // 3~4인만(2인은 Tab을 그대로 둠)   // 3~4인: Tab(Shift+Tab 거꾸로)으로 공격 대상 바꾸기
   const a = keyMap()[lk];
   if (!a) return;
   e.preventDefault();
@@ -61,7 +62,7 @@ window.addEventListener('keyup', e => {
   const a = keyMap()[lk]; if (a) playerAction(0, a, false, false);
 });
 window.addEventListener('blur', () => { for (const i of game.inp) i.left = i.right = i.down = false; if (game.state === 'play' && !game.net) openPause(); });
-window.addEventListener('resize', fit);
+window.addEventListener('resize', () => { fit(); setTimeout(fit, 350); });   // 화면을 돌리면 페이지 폭이 늦게 돌아와서 한 번 더
 $('bRetry').addEventListener('click', () => {
   if (game.puzzle) { const Z = game.puzzle; puzzleGo(Z.kind, Z.ok ? Z.i + 1 : Z.i, !Z.ok); return; }   // 튜토리얼·퍼즐: 다음 / 다시
   if (game.adv && game.ovKind === 'adv') { if (game.advResult > 0) advNext(); else advPlay(game.adv.s, true, game.adv.c); return; }

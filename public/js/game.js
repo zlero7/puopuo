@@ -76,28 +76,54 @@ function padOverlay(a) {
 // 연습(1인)은 방해뿌요 칸이 필요 없어서 위쪽을 잘라 필드를 더 크게 보여줌
 let LW = 840, VIEW_Y0 = 0;
 const viewH = () => CANVAS_H - VIEW_Y0;
-// 세로 폰(2인 · 통상/피버): 내 판을 크게, 상대 판은 오른쪽 칸(홀드 아래)에 작게(compact)
-const MINI_Y = OY + 392;
-const miniK = () => Math.min(140 / SW, (CANVAS_H - MINI_Y - 4) / CANVAS_H);
-const isMini = f => !!game.compact && f === game.fields[1];
-function miniPt(f, x, y) { const k = miniK(); return [PX - SW * k / 2 + (x - f.ox) * k, MINI_Y + y * k]; }
+// 세로 폰(2~4인 · 통상/피버/퓨전): 내 판을 크게, 상대 판들은 오른쪽 칸(홀드 아래)에 작게(compact)
+// 상대 1명은 한 칸 크게, 2~3명은 두 줄 두 칸에 나눠서
+const MINI_Y = OY + 364, CTOP = 92;   // CTOP: 세로 폰 위쪽 초상 띠 높이
+const isMini = f => !!game.compact && f !== game.fields[0];
+function miniBox(f) {
+  const ops = game.fields.length - 1, j = Math.max(0, game.fields.indexOf(f) - 1), H = CANVAS_H - MINI_Y - 4;
+  if (ops <= 1) { const k = Math.min(140 / SW, H / CANVAS_H); return { k, x: PX - SW * k / 2, y: MINI_Y }; }
+  const rows = Math.ceil(ops / 2), k = Math.min(68 / SW, (H / rows - 4) / CANVAS_H), w = SW * k;
+  const inRow = Math.min(2, ops - Math.floor(j / 2) * 2), col = j % 2;
+  return { k, x: PX - (inRow * w + (inRow - 1) * 6) / 2 + col * (w + 6), y: MINI_Y + Math.floor(j / 2) * (CANVAS_H * k + 4) };
+}
+const slotOx = f => f.sx != null ? f.sx : f.ox;   // 판 칸 왼쪽(뿌요는 판이 칸보다 좁으면 가운데 정렬이라 칸 기준으로)
+function miniPt(f, x, y) { const b = miniBox(f); return [b.x + (x - slotOx(f)) * b.k, b.y + y * b.k]; }
+function miniBoard(f) { const b = miniBox(f); return { x: b.x + (f.ox - slotOx(f)) * b.k, y: b.y + OY * b.k, w: f.fw * b.k, h: FH * b.k, k: b.k }; }   // 작은 판의 실제 판 영역
 function inMini(c, f, fn) {
   if (!isMini(f)) { fn(); return; }
-  const k = miniK(); c.save(); c.translate(PX - SW * k / 2, MINI_Y); c.scale(k, k); c.translate(-f.ox, 0); fn(); c.restore();
+  const b = miniBox(f); c.save(); c.translate(b.x, b.y); c.scale(b.k, b.k); c.translate(-slotOx(f), 0); fn(); c.restore();
 }
 function fit() {
-  const pad = document.getElementById('pad');
-  game.compact = game.vs && game.fields.length === 2 && ['tsu', 'fever', 'fusion'].includes(game.rule) && window.innerWidth <= 760 && window.innerHeight > window.innerWidth;
-  LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW);
-  const padH = getComputedStyle(pad).display === 'none' ? 0 : pad.offsetHeight + 16;
+  // 화면 폭: 모바일에서 화면을 돌린 직후엔 이전(넓은) 캔버스 때문에 innerWidth가 넓게 남아서 문서 폭(clientWidth)과 비교
+  const pad = document.getElementById('pad'), vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth), vh = window.innerHeight, portrait = vh > vw;
+  // 세로 화면(폰 · 태블릿): 내 판을 크게, 상대 판들은 오른쪽에 작게
+  // (로컬 대전은 두 사람 판을 같은 크기로 두려고 제외)
+  game.compact = game.vs && game.mode !== 'local' && game.fields.length >= 2 && ['tsu', 'fever', 'fusion', 'bigbang', 'party', 'swap'].includes(game.rule) && vw <= 1100 && portrait;
+  if (game.vs) VIEW_Y0 = game.compact ? -CTOP : (game.baseY0 || 0);   // 세로 화면: 위쪽에 초상 띠
+  game.narrow = vw <= 1100 && portrait;
+  LW = game.compact ? OX1 + SW + PANEL_W : (game.fullLW || LW) - (game.narrow ? (game.side || 0) + (game.sideR || 0) : 0);
+  const pcs = getComputedStyle(pad), padSide = pcs.display !== 'none' && pcs.position === 'fixed';   // 가로 폰: 버튼이 양옆에 떠 있음
+  const pad2 = document.getElementById('pad2'), p2H = pad2 && getComputedStyle(pad2).display !== 'none' ? pad2.offsetHeight + 12 : 0;   // 로컬 대전 2P 버튼
+  const padH = (pcs.display === 'none' || padSide ? 0 : pad.offsetHeight + 16) + p2H;
+  const sideW = padSide ? 2 * ((pad.querySelector('button') || {}).offsetWidth || 0) * 2 + 60 : 0;   // 양옆 버튼 두 칸씩 + 여백
   const bands = document.querySelector('.band-top').offsetHeight + document.querySelector('.band-bot').offsetHeight + 24;
-  const s = Math.max(0.3, Math.min(1.6, (window.innerWidth - 16) / LW, (window.innerHeight - bands - padH) / viewH()));
-  const rs = DPR * Math.max(1, s);
+  const s = Math.max(0.2, Math.min(1.6, (vw - 16 - sideW) / LW, (vh - bands - padH) / viewH()));
+  const rs = game.lowFx ? Math.max(1, s) : DPR * Math.max(1, s);   // 가볍게 모드: 내부 해상도 1배(느린 폰)
   if (cv.width !== Math.round(LW * rs) || cv.height !== Math.round(viewH() * rs)) { cv.width = Math.round(LW * rs); cv.height = Math.round(viewH() * rs); }
   game.rs = rs;
   cv.style.width = (LW * s) + 'px'; cv.style.height = (viewH() * s) + 'px';
 }
-function setSize(W) { LW = game.fullLW = W; VIEW_Y0 = game.vs ? 0 : 58; fit(); }
+// 초상 카드 자리: 2인은 양쪽 판 바깥(이름표 옆) · 연습은 판 왼쪽 · 3~4인은 판 위(이름표 대신).
+// 그리기 좌표는 그대로 두고 화면만 밀어서 그림(왼쪽 side, 오른쪽 sideR, 위 top)
+const SIDE_W = 196, TOP_H = 112, sideX = () => game.compact || game.narrow ? 0 : (game.side || 0);   // 세로 폰은 옆 카드 없이(판이 작아지지 않게)
+const cardTop = () => !game.compact && game.top > 0;
+const tagOff = f => !!game.compact || cardTop();     // 이름표를 초상 카드가 대신하는 판(세로 폰 · 3~4인)
+function setSize(W, side = 0, sideR = side, top = 0) {
+  game.side = side; game.sideR = sideR; game.top = top; LW = game.fullLW = W + side + sideR;
+  game.baseY0 = game.vs ? -top : 58; VIEW_Y0 = game.baseY0; fit();
+}
+const sizeFor = (vs, n) => vs ? [slotX(n - 1) + SW + 20, n === 2 ? SIDE_W : 0, n === 2 ? SIDE_W : 0, n > 2 ? TOP_H : 0] : [OX1 + SW + PANEL_W, SIDE_W, 0, 0];
 
 const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
 const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
@@ -134,7 +160,7 @@ function botAi(kind, lv) {
 function build(mode) {
   const vs = mode !== 'solo', n = playersOf(mode);
   game.vs = vs; game.mode = mode; seq = []; tseq = []; game.orbs = []; game.fx.rings = []; game.fx.sparks = []; for (const i of game.inp) i.left = i.right = i.down = false;
-  setSize(vs ? slotX(n - 1) + SW + 20 : OX1 + SW + PANEL_W);
+  setSize(...sizeFor(vs, n));
   const my = game.myStyle || 'puyo';
   const f1 = mkField(my, OX1, true, vs ? stats.name : '연습');
   f1.tone = vs ? TONES.red : TONES.green; f1.char = stats.char || 'lumi';
@@ -156,20 +182,24 @@ function build(mode) {
   if (mode === 'local') { f1.name = '1P'; f1.pi = 0; }
   // 캐릭터: 나는 고른 캐릭터, 나머지는 겹치지 않게 무작위(어드벤처는 정해진 상대). CPU는 캐릭터 성격대로
   const pool = CHARS.map(c => c.id).filter(id => id !== f1.char).sort(() => Math.random() - 0.5);
-  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
+  const prev = game.sameOpp && game.lastChars && game.lastChars.length === game.fields.length ? game.lastChars : null;
+  game.fields.forEach((f, i) => { if (i) f.char = (game.cpuChars && game.cpuChars[i - 1]) || (prev && prev[i] !== f1.char && prev[i]) || pool[(i - 1) % pool.length]; if (f.ai && !f.human && !f.remote) f.ai = charAi(f.ai, charOf(f.char), f.kind); });
+  game.fields.forEach((f, i) => { if (i && !f.human && !f.remote && mode !== 'online') f.name = `AI ${charOf(f.char).name}`; });   // AI 상대 이름: 'AI 핀'처럼 캐릭터 이름(랭크전 AI와 같게)
+  game.lastChars = game.fields.map(f => f.char);
   if (mode === 'online' && game.botOpp) { const b = game.fields[1]; b.char = game.botOpp.char; b.name = game.botOpp.name; b.isBot = true; }   // 랭크전 AI 상대: 판은 서버가 돌리고 이름·캐릭터만 여기서
   for (const f of game.fields) f.opp = pickTarget(f);
   if (game.rule === 'swap') game.fields.forEach(f => makeSwapPair(f, lv));      // 스왑: 같은 자리에 다른 스타일 판도 하나씩
 }
 // 판 위 결과 띠 글자
 const endLabel = f => f.won ? '승리!' : !game.vs ? '게임 오버' : game.fields.length > 2 && f.place ? `${f.place}위` : '패배';
-// 공격 대상: 2명이면 상대. 3명 이상이면 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
+// 공격 대상: 2명이면 상대. 3명 이상이면 직접 고른 사람(카드·작은 판을 눌러서) → 나를 마지막으로 공격한 사람 → 없으면 점수가 가장 높은 사람.
 // kind를 주면 그 스타일(뿌요/테트리스) 상대를 먼저 고름(공격 변환이 섞이지 않게)
 function pickTarget(f, kind) {
   let alive = game.fields.filter(o => o !== f && !o.dead);
   if (!alive.length) return f.opp || null;
   if (kind && alive.some(o => o.kind === kind)) alive = alive.filter(o => o.kind === kind);
   if (alive.length === 1) return alive[0];
+  if (f.pick && alive.includes(f.pick)) return f.pick;
   if (f.lastHitBy && alive.includes(f.lastHitBy)) return f.lastHitBy;
   return alive.reduce((a, b) => (b.score > a.score ? b : a));
 }
@@ -196,6 +226,7 @@ function start(mode, seed, styles, board, rule) {
   else if (mode === 'online' && playersOf(mode) > 2) game.series = null;
   else if (mode === 'online') { if (!game.series || game.series.to !== 0 || game.resetOnline) game.series = { me: 0, op: 0, to: 0 }; game.resetOnline = false; }
   else game.series = null;
+  game.sameOpp = game.keepSeries && !!game.series && !game.adv;   // 시리즈 다음 판: 같은 상대(캐릭터·이름 그대로)
   game.keepSeries = false;
   const sd = seed == null ? (Math.random() * 2 ** 32) >>> 0 : seed;
   seedSeq(sd); game.replay = null;

@@ -5,7 +5,7 @@
 let keyWait = null;
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
-  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
+  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('lowFx').checked = stats.lowFx === true || (stats.lowFx !== false && !!game.lowFx); $('vib').checked = stats.vib !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
@@ -37,6 +37,8 @@ window.addEventListener('keydown', e => {          // 키 설정 입력(다른 �
 }, true);
 $('oppRank').addEventListener('change', () => { stats = loadStats(); stats.oppRank = $('oppRank').checked; saveStats(); });
 $('ghost').addEventListener('change', () => { stats = loadStats(); stats.ghost = $('ghost').checked; saveStats(); });
+$('lowFx').addEventListener('change', () => { stats = loadStats(); stats.lowFx = $('lowFx').checked; saveStats(); game.lowFx = stats.lowFx; fit(); });   // 끄면 자동 감지만
+$('vib').addEventListener('change', () => { stats = loadStats(); stats.vib = $('vib').checked; saveStats(); });
 $('cbMode').addEventListener('change', () => { stats = loadStats(); stats.cb = $('cbMode').checked; saveStats(); if (game.state === 'menu') drawArts(); });
 $('rankBot').addEventListener('change', () => { stats = loadStats(); stats.rankBot = $('rankBot').checked; saveStats(); });
 $('bKeyReset').addEventListener('click', () => { stats = loadStats(); stats.keys = null; saveStats(); keyWait = null; renderKeys(); });
@@ -53,7 +55,7 @@ function setHints(kind) {
     : game.mode === 'local' ? '<span>1P <kbd>WASD</kbd> <kbd>Q E</kbd> 회전 <kbd>R</kbd> 홀드</span><span>2P <kbd>방향키</kbd> <kbd>. /</kbd> 회전 <kbd>,</kbd> 홀드</span><span><kbd>Esc</kbd> 일시정지</span>'
     : (() => { const b = { ...DEF_KEYS, ...(stats.keys || {}) }, n = a => keyName(b[a][0]).replace('방향키 ', '');
       return `<span><kbd>${n('left')} ${n('right')}</kbd> 이동</span><span><kbd>${n('ccw')} ${n('cw')}</kbd> 회전</span><span><kbd>${n('hard')}</kbd> 하드드롭</span>` +
-        `<span><kbd>${n('hold')}</kbd> 홀드</span>` + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
+        `<span><kbd>${n('hold')}</kbd> 홀드</span>` + (game.vs && playersOf(game.mode) > 2 && !Object.values(b).some(ks => ks.some(x => String(x).toLowerCase() === 'tab')) ? '<span><kbd>Tab</kbd> 공격 대상</span>' : '') + `<span><kbd>${n('pause')}</kbd> ${game.net ? '나가기' : '일시정지'}</span>`; })();
 }
 // 캐릭터 고르기 화면(카드 8장)
 function renderChars(focusId) {
@@ -69,13 +71,16 @@ function renderChars(focusId) {
   }
   sec.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.id === 'ch-' + mine));
   requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => {
-    const g = fitCanvas(c); if (!g) return; drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+    const g = fitCanvas(c); if (!g) return;
+    if (charImgOk('card')) { g.x.save(); g.x.beginPath(); rr(g.x, 0, 0, g.w, g.h, 10); g.x.clip(); drawCharCard(g.x, c.dataset.char, 0, 0, g.w, g.h); g.x.restore(); }   // 카드 그림에 이름·소개가 있음
+    else drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
+    c.closest('.charcard').classList.toggle('cardimg', !!charImgOk('card'));
   }));
 }
 function showScreen(id, focusId) {
   document.querySelectorAll('.screen').forEach(el => el.classList.toggle('hidden', el.id !== 'sc-' + id));
   cur = id; $('bandTitle').textContent = TITLES[id];
-  $('bBack').classList.toggle('hidden', id === 'main');
+  $('bBack').classList.toggle('hidden', id === 'main'); if (typeof drawWait === 'function') drawWait();
   if (id !== 'main') guardBack();
   renderRecords();
   if (id === 'stats') renderStats();
@@ -91,12 +96,12 @@ function showScreen(id, focusId) {
 }
 function openMenu(id = 'main', focusId) {
   game.state = 'menu'; if (AC) bgmPlay('menu'); overlay.classList.add('hidden');
-  document.body.classList.remove('ingame');
+  document.body.classList.remove('ingame', 'local2', 'replay');
   $('game').classList.add('hidden'); $('menu').classList.remove('hidden');
   showScreen(id, focusId);
 }
 function showGame() {
-  document.body.classList.add('ingame'); $('bBack').classList.add('hidden'); guardBack();
+  document.body.classList.add('ingame'); document.body.classList.toggle('local2', game.mode === 'local'); document.body.classList.toggle('replay', game.mode === 'replay'); $('bBack').classList.add('hidden'); $('mmBadge').classList.add('hidden'); guardBack();
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
   if (game.adv) { $('bandTitle').textContent = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1}`; setHints('game'); fit(); return; }
   const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
@@ -105,7 +110,6 @@ function showGame() {
 }
 function menuBack() {
   if (cur === 'main') return;
-  if (cur === 'vs') cancelWait();
   if (cur === 'solo' || cur === 'psolo') { showScreen('ai', 't-solo'); return; }
   showScreen('main', 't-' + cur);
 }
@@ -186,7 +190,8 @@ $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = 
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 // 티어 엠블럼 그림(img/tiers.webp): 브론즈 1·2·3 → … → 다이아 3, 마스터 순서로 한 줄(칸마다 128px). 불러오기 전·배치 중은 아래 도형으로
 const TIER_IMG = new Image(), TIER_CELL = 128;
-TIER_IMG.onload = () => { if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
+TIER_IMG.onload = () => { if (!window.gameReady) return;   // 아직 스크립트를 다 읽기 전이면 시작할 때 그림
+  if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
 TIER_IMG.src = 'img/tiers.webp';
 function drawTierEmblem(c, x, y, size, group, div) {
   const i = group === 5 ? 15 : group >= 0 && group < 5 && div >= 1 && div <= 3 ? group * 3 + div - 1 : -1;
@@ -326,6 +331,20 @@ $('fImport').addEventListener('change', () => {
     if (!ok) { alert('기록 파일이 아니거나 손상됐어요.'); return; }
     if (!confirm('지금 이 브라우저의 기록을 파일의 기록으로 바꿀까요? (랭크전 기록도 함께 옮겨져요)')) return;
     try { for (const [k, s] of Object.entries(v.data)) localStorage.setItem(k, s); } catch (e) { alert('저장 공간이 부족해서 다 불러오지 못했어요.'); }
+    try { sessionStorage.setItem('puyo-imported', '1'); } catch (e) {}
     location.reload();
   });
 });
+
+// 기록을 불러온 직후: 이 서버에서 랭크를 찾았는지 알려 줌(랭크는 랭크전을 한 서버에 저장되고, 파일에는 그 랭크를 찾는 열쇠(토큰)만 들어 있음)
+function importedNotice() {
+  let on = false; try { on = sessionStorage.getItem('puyo-imported') === '1'; sessionStorage.removeItem('puyo-imported'); } catch (e) {}
+  if (!on) return;
+  const say = lines => dialog(lines.map(t => ['lumi', t]));
+  if (!location.protocol.startsWith('http')) { say(['기록을 불러왔어! 랭크는 서버에 접속해야 볼 수 있어.']); return; }
+  Promise.all(['puyo', 'tetris'].map(st => fetch(rankUrl('me', st)).then(r => r.json()).catch(() => null))).then(([p, t]) => {
+    const has = m => m && (m.w + m.l > 0 || m.hist && m.hist.length);
+    if (has(p) || has(t)) say(['기록을 불러왔어!', `랭크도 그대로야 — 뿌요뿌요 ${p ? p.text : '-'} · 테트리스 ${t ? t.text : '-'}`]);
+    else say(['기록(전적·어드벤처·퍼즐·설정)은 불러왔어.', '그런데 이 서버에는 이 파일의 랭크 기록이 없어. 랭크는 랭크전을 한 서버에만 저장돼서, 다른 서버(다른 주소)로는 옮겨지지 않아.']);
+  });
+}

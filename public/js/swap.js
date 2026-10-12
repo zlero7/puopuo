@@ -26,14 +26,14 @@ function swapField(f) {
   g.pending = f.kind === 'puyo' ? toLines(f.pending) : T2P[Math.min(60, f.pending)] || 0;
   f.pending = 0;
   g.score = f.score; g.sent = f.sent; g.maxChain = Math.max(g.maxChain, f.maxChain);
-  g.opp = f.opp; g.lastHitBy = f.lastHitBy; g.seat = f.seat; g.dead = false;
+  g.opp = f.opp; g.pick = f.pick; g.lastHitBy = f.lastHitBy; g.seat = f.seat; g.dead = false;
   g.swapAt = (Math.floor((game.el || 0) / SWAP_T) + 1) * SWAP_T;
-  for (const o of game.fields) { if (o.opp === f) o.opp = g; if (o.lastHitBy === f) o.lastHitBy = g; }
+  for (const o of game.fields) { if (o.opp === f) o.opp = g; if (o.lastHitBy === f) o.lastHitBy = g; if (o.pick === f) o.pick = g; }
   if (game.seatField && f.seat != null) game.seatField[f.seat] = g;
   game.fields[i] = g;
   f.phase = 'swapped'; f.piece = null; f.cur = null;
   g.texts.push({ txt: '스왑!', x: g.fw / 2, y: FH * 0.35, age: 0, dur: 1300, col: '#ffe066', size: 46 });
-  ring(g.ox + g.fw / 2, OY + FH / 2, '#ffe066', 20, 220, 520, 8);
+  { const mk = isMini(g) ? miniBox(g).k : 1, [qx, qy] = isMini(g) ? miniPt(g, g.ox + g.fw / 2, OY + FH / 2) : [g.ox + g.fw / 2, OY + FH / 2]; ring(qx, qy, '#ffe066', 20 * mk, 220 * mk, 520, 8 * mk); }
   if (f.human) sfx.margin();
   g.phase = 'none'; g.spawn();
   if (f.dieLater) { f.dieLater = false; applyRemote(g, { t: 'dead' }); }   // 바뀌기 전에 받은 탈락은 새 판으로
@@ -49,8 +49,11 @@ function routeKind(f, d) {
 function drawSwap(c) {
   for (const f of game.fields) {
     if (!f.other || f.dead) continue;
-    const left = Math.max(0, Math.ceil((f.swapAt - (game.el || 0)) / 1000)), x = f.ox + f.fw - 62, y = 6;
-    slab(c, x, y, 46, 24, left <= 3 ? TONES.yellow : TONES.white, 3);
-    outlined(c, left ? `⇄${left}` : '⇄!', x + 23, y + 12, 14, left <= 3 ? '#fff' : '#22212e', left <= 3 ? TONES.yellow.d : '#fff', 4);
+    // 위쪽에 초상 카드가 있으면(3~4인 · 세로 폰) 카드와 판 사이에, 작은 판은 그 판 위에 작게
+    const left = Math.max(0, Math.ceil((f.swapAt - (game.el || 0)) / 1000)), x = f.ox + f.fw - 62, y = cardTop() || (game.compact && !isMini(f)) ? 40 : 6;
+    inMini(c, f, () => {
+      slab(c, x, y, 46, 24, left <= 3 ? TONES.yellow : TONES.white, 3);
+      outlined(c, left ? `⇄${left}` : '⇄!', x + 23, y + 12, 14, left <= 3 ? '#fff' : '#22212e', left <= 3 ? TONES.yellow.d : '#fff', 4);
+    });
   }
 }

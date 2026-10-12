@@ -16,7 +16,7 @@ function connect(then) {
   ws.onopen = () => { status('서버에 연결되었습니다.'); then(); };
   ws.onerror = () => status('서버에 연결할 수 없습니다. 서버가 켜져 있는지, 주소가 맞는지 확인하세요.');
   ws.onclose = () => {
-    if (net.ws === ws) net.ws = null;
+    if (net.ws === ws) { net.ws = null; setWait(null); }
     $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden');
     if (game.net && (game.state === 'play' || game.state === 'over')) {
       game.net = false; showMessage('연결 끊김', '서버와의 연결이 끊겼습니다. 다시 접속해 주세요.');
@@ -27,11 +27,12 @@ function connect(then) {
 function onNet(m) {
   switch (m.t) {
     case 'created':
+      setWait(`방 ${m.code}`, m.size > 2 ? `1/${m.size}명` : '상대 기다리는 중');
       $('roomCode').textContent = m.code; $('roomBox').classList.remove('hidden'); $('bCancel').classList.remove('hidden');
       status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
-    case 'waiting': $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
-    case 'lobby': status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
-    case 'rwait': $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요${m.botIn ? ` · ${m.botIn}초 안에 못 찾으면 비슷한 실력의 AI와 대전` : ''}`); break;
+    case 'waiting': setWait('빠른 매칭', m.size > 2 ? `${m.have}/${m.size}명` : `${STYLE_KO[stats.style || 'puyo']}`); $('bCancel').classList.remove('hidden'); status(m.size > 2 ? `사람을 모으는 중… (${m.have}/${m.size}명)` : '상대를 찾는 중…'); break;
+    case 'lobby': if (net.wait) net.wait.sub = `${m.have}/${m.size}명`; else setWait('방', `${m.have}/${m.size}명`); drawWait(); status(`사람을 모으는 중… (${m.have}/${m.size}명)`); break;
+    case 'rwait': setWait('랭크전', `${STYLE_KO[stats.style || 'puyo']} · ${m.text}`); $('bCancel').classList.remove('hidden'); status(`랭크전 상대를 찾는 중… ${m.text} · 기다릴수록 범위가 넓어져요${m.botIn ? ` · ${m.botIn}초 안에 못 찾으면 비슷한 실력의 AI와 대전` : ''}`); break;
     case 'rdone':                          // 랭크전 끝: 레이팅 변화
       if (game.mode !== 'online' || !game.ranked) break;
       game.rankRes = m;
@@ -57,8 +58,8 @@ function onNet(m) {
       if (game.state === 'over') fixOver(m);
       break;
     }
-    case 'error': status(m.msg); break;
-    case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status('');
+    case 'error': status(m.msg); setWait(null); break;
+    case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
       {
         // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
@@ -121,7 +122,24 @@ function showRankRec() {
   if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
   fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(() => {});
 }
-function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); }
+function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null); }
+// 매칭·방 기다리는 중 표시: 다른 메뉴로 가도 기다림은 그대로이고, 화면 위 제목 옆에 '무슨 매칭 · 얼마나 기다렸는지'를 보여 줌(누르면 대전 화면으로)
+function setWait(kind, sub) {
+  if (!kind) net.wait = null;
+  else if (!net.wait || net.wait.kind !== kind) net.wait = { kind, sub, since: Date.now() };
+  else net.wait.sub = sub;
+  drawWait();
+}
+function drawWait() {
+  const b = $('mmBadge'), w = net.wait;
+  if (!w || game.state !== 'menu') { b.classList.add('hidden'); return; }
+  const s = Math.floor((Date.now() - w.since) / 1000);
+  const what = w.kind === '랭크전' ? '랭크전 매칭' : w.kind === '빠른 매칭' ? '빠른 매칭' : `${w.kind} 대기`;
+  b.innerHTML = `<span class="dot"></span><b>${esc(what)}<i> 중</i></b><small>${esc(w.sub || '')}</small><span class="tm">${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</span>`;
+  b.classList.remove('hidden');
+}
+setInterval(() => { if (net.wait) drawWait(); }, 1000);
+$('mmBadge').addEventListener('click', () => { if (game.state === 'menu') openMenu('vs', net.wait && net.wait.kind === '랭크전' ? 't-rank' : 't-quick'); });
 $('bCancel').addEventListener('click', cancelWait);
 $('bJoin').addEventListener('click', () => {
   const code = $('code').value.trim().toUpperCase();
@@ -135,17 +153,16 @@ $('srv').addEventListener('keydown', e => e.stopPropagation());
 $('bRematch').addEventListener('click', () => { nsend({ t: 'ready', style: stats.style || 'puyo' }); $('ovSub').textContent = '상대를 기다리는 중…'; });
 $('bLeave').addEventListener('click', () => { if (rankLeave()) return; nsend({ t: 'leave' }); game.net = false; openMenu('vs', 't-quick'); });
 
-document.querySelectorAll('#pad button').forEach(btn => {
-  const k = btn.dataset.k;
+// 터치 버튼: #pad는 1P(로컬 대전) · 나, #pad2는 로컬 대전 2P. 다시 보기에선 ◀ ▶가 배속
+document.querySelectorAll('#pad button, #pad2 button').forEach(btn => {
+  const k = btn.dataset.k, pi = btn.closest('#pad2') ? 1 : 0, act = { down: 'soft', menu: 'pause' }[k] || k;
   btn.addEventListener('pointerdown', e => {
     e.preventDefault(); btn.classList.add('on');
-    if (k === 'left' || k === 'right') playerAction(0, k, true); else if (k === 'down') playerAction(0, 'soft', true);
-    else if (k === 'hard') { const f = human(); if (f) f.hardDrop(); }
-    else if (k === 'menu') openPause();
-    else if (k === 'hold') { const f = human(); if (f && f.hold) f.hold(); }
-    else { const f = human(); if (f) f.rotate(k === 'cw' ? 1 : -1); }
+    if (stats.vib !== false && navigator.vibrate) try { navigator.vibrate(8); } catch (_) {}   // 짧은 진동(안드로이드)
+    if (game.mode === 'replay') { if (k === 'left' || k === 'right') replaySpeed(k === 'left' ? -1 : 1); else if (k === 'menu') openPause(); return; }
+    playerAction(pi, act, true);
   });
-  const up = () => { btn.classList.remove('on'); if (k === 'left' || k === 'right') playerAction(0, k, false); else if (k === 'down') playerAction(0, 'soft', false); };
+  const up = () => { btn.classList.remove('on'); if (game.mode !== 'replay' && (k === 'left' || k === 'right' || k === 'down')) playerAction(pi, act, false); };
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, up));
 });
 // 랭크전 결과(RP 변화)를 기록의 이번 판 줄에 붙임

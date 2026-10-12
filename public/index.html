@@ -56,16 +56,30 @@
   .band-top {
     position: fixed; left: 0; top: 0; z-index: 5; height: calc(var(--bandH) + env(safe-area-inset-top, 0px));
     padding-top: env(safe-area-inset-top, 0px);
-    width: min(62vw, 720px); background: linear-gradient(90deg, #ff2b47, #ff6a1f 70%, #ff8f1f);
+    width: max-content; min-width: min(62vw, 720px); max-width: 100vw; padding-right: 110px; box-sizing: border-box;   /* 매칭 표시가 붙으면 띠가 늘어남 */
+    background: linear-gradient(90deg, #ff2b47, #ff6a1f 70%, #ff8f1f);
     clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%); display: flex; align-items: center;
   }
   .band-top h1 {
-    margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
+    white-space: nowrap; margin: 0; padding-left: clamp(18px, 5vw, 64px); font-family: var(--head); font-weight: 400;
     font-size: clamp(24px, 4.4vh, 42px); color: #fff; letter-spacing: 1px; text-shadow: 0 3px 0 rgba(120, 10, 20, 0.35);
   }
   .backbtn { flex: none; margin-left: clamp(10px, 3vw, 40px); width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
     background: #fff; color: #ff2b47; font-family: var(--head); font-size: 24px; line-height: 1; box-shadow: 0 3px 0 rgba(120, 10, 20, 0.35); }
   .backbtn:not(.hidden) + h1 { padding-left: 12px; }
+  /* 매칭 중 표시(제목 오른쪽): 누르면 대전 화면으로 */
+  .mmbadge { flex: none; display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 6px 14px; border: 0; border-radius: 999px; cursor: pointer;
+    background: rgba(255,255,255,0.95); color: #c4152f; font-family: var(--head); font-size: clamp(14px, 2vh, 18px); box-shadow: 0 3px 0 rgba(120,10,20,0.35); white-space: nowrap; }
+  .mmbadge small { font-family: var(--font); font-size: 0.8em; color: #6d6b80; }
+  .mmbadge .tm { font-variant-numeric: tabular-nums; background: #ff2b47; color: #fff; border-radius: 999px; padding: 1px 9px; font-size: 0.85em; }
+  .mmbadge .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff2b47; animation: mmblink 1s infinite; }
+  @keyframes mmblink { 50% { opacity: 0.2; } }
+  .mmbadge i { font-style: normal; }
+  @media (max-width: 760px) {
+    .mmbadge small, .mmbadge i { display: none; } .mmbadge { margin-left: 8px; padding: 5px 10px; gap: 6px; font-size: 14px; }
+    body:has(.mmbadge:not(.hidden)) .band-top h1 { font-size: 20px; }   /* 매칭 표시가 있으면 제목을 조금 작게 */
+    .band-top { padding-right: 96px; }
+  }
   .band-white {
     position: fixed; top: 0; right: 0; z-index: 4; height: calc(var(--bandH) * 0.62 + env(safe-area-inset-top, 0px)); width: 46vw;
     background: #fff; clip-path: polygon(8% 0, 100% 0, 100% 100%, 0 100%);
@@ -73,7 +87,7 @@
   .band-bot {
     position: fixed; right: 0; bottom: 0; z-index: 5; height: calc(var(--footH) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    width: min(64vw, 760px); background: linear-gradient(90deg, #1b5fd9, #1f74f0);
+    width: max-content; min-width: min(64vw, 760px); max-width: 100vw; padding-left: 80px; box-sizing: border-box; background: linear-gradient(90deg, #1b5fd9, #1f74f0);   /* 안내가 늘어나면 띠도 왼쪽으로 늘어남 */
     clip-path: polygon(9% 0, 100% 0, 100% 100%, 0 100%);
     display: flex; align-items: center; justify-content: flex-end; gap: clamp(12px, 2.4vw, 30px);
     padding-right: clamp(16px, 4vw, 56px); color: #fff; font-size: clamp(14px, 2.2vh, 19px); white-space: nowrap;
@@ -116,6 +130,8 @@
   .charcard .tt { left: 0; right: 0; bottom: 9%; text-align: center; font-size: clamp(22px, 4vh, 40px); }
   .charcard .mine { position: absolute; z-index: 2; top: 6%; right: 7%; font-family: var(--head); font-size: 14px; background: #fff; color: var(--d); border-radius: 999px; padding: 2px 10px; display: none; }
   .charcard.sel .mine { display: block; }
+  .charcard.cardimg canvas { left: 5%; top: 5%; width: 90%; height: 90%; transform: none; }   /* 카드 그림(이름·소개 포함)일 때: 그림을 크게, 글자는 숨김 */
+  .charcard.cardimg .tt { display: none; }
   #sc-ai { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 1fr; }
   #sc-vs { grid-template-columns: 1.15fr 1fr 0.9fr; grid-template-rows: auto 1fr 1fr auto; }
   #sc-vs #t-rank { grid-row: 2 / 4; grid-column: 3; }
@@ -350,11 +366,13 @@
   /* ---------- 게임 화면 ---------- */
   #stage { position: relative; line-height: 0; }
   canvas#cv { display: block; }
+  /* 일시정지·결과 창: 게임 화면이 작아도(짧은 폰 · 가로) 잘리지 않게 위쪽 띠 아래 화면 전체에, 넘치면 스크롤 */
   #overlay {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; line-height: 1.35;
-    background: rgba(26, 20, 60, 0.55); border-radius: 16px; padding: 16px;
+    position: fixed; left: 0; right: 0; bottom: 0; top: calc(var(--bandH) + env(safe-area-inset-top, 0px)); z-index: 5;
+    display: flex; align-items: flex-start; justify-content: center; line-height: 1.35; overflow-y: auto;
+    background: rgba(26, 20, 60, 0.55); padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
-  .result { position: relative; width: min(500px, 92%); padding: 34px 34px 30px; color: #fff; text-align: center; }
+  .result { position: relative; margin: auto; width: min(500px, 100%); padding: 34px 34px 30px; color: #fff; text-align: center; }
   .result .in, .result .in::before { position: absolute; clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%); }
   .result .in { inset: 0; background: var(--d); }
   .result .in::before {
@@ -362,10 +380,25 @@
     background-image: radial-gradient(circle, rgba(255,255,255,0.24) 27%, transparent 29%); background-size: 12px 12px;
   }
   .result > *:not(.in) { position: relative; }
-  .result h2 { position: relative; margin: 0 0 6px; font-size: clamp(40px, 7vh, 64px); }
-  .result p { margin: 0 0 14px; font-size: 18px; }
+  .result h2 { position: relative; margin: 0 0 6px; font-size: clamp(26px, min(7vh, 8vw), 64px); word-break: keep-all; overflow-wrap: anywhere; }
+  .result p { margin: 0 0 14px; font-size: 18px; word-break: keep-all; }
   .result .chips { grid-template-columns: repeat(2, 1fr); margin-bottom: 18px; text-align: left; }
-  .result .chip { background: rgba(0,0,0,0.24); box-shadow: none; }
+  .result .chip { background: rgba(0,0,0,0.24); box-shadow: none; word-break: keep-all; }   /* '플레이 시간' · '4명'이 글자 중간에서 줄바꿈되지 않게 */
+  .result .chip b { font-size: clamp(16px, 4.6vw, 21px); }
+  .result .btn { white-space: nowrap; }
+  /* 짧은 화면(작은 폰 · 가로): 결과 창을 작게 */
+  @media (max-height: 700px), (max-width: 380px) {
+    .result { padding: 20px 20px 18px; }
+    .result p { font-size: 15px; margin-bottom: 8px; }
+    .result .chips { gap: 6px; margin-bottom: 12px; }
+    .result .chip { padding: 5px 10px; }
+    .result .btn { font-size: 18px; padding: 8px 16px; }
+  }
+  @media (max-height: 500px) and (orientation: landscape) {
+    .result { width: min(640px, 100%); }
+    .result .chips { grid-template-columns: repeat(4, 1fr); }
+    .result h2 { font-size: 32px; }
+  }
   /* 랭크전 결과: 내 티어·RP 변화 vs 상대 티어 */
   .rkres { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; background: rgba(0,0,0,0.28); border-radius: 8px; padding: 12px 14px; margin: -4px 0 14px; text-align: left; }
   .rkres .side { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -389,7 +422,7 @@
 
   /* 터치 버튼 8개가 좁은 폰 화면(양옆 8px 여백)에도 한 줄로 들어가게 크기를 화면 폭에 맞춤 */
   .pad { --pg: clamp(4px, 1.6vw, 10px); --pb: min(58px, calc((100vw - 16px - 7 * var(--pg)) / 8));
-    display: none; gap: var(--pg); margin-top: 12px; align-items: center; justify-content: center; max-width: 100%; }
+    display: none; gap: var(--pg); margin: 12px auto 0; align-items: center; justify-content: center; max-width: 100%; }   /* 가운데 정렬 */
   .pad button {
     font-family: var(--font); font-size: calc(var(--pb) * 0.42); color: #fff; width: var(--pb); height: var(--pb); padding: 0; flex: none; border-radius: 50%;
     background: #2f78f0; border: 0; box-shadow: 0 5px 0 #1747b0; touch-action: none;
@@ -397,10 +430,17 @@
   .pad button.on { transform: translateY(3px); box-shadow: 0 2px 0 #1747b0; }
 
   @media (pointer: coarse), (max-width: 760px) { #game .pad { display: flex; } }
+  #game .pad2 { display: none !important; margin: 0 auto 12px; transform: rotate(180deg); }
+  #game .pad2 button { background: #e8283c; box-shadow: 0 5px 0 #9c1426; }
+  @media (pointer: coarse) { body.local2 #game .pad2 { display: flex !important; } }   /* 로컬 대전 2P 버튼(맞은편에서 누르게 거꾸로) */
+  body.replay #pad [data-k=down], body.replay #pad [data-k=hard], body.replay #pad [data-k=ccw], body.replay #pad [data-k=cw], body.replay #pad [data-k=hold] { visibility: hidden; }   /* 다시 보기: ◀ ▶ 배속 · Ⅱ만 */
   @media (pointer: coarse) { #hints { visibility: hidden; } }      /* 터치 기기: 키보드 안내는 숨김 */
+  body.ingame { overflow: hidden !important; overscroll-behavior: none; }   /* 게임 중 화면이 밀리거나 당겨서 새로고침되지 않게 */
+  body.ingame #cv, .pad { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .pad button { -webkit-touch-callout: none; }
   /* 세로 폰: 터치 버튼을 크게 두 줄로 */
-  @media (max-width: 760px) and (orientation: portrait) {
-    .pad { --pb: min(64px, calc((100vw - 16px - 3 * var(--pg)) / 4)); flex-wrap: wrap; max-width: calc(4 * var(--pb) + 3 * var(--pg) + 4px); }
+  @media (max-width: 1100px) and (orientation: portrait) {   /* 세로 폰 · 태블릿 */
+    .pad { --pb: min(72px, calc((100vw - 16px - 3 * var(--pg)) / 4)); flex-wrap: wrap; max-width: calc(4 * var(--pb) + 3 * var(--pg) + 4px); }
   }
   @media (max-width: 760px) {
     body { justify-content: flex-start; overflow-y: auto; }
@@ -408,7 +448,7 @@
     .screen { grid-template-columns: 1fr !important; grid-template-rows: none !important; grid-auto-rows: minmax(140px, auto); }
     .screen > * { grid-row: auto !important; grid-column: auto !important; }
     .band-white { display: none; }
-    .band-bot { width: 100vw; clip-path: none; justify-content: center; }
+    .band-bot { width: 100vw; min-width: 0; padding-left: 16px; padding-right: 16px; clip-path: none; justify-content: center; }
     #t-profile { min-height: 330px; }
     .infocard { min-height: 70vh; }
     .lbcols { display: none; }
@@ -423,13 +463,42 @@
     .rkhero { flex-direction: column; text-align: center; }
     .rkhero canvas { width: 96px; height: 96px; }
     .tile .td { display: none; }                 /* 좁은 화면: 타일 설명은 아래 설명 칸(#mDesc)에서만 */
+    /* 메인 메뉴 타일(폰): 제목은 왼쪽 가운데, 그림은 오른쪽 절반, 작은 뿌요 아이콘은 숨김(서로 겹치지 않게) */
+    #sc-main .tile { min-height: 170px; }
+    #sc-main .tile .art { left: auto !important; right: 5% !important; top: 12% !important; width: 50% !important; height: 76% !important; }
+    #sc-main .tile .tt { left: 7% !important; right: auto !important; top: 50% !important; bottom: auto !important; transform: translateY(-50%); text-align: left; font-size: clamp(30px, 9vw, 40px); max-width: 44%; }
+    #sc-main .tile .ico { display: none; }
+    #sc-main .tile .rec { left: 7% !important; right: auto !important; top: auto !important; bottom: 9% !important; font-size: 13px; padding: 2px 10px; }
+    /* 캐릭터 고르기(폰): 두 줄씩 정사각 카드 */
+    #sc-chars { grid-template-columns: 1fr 1fr !important; grid-auto-rows: auto !important; }
+    #sc-chars .tile { aspect-ratio: 300 / 354; min-height: 0; }
+    #sc-chars .charcard .mine { font-size: 11px; padding: 1px 7px; top: 7%; right: 8%; }
+    /* 어드벤처 스테이지(폰): 키를 키워 얼굴 그림 아래에 스테이지 이름·별이 오게 */
+    #sc-adv .advst { min-height: 250px; }
+    #sc-adv .advst canvas { top: 7%; height: 50%; }
+    #sc-adv .advst .tt { bottom: 19%; font-size: 26px; }
+    #sc-adv .advst .tt small { font-size: 13px; margin-bottom: 2px; }
+    #sc-adv .advst .rec { bottom: 5%; font-size: 18px; }
+    body.ingame #hints { visibility: hidden; }  /* 게임 중 키보드 안내는 폰에서 숨김(터치 버튼을 씀) */
     .tag { display: none; }
+  }
+  /* 가로 폰(낮은 화면): 위아래 띠를 숨기고, 터치 버튼은 화면 양옆 아래에 둘로 나눠 게임 화면을 크게 */
+  @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    body.ingame { padding: calc(6px + env(safe-area-inset-top, 0px)) 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
+    body.ingame .band-top, body.ingame .band-white, body.ingame #hints { display: none; }
+    body.ingame #overlay { top: 0; }
+    #game .pad { --pb: min(60px, 15vh); position: fixed; z-index: 4; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); margin: 0; max-width: none;
+      display: grid; grid-template-columns: repeat(2, var(--pb)) 1fr repeat(2, var(--pb)); grid-template-rows: repeat(2, var(--pb));
+      padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+    #game .pad button { pointer-events: auto; }
+    .pad [data-k=hard] { grid-area: 1 / 1; } .pad [data-k=down] { grid-area: 1 / 2; } .pad [data-k=left] { grid-area: 2 / 1; } .pad [data-k=right] { grid-area: 2 / 2; }
+    .pad [data-k=menu] { grid-area: 1 / 4; } .pad [data-k=hold] { grid-area: 1 / 5; } .pad [data-k=ccw] { grid-area: 2 / 4; } .pad [data-k=cw] { grid-area: 2 / 5; }
   }
   @media (prefers-reduced-motion: reduce) { .tile, .tile[data-act]:focus .ico { transition: none; animation: none; } }
 </style>
 </head>
 <body>
-  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1></div>
+  <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1><button id="mmBadge" class="mmbadge hidden" aria-label="매칭 화면으로"></button></div>
   <div class="band-white"></div>
   <button id="bSettings" class="gear" aria-label="설정">⚙ 설정</button>
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">
@@ -438,6 +507,8 @@
       <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
       <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
       <h3>게임</h3>
+      <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
+      <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>
       <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
       <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
       <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
@@ -707,6 +778,16 @@
 
   <!-- ================= 게임 ================= -->
   <div id="game" class="hidden">
+    <div class="pad pad2" id="pad2" aria-label="2P 버튼">   <!-- 로컬 대전(터치): 맞은편 2P용, 거꾸로 -->
+      <button data-k="left" aria-label="왼쪽">◀</button>
+      <button data-k="down" aria-label="아래">▼</button>
+      <button data-k="right" aria-label="오른쪽">▶</button>
+      <button data-k="hard" aria-label="하드드롭">⤓</button>
+      <button data-k="ccw" aria-label="반시계 회전">↺</button>
+      <button data-k="cw" aria-label="시계 회전">↻</button>
+      <button data-k="hold" aria-label="홀드">H</button>
+      <button data-k="menu" aria-label="일시정지">Ⅱ</button>
+    </div>
     <div id="stage">
       <canvas id="cv"></canvas>
       <div id="overlay" class="hidden">

@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= 캐릭터 =================
-   - 모두 이 게임만의 오리지널 캐릭터이고, 그림은 캔버스로 직접 그림(외부 이미지 없음)
+   - 모두 이 게임만의 오리지널 캐릭터. 그림은 img/chars_*.webp(카드 · 얼굴 · 마스코트 아이콘), 불러오기 전에는 캔버스로 그린 간단한 모양
    - 사람 플레이어에게는 모양(초상·컷인 대사·목소리 음높이)만 바뀌고 실력 차이는 없음
    - CPU로 나올 때는 성격(ai)에 따라 플레이 방식이 달라짐 */
 const CHARS = [
@@ -36,8 +36,111 @@ function charAi(base, ch, kind) {
   return a;
 }
 
-/* ---------- 초상 그리기 ---------- */
+/* ---------- 캐릭터 그림 ----------
+   img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 300×354 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
+   chars_vs.webp: 대전 초상(배경 포함 상반신) 240×176 · 모두 CHARS 순서대로 가로 한 줄 */
+const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image(), vs: new Image() } : null;
+const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128], vs: [240, 176] };
+if (CHAR_IMG) for (const k in CHAR_IMG) {
+  CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
+  CHAR_IMG[k].src = `img/chars_${k}.webp`;
+}
+const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth;
+// 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
+function charImg(c, k, id, x, y, w, h) {
+  const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
+  c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
+}
+// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(96×96) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
+const FACE = { calm: 0, hype: 1, joy: 2, worry: 3 };
+function drawCharFace(c, id, x, y, size, expr = 0) {
+  if (!charImgOk('face')) { drawChar(c, id, x, y, size, expr === 3 ? 'sad' : 'happy'); return; }
+  const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), h = size / 2, r = size * 0.2;
+  c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.fillStyle = '#fff'; c.fill(); c.clip();
+  c.drawImage(CHAR_IMG.face, expr * 96, i * 96, 96, 96, x - h, y - h, size, size); c.restore();
+  c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
+  c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
+}
+// 지금 판 상황에 맞는 표정: 끝나면 이긴 쪽 아주 기쁨 · 진 쪽 걱정, 연쇄 중엔 신남, 방해가 많이 쌓였거나 위험하면 걱정
+function moodOf(f) {
+  if (game.state === 'over') return f.won ? FACE.joy : f.dead ? FACE.worry : FACE.calm;
+  if (f.dead) return FACE.worry;
+  if (f.cut || (f.chain || 0) >= 2) return FACE.hype;
+  if (f.pending >= 12 || f.dangerOn) return FACE.worry;
+  const g = f.grid, top = g ? g.findIndex(row => row.some(v => v)) : -1;          // 판이 위쪽까지 차면 걱정
+  if (top >= 0 && top <= (f.kind === 'puyo' ? 3 : 6)) return FACE.worry;
+  return FACE.calm;
+}
+// 대전 초상(세로 폰에서 상대): 상반신 그림 + 지금 표정 · 이름 띠. 연쇄 중엔 금빛으로 들썩, 위험하면 빨갛게 떨림, 지면 흑백
+function drawVsPortrait(c, f, x, y, w, h, t) {
+  const ch = charOf(f.char || 'lumi'), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), mood = moodOf(f);
+  const lost = game.state === 'over' ? !f.won : f.dead, won = game.state === 'over' && f.won;
+  const hype = !lost && mood === FACE.hype, worry = !lost && mood === FACE.worry, k = Math.min(14, w * 0.08);
+  const poly = (x, y, w, h, k) => { c.beginPath(); c.moveTo(x + k, y); c.lineTo(x + w, y); c.lineTo(x + w - k, y + h); c.lineTo(x, y + h); c.closePath(); };
+  c.save();
+  if (worry) c.translate(Math.sin(t / 28) * 1.6, Math.cos(t / 37) * 0.8);
+  c.fillStyle = 'rgba(0,0,0,0.18)'; poly(x, y + 6, w, h, k); c.fill();
+  const edge = hype || won ? '#ffb000' : worry && Math.sin(t / 110) > 0 ? '#e8283c' : ch.d;
+  c.fillStyle = edge; poly(x, y, w, h, k); c.fill();
+  c.fillStyle = '#fff'; poly(x + 4, y + 4, w - 8, h - 8, k * 0.9); c.fill();
+  c.save(); poly(x + 7, y + 7, w - 14, h - 14, k * 0.85); c.clip();
+  const ix = x + 7, iy = y + 7, iw = w - 14, ih = h - 14;
+  if (charImgOk('vs')) {
+    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sh = Math.min(176, 240 * ih / iw) / z, sw = sh * iw / ih;   // 비율 그대로 잘라서
+    if (lost) c.filter = 'grayscale(1) brightness(0.8)';
+    c.drawImage(CHAR_IMG.vs, i * 240 + (240 - sw) / 2, (176 - sh) * 0.35, sw, sh, ix, iy, iw, ih);
+    c.filter = 'none';
+  } else { c.fillStyle = ch.c; c.fillRect(ix, iy, iw, ih); drawChar(c, ch.id, ix + iw / 2, iy + ih / 2, ih * 0.9); }
+  if (hype) {                                   // 연쇄: 금빛 집중선
+    c.save(); c.globalAlpha = 0.5; c.strokeStyle = '#fff6b0'; c.lineWidth = 2;
+    for (let a = 0; a < 14; a++) { const r = a / 14 * Math.PI * 2 + t / 400, cx = ix + iw / 2, cy = iy + ih / 2; c.beginPath(); c.moveTo(cx + Math.cos(r) * iw * 0.42, cy + Math.sin(r) * ih * 0.5); c.lineTo(cx + Math.cos(r) * iw, cy + Math.sin(r) * iw); c.stroke(); }
+    c.restore();
+  }
+  if (worry) { c.fillStyle = `rgba(232,40,60,${0.16 + 0.1 * Math.sin(t / 110)})`; c.fillRect(ix, iy, iw, ih); }
+  const g = c.createLinearGradient(0, iy + ih * 0.55, 0, iy + ih); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(20,16,50,0.55)');
+  c.fillStyle = g; c.fillRect(ix, iy, iw, ih);
+  c.restore();
+  // 이름 띠(비스듬히) · 표정 배지
+  c.save(); c.translate(x + w * 0.4, y + h - 12); c.rotate(-0.06);
+  const nw = Math.min(w * 0.78, 20 + f.name.length * 15);
+  c.fillStyle = ch.d; poly(-nw / 2 - 3, -14, nw + 6, 28, 8); c.fill();
+  c.fillStyle = ch.c; poly(-nw / 2, -11, nw, 22, 7); c.fill();
+  outlined(c, f.name, 0, 1, Math.min(17, (nw - 10) / Math.max(2, f.name.length) * 1.1), '#fff', ch.d, 5);
+  c.restore();
+  drawCharFace(c, ch.id, x + w - 24, y + h - 22, 38, mood);
+  if (typeof drawOppRank === 'function') drawOppRank(c, f, x + 24, y + 22);   // 랭크전 상대 티어(설정에서 켰을 때)
+  if (hype && (f.chain || 0) >= 2) {            // 지금 연쇄 수
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); const sc = 1 + 0.08 * Math.sin(t / 70); c.scale(sc, sc);
+    outlined(c, `${f.chain}연쇄!`, 0, 0, 20, '#ffe066', '#c2410c', 6); c.restore();
+  } else if (worry) {
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12); c.globalAlpha = 0.75 + 0.25 * Math.sin(t / 110);
+    outlined(c, '위험!', 0, 0, 20, '#fff', '#e8283c', 6); c.restore();
+  } else if (game.vs && (won || lost && game.state === 'over')) {
+    c.save(); c.translate(x + w - 30, y + 20); c.rotate(0.12);
+    outlined(c, won ? '승리' : '패배', 0, 0, 20, won ? '#ffe066' : '#fff', won ? '#c2410c' : '#4b4a5e', 6); c.restore();
+  }
+  c.restore();
+}
+// 카드(캐릭터 고르기 화면)
+function drawCharCard(c, id, x, y, w, h) {
+  if (!charImgOk('card')) { drawChar(c, id, x + w / 2, y + h / 2, Math.min(w, h) * 0.8); return; }
+  charImg(c, 'card', id, x, y, w, h);
+}
+// 얼굴(대화창 · 컷인 · 어드벤처): 둥근 네모 안에, 테두리는 캐릭터 색
+function drawCharBust(c, id, x, y, size) {
+  if (!charImgOk('bust')) { drawChar(c, id, x, y, size); return; }
+  const ch = charOf(id), h = size / 2, r = size * 0.18;
+  c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.clip(); charImg(c, 'bust', id, x - h, y - h, size, size); c.restore();
+  c.save(); c.lineWidth = Math.max(2, size * 0.05); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
+  c.lineWidth = Math.max(1, size * 0.02); c.strokeStyle = ch.d; c.stroke(); c.restore();
+}
+// 작은 초상(이름표 · 기록 · 순위표 · 메뉴 그림): 마스코트 아이콘. 진 쪽(sad)은 색을 빼서
 function drawChar(c, id, x, y, size, mood = 'happy') {
+  if (charImgOk('icon')) {
+    const s = size * 1.08;
+    c.save(); if (mood === 'sad') c.filter = 'grayscale(0.8) brightness(0.95)';
+    charImg(c, 'icon', id, x - s / 2, y - s / 2, s, s); c.restore(); return;
+  }
   const ch = charOf(id), r = size / 2;
   c.save(); c.translate(x, y);
   const ear = (dx, dy, rr, col) => { c.fillStyle = col; c.beginPath(); c.arc(dx, dy, rr, 0, Math.PI * 2); c.fill(); };
@@ -79,7 +182,7 @@ function drawChar(c, id, x, y, size, mood = 'happy') {
 function cutIn(f, level) {
   if (!f.char) return;
   const ch = charOf(f.char), line = ch.lines[Math.min(3, Math.max(0, level - 1))];
-  f.cut = { id: ch.id, line, age: 0, dur: 1100 };
+  f.cut = { id: ch.id, line, age: 0, dur: 1100, big: level >= 3 };
   if (!f.remote || game.mode === 'replay') voice(ch, level);
 }
 function voice(ch, level) {
@@ -92,7 +195,7 @@ function drawCut(c, f) {
   const e = k.age / k.dur, inX = Math.min(1, k.age / 160), outA = e > 0.8 ? 1 - (e - 0.8) / 0.2 : 1, ch = charOf(k.id);
   c.save(); c.globalAlpha = outA; c.translate(f.ox + f.fw / 2 + (1 - inX) * -120, f.oy + 70);
   slab(c, -f.fw / 2 + 10, -34, f.fw - 20, 68, { c: ch.col, d: ch.d }, 5);
-  drawChar(c, ch.id, -f.fw / 2 + 52, 0, 60);
+  drawCharFace(c, ch.id, -f.fw / 2 + 52, 0, 60, k.big ? FACE.joy : FACE.hype);   // 컷인: 신난 얼굴(큰 연쇄면 아주 기쁜 얼굴)
   outlined(c, k.line, 26, 2, Math.min(30, 300 / Math.max(3, k.line.length)), '#fff', ch.d, 7);
   c.restore();
 }

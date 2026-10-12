@@ -92,14 +92,17 @@ function bbTick(dt) {
   bb.phase = 'pause'; bb.wait = BB_PAUSE;
 }
 // 체력 막대(이름표 아래)와 가운데 패널의 라운드·남은 시간
+// 세로 폰 위쪽 띠에 넣을 규칙 정보 한 줄
+function bigbangInfo() { const bb = game.bb; if (!bb) return null; return { txt: `빅뱅 ${Math.max(1, bb.round)}R · ${bb.phase === 'play' ? Math.max(0, bb.t / 1000).toFixed(1) + '초' : '결과'}`, tone: TONES.orange }; }
 function drawBigBang(c) {
   const bb = game.bb; if (!bb) return;
-  game.fields.forEach((f, i) => {
+  game.fields.forEach((f, i) => inMini(c, f, () => {   // 세로 폰 작은 판은 그 판 위에 작게
     const x = f.ox + 14, w = f.fw - 28, y = 42, k = bb.hp[i] / BB_HP;
     c.fillStyle = 'rgba(0,0,0,0.25)'; rr(c, x, y, w, 12, 6); c.fill();
     c.fillStyle = k > 0.5 ? '#39c63c' : k > 0.25 ? '#ffc915' : '#ff4559'; if (k > 0) { rr(c, x, y, Math.max(12, w * k), 12, 6); c.fill(); }
     c.font = '11px ' + FONT(); c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(`체력 ${bb.hp[i]}`, x + w / 2, y + 6.5);
-  });
+  }));
+  if (game.compact) return;                      // 세로 폰: 라운드·시간은 위쪽 띠(ruleInfo)
   const base = OY + 376;
   slab(c, PX - 66, base, 132, 54, TONES.orange, 4);
   outlined(c, `빅뱅 라운드 ${Math.max(1, bb.round)}`, PX, base + 17, 15, '#fff', TONES.orange.d, 4);
