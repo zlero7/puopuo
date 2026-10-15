@@ -12,14 +12,14 @@ const overlayBtns = kind => {           // offline | next | online | menu | paus
 };
 // Esc / P: 일시정지 창(연습·AI 대전) 또는 기권 확인(온라인 — 게임은 멈추지 않음)
 function openPause() {
-  if (game.state !== 'play' || !overlay.classList.contains('hidden')) return;
+  if ((game.state !== 'play' && game.state !== 'intro') || !overlay.classList.contains('hidden')) return;
   if (game.net) { showResult('purple', '대전 중', '지금 나가면 패배로 기록돼요. 게임은 계속 진행 중이에요.', [], 'forfeit'); return; }
-  game.state = 'pause';
+  game.pausedFrom = game.state; game.state = 'pause';       // 시작 연출 중에 멈췄으면 계속하기 때 연출로 돌아감
   showResult('purple', '일시정지', game.mode === 'replay' ? '리플레이' : game.mode === 'solo' ? '연습' : game.mode === 'local' ? '로컬 대전' : `AI 대전 · ${DIFF[game.diff]}`, [], 'pause');
 }
 function resume() {
   overlay.classList.add('hidden');
-  if (game.state === 'pause') { game.state = 'play'; last = 0; }
+  if (game.state === 'pause') { game.state = game.pausedFrom === 'intro' ? 'intro' : 'play'; game.pausedFrom = null; last = 0; }
 }
 function forfeit() {
   const me = game.fields[0];

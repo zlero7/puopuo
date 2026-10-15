@@ -67,6 +67,7 @@
   .backbtn { flex: none; margin-left: clamp(10px, 3vw, 40px); width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer;
     background: #fff; color: #ff2b47; font-family: var(--head); font-size: 24px; line-height: 1; box-shadow: 0 3px 0 rgba(120, 10, 20, 0.35); }
   .backbtn:not(.hidden) + h1 { padding-left: 12px; }
+  .gback { display: none; }
   /* 매칭 중 표시(제목 오른쪽): 누르면 대전 화면으로 */
   .mmbadge { flex: none; display: inline-flex; align-items: center; gap: 8px; margin-left: 16px; padding: 6px 14px; border: 0; border-radius: 999px; cursor: pointer;
     background: rgba(255,255,255,0.95); color: #c4152f; font-family: var(--head); font-size: clamp(14px, 2vh, 18px); box-shadow: 0 3px 0 rgba(120,10,20,0.35); white-space: nowrap; }
@@ -192,7 +193,7 @@
   .lbrow.me { outline: 3px solid #ffe066; }
   .lbrow .pl { font-family: var(--head); font-size: 30px; text-align: center; }
   .lbrow.first .pl { font-size: 54px; } .lbrow .star { color: #ffd23d; font-size: 18px; vertical-align: super; }
-  .lbrow canvas { width: 46px; height: 46px; }
+  .lbrow canvas { width: 46px; height: 46px; margin: 0; }
   .lbrow.first canvas.em { width: 64px; height: 64px; }
   .lbrow .pt { font-family: var(--head); font-size: 20px; }
   .lbrow .nm b { font-size: 19px; display: block; } .lbrow .nm small { opacity: 0.7; font-size: 13px; }
@@ -404,7 +405,7 @@
   .rkres .side { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .rkres .side.op { flex-direction: row-reverse; text-align: right; }
   .rkres canvas { width: 62px; height: 62px; flex: none; }
-  .rkres .op canvas { width: 46px; height: 46px; }
+  .rkres .op canvas { width: 46px; height: 46px; margin: 0; }
   .rkres b { display: block; font-family: var(--head); font-weight: 400; font-size: 30px; line-height: 1.1; white-space: nowrap; }
   .rkres b.pl { font-size: 24px; }
   .rkres .op b { font-size: 18px; }
@@ -454,7 +455,7 @@
     .lbcols { display: none; }
     .lbrow { grid-template-columns: 40px 46px 64px 1fr 46px; gap: 6px; }
     .lbrow > :nth-child(4) { display: none; }
-    .lbrow.first .pl { font-size: 36px; } .lbrow.first canvas.em { width: 46px; height: 46px; }
+    .lbrow.first .pl { font-size: 36px; } .lbrow.first canvas.em { width: 46px; height: 46px; margin: 0; }
     .lbhead .t { font-size: 22px; white-space: nowrap; }
     .mrow { grid-template-columns: 6px 1fr auto; gap: 6px 10px; }
     .mrow > .bar { grid-row: 1 / span 4; }
@@ -487,6 +488,7 @@
     body.ingame { padding: calc(6px + env(safe-area-inset-top, 0px)) 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
     body.ingame .band-top, body.ingame .band-white, body.ingame #hints { display: none; }
     body.ingame #overlay { top: 0; }
+    body.ingame #gBack { display: block; position: fixed; z-index: 6; left: max(10px, env(safe-area-inset-left, 0px)); top: calc(8px + env(safe-area-inset-top, 0px)); width: 46px; height: 46px; margin: 0; }
     #game .pad { --pb: min(60px, 15vh); position: fixed; z-index: 4; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); margin: 0; max-width: none;
       display: grid; grid-template-columns: repeat(2, var(--pb)) 1fr repeat(2, var(--pb)); grid-template-rows: repeat(2, var(--pb));
       padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
@@ -778,6 +780,7 @@
 
   <!-- ================= 게임 ================= -->
   <div id="game" class="hidden">
+    <button id="gBack" class="backbtn gback" aria-label="뒤로(일시정지)">←</button>   <!-- 가로 폰(위아래 띠를 숨길 때) 게임 중 뒤로 가기 -->
     <div class="pad pad2" id="pad2" aria-label="2P 버튼">   <!-- 로컬 대전(터치): 맞은편 2P용, 거꾸로 -->
       <button data-k="left" aria-label="왼쪽">◀</button>
       <button data-k="down" aria-label="아래">▼</button>
