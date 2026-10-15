@@ -101,7 +101,7 @@ function openMenu(id = 'main', focusId) {
   showScreen(id, focusId);
 }
 function showGame() {
-  document.body.classList.add('ingame'); document.body.classList.toggle('local2', game.mode === 'local'); document.body.classList.toggle('replay', game.mode === 'replay'); $('bBack').classList.add('hidden'); $('mmBadge').classList.add('hidden'); guardBack();
+  document.body.classList.add('ingame'); document.body.classList.toggle('local2', game.mode === 'local'); document.body.classList.toggle('replay', game.mode === 'replay'); $('bBack').classList.remove('hidden'); $('mmBadge').classList.add('hidden'); guardBack();   // 게임 중에도 ← 로 일시정지·나가기(가로 폰은 #gBack)
   $('menu').classList.add('hidden'); $('game').classList.remove('hidden');
   if (game.adv) { $('bandTitle').textContent = `어드벤처 ${game.adv.c + 1}-${game.adv.s + 1}`; setHints('game'); fit(); return; }
   const rl = game.rule && game.rule !== 'tsu' && game.mode !== 'solo' ? ` · ${RULES[game.rule].ko}` : '';
@@ -280,13 +280,23 @@ function drawArts() {
 }
 window.addEventListener('resize', () => { if (game.state === 'menu') drawArts(); });
 
-// 뒤로 가기: 화면 위 ← 버튼, 폰·브라우저의 뒤로 가기(사이트를 나가지 않고 메뉴 한 단계 뒤로 / 게임 중이면 일시정지)
-$('bBack').addEventListener('click', () => menuBack());
+// 뒤로 가기: 화면 위 ← 버튼(가로 폰 게임 중엔 #gBack), 폰·브라우저의 뒤로 가기(사이트를 나가지 않고 메뉴 한 단계 뒤로 / 게임 중이면 일시정지)
+// 게임 중 ←: 시작 연출·플레이 중이면 일시정지(온라인은 기권 확인), 일시정지·결과 창이 떠 있으면 Esc와 같음(일시정지는 계속하기, 결과는 메뉴로)
+function gameBack() {
+  if (!overlay.classList.contains('hidden')) {
+    if (game.ovKind === 'pause' || game.ovKind === 'forfeit') $('bResume').click();
+    else ($('bMenu').classList.contains('hidden') ? $('bLeave') : $('bMenu')).click();
+    return;
+  }
+  if (game.state === 'play' || game.state === 'intro') openPause();
+}
+$('bBack').addEventListener('click', () => { if (dlgOpen()) return; if (game.state === 'menu') menuBack(); else gameBack(); });
+$('gBack').addEventListener('click', () => { if (!dlgOpen()) gameBack(); });
 function guardBack() { try { if (!history.state || !history.state.pp) history.pushState({ pp: 1 }, ''); } catch (e) {} }
 window.addEventListener('popstate', () => {
   if (dlgOpen()) { guardBack(); return; }
   if (game.state === 'menu') { if (cur === 'main') return; menuBack(); if (cur !== 'main') guardBack(); return; }
-  if (game.state === 'play') openPause();
+  if (game.state === 'play' || game.state === 'intro') openPause();   // 시작 연출 중에도 뒤로 가기가 먹게
   else if (!overlay.classList.contains('hidden')) ($('bMenu').classList.contains('hidden') ? $('bLeave') : $('bMenu')).click();
   if (game.state !== 'menu') guardBack();
 });
