@@ -2,7 +2,41 @@
 
 앱(exe)은 화면만 보여 주고, 계정·온라인 대전·랭크는 이 서버가 맡습니다. 서버는 **로그인 필수 · 앱에서만 접속 · 게임 화면(웹)은 제공하지 않는** 상태가 기본입니다.
 
-## 1. 가장 쉬운 배포: Docker + 자동 HTTPS
+## 0. 내 PC에서 돌리기 (주소: https://puyo.zlero.xyz)
+
+앱의 기본 서버 주소는 `https://puyo.zlero.xyz` 로 넣어 두었습니다(`electron/app-config.json`). 집 PC로 이 주소를 열려면 **HTTPS로 바깥에 공개하는 방법**을 하나 골라야 해요.
+
+| | A. Cloudflare Tunnel (집 PC 추천) | B. 공유기 포트포워딩 + Caddy |
+|---|---|---|
+| 공유기 포트 열기 | 필요 없음 | 80 · 443 을 이 PC로 |
+| 집 IP | 숨겨짐(디도스·스캔 부담 적음) | 드러남(IP가 바뀌면 DDNS 필요) |
+| 필요한 것 | 도메인 DNS를 Cloudflare(무료)에 두기 | 도메인 DNS에 `puyo` A 레코드 → 집 공인 IP |
+| 통신사가 80/443을 막은 경우 | 상관없음 | 안 될 수 있음 |
+
+**공통 준비 (서버를 켜는 법 둘 중 하나)**
+- Docker Desktop을 쓸 때: `deploy/.env` 만들기(`cp deploy/.env.example deploy/.env`) → `AUTH_SECRET`(= `openssl rand -hex 32`, PowerShell은 `-join ((1..32) | % { '{0:x2}' -f (Get-Random -Max 256) })`) 채우기.
+- Docker 없이: Node.js 22를 설치하고 저장소 폴더에서 `powershell -ExecutionPolicy Bypass -File deploy\windows\run-server.ps1`. 이 서버는 PC 안(127.0.0.1:3000)에서만 받으므로, 아래 A 또는 B의 HTTPS 프로그램이 바깥 연결을 받아 넘겨 줍니다.
+
+**A. Cloudflare Tunnel**
+1. [Cloudflare](https://dash.cloudflare.com) 무료 계정에 `zlero.xyz` 를 추가하고, 도메인을 산 곳에서 네임서버를 Cloudflare가 알려 주는 것으로 바꿉니다(적용까지 몇 분~몇 시간. 이미 쓰는 다른 DNS 레코드는 옮겨 오도록 확인).
+2. Zero Trust → Networks → Tunnels → 터널 만들기 → 토큰 복사. Public hostname: `puyo.zlero.xyz` → Service `HTTP` · `localhost:3000`(Docker 쓰면 `puyo:3000`).
+3. Docker: `deploy/.env` 에 `TUNNEL_TOKEN` 도 넣고 `cd deploy && docker compose -f docker-compose.tunnel.yml up -d --build`.
+   Docker 없이: `run-server.ps1` 을 켜 두고, Windows용 `cloudflared` 를 설치해 터널을 서비스로 등록(대시보드가 명령을 알려 줌).
+
+**B. 포트포워딩 + Caddy**
+1. 도메인 DNS에 `puyo` **A 레코드**를 집 공인 IP로(IP가 바뀌는 집이면 DDNS 사용).
+2. 공유기에서 **80 · 443 포트를 이 PC로** 포트포워딩하고, 이 PC의 IP를 고정(DHCP 예약).
+3. `deploy/.env` 에 `DOMAIN=puyo.zlero.xyz` · `AUTH_SECRET` → `cd deploy && docker compose up -d --build` (Caddy가 인증서를 자동 발급).
+
+**확인**: 다른 네트워크(폰 데이터)에서 `https://puyo.zlero.xyz/health` 를 열어 `{"ok":true}` 가 보이면 됩니다. 앱을 켜서 가입·로그인되면 끝.
+
+**집 PC에서 지킬 것**
+- 서버가 켜져 있는 동안에만 접속돼요. 절전·최대 절전을 끄고(전원 옵션), Windows 업데이트 자동 재부팅 시간을 조정하세요.
+- 공유기 포트는 **80 · 443 말고는 열지 마세요**(3000번을 직접 열면 HTTPS가 없어서 비밀번호가 그대로 오가요). A안은 아무것도 열지 않아도 됩니다.
+- `data` 폴더(`accounts.json` · `ranks.json` · `auth-secret.key`)를 주기적으로 다른 곳에 복사해 두세요. `AUTH_SECRET` 도 따로 적어 두세요.
+- 이 PC에 다른 사람이 접속하지 못하게 Windows 계정 비밀번호·방화벽을 지키세요(서버 데이터에 계정 해시가 있어요).
+
+## 1. 일반 서버(VPS): Docker + 자동 HTTPS
 
 필요한 것: 리눅스 서버(VPS) 1대, Docker, **도메인**(A 레코드가 서버 IP를 가리킴), 80·443 포트 열기.
 
