@@ -13,6 +13,9 @@
 | 필요한 것 | 도메인 DNS를 Cloudflare(무료)에 두기 | 도메인 DNS에 `puyo` A 레코드 → 집 공인 IP |
 | 통신사가 80/443을 막은 경우 | 상관없음 | 안 될 수 있음 |
 
+**가장 쉬운 길 (Windows · Docker 없이 한 번에)**: 관리자 PowerShell에서 저장소 폴더로 가서
+`powershell -ExecutionPolicy Bypass -File deploy\windows\setup.ps1 -TunnelToken "<터널 토큰>"` 한 줄이면 Node.js 확인 → 의존성 설치 → 서버 자동 시작(로그인할 때마다) → cloudflared 서비스 설치까지 해 줘요. 터널 토큰은 아래 A의 1·2번(Cloudflare 화면에서만 할 수 있는 일)로 받아요. 토큰 없이 실행하면 서버만 켜고, 공개는 아래 A/B로 따로 하면 돼요.
+
 **공통 준비 (서버를 켜는 법 둘 중 하나)**
 - Docker Desktop을 쓸 때: `deploy/.env` 만들기(`cp deploy/.env.example deploy/.env`) → `AUTH_SECRET`(= `openssl rand -hex 32`, PowerShell은 `-join ((1..32) | % { '{0:x2}' -f (Get-Random -Max 256) })`) 채우기.
 - Docker 없이: Node.js 22를 설치하고 저장소 폴더에서 `powershell -ExecutionPolicy Bypass -File deploy\windows\run-server.ps1`. 이 서버는 PC 안(127.0.0.1:3000)에서만 받으므로, 아래 A 또는 B의 HTTPS 프로그램이 바깥 연결을 받아 넘겨 줍니다.

@@ -56,6 +56,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Windows 서버 설치 스크립트 문법 확인
+        shell: pwsh
+        run: |
+          foreach ($f in 'deploy\windows\setup.ps1', 'deploy\windows\run-server.ps1') {
+            $errs = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errs) | Out-Null
+            if ($errs) { $errs | ForEach-Object { Write-Host $_.Message }; throw "$f 문법 오류" } else { Write-Host "$f OK" }
+          }
       - name: exe 만들기
         run: npm run app:win
       - name: exe 스모크 테스트(만든 exe가 실제로 뜨고, 화면이 상자 안에 갇혀 있는지)
