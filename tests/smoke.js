@@ -60,7 +60,7 @@ CASES.push(...extra);
 if (process.env.ONLY) CASES.splice(0, CASES.length, ...CASES.filter(c => new RegExp(process.env.ONLY).test(c.name)));   // ONLY=리플레이 npm test
 
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, REQUIRE_AUTH: '0', PORT, HOST: '127.0.0.1' }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1' }, stdio: 'pipe' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch(process.env.PLAYWRIGHT_BROWSERS_PATH ? {} : { executablePath: '/opt/pw-browsers/chromium' });
   let fail = 0;

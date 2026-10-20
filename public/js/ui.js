@@ -148,9 +148,8 @@ function act(a) {
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'itab') { infoTab = v; renderInfo(); }
   else if (k === 'diff') { game.diff = +v; start('vs'); }
-  else if ((k === 'ranked' || k === 'quick' || k === 'create') && needLogin(() => act(a))) return;   // 앱: 로그인부터
   else if ((k === 'ranked' || k === 'quick' || k === 'create') && askName(() => act(a))) return;   // 처음 온라인: 닉네임부터
-  else if (k === 'ranked') { if (!serverOk()) { status(APP ? '서버 주소를 먼저 정해 주세요(계정 창).' : '랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: APP ? undefined : rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
+  else if (k === 'ranked') { if (!location.protocol.startsWith('http')) { status('랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: rankToken, style: stats.style || 'puyo', name: stats.name, char: stats.char || 'lumi', bot: !!stats.rankBot })); }
   else if (k === 'quick') (game.resetOnline = true), connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'create') (game.resetOnline = true), connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 }));
   else if (k === 'join') $('code').focus();
@@ -309,7 +308,6 @@ document.querySelectorAll('.stylebar .lab').forEach(lab => {
 
 // 처음 온라인 대전을 할 때 닉네임 묻기(기본 이름 '플레이어'끼리는 누가 누군지 몰라서). 물었으면 true
 function askName(then) {
-  if (APP) return false;                                             // 앱은 닉네임이 계정에 있음
   stats = loadStats();
   if ((stats.name && stats.name !== '플레이어') || stats.nameAsked) return false;
   $('nameAsk').classList.remove('hidden'); $('naIn').value = ''; setTimeout(() => $('naIn').focus(), 50);
@@ -353,8 +351,8 @@ function importedNotice() {
   let on = false; try { on = sessionStorage.getItem('puyo-imported') === '1'; sessionStorage.removeItem('puyo-imported'); } catch (e) {}
   if (!on) return;
   const say = lines => dialog(lines.map(t => ['lumi', t]));
-  if (!serverOk()) { say(['기록을 불러왔어! 랭크는 서버에 접속해야 볼 수 있어.']); return; }
-  Promise.all(['puyo', 'tetris'].map(st => apiGet('/rank/me', { style: st }).catch(() => null))).then(([p, t]) => {
+  if (!location.protocol.startsWith('http')) { say(['기록을 불러왔어! 랭크는 서버에 접속해야 볼 수 있어.']); return; }
+  Promise.all(['puyo', 'tetris'].map(st => fetch(rankUrl('me', st)).then(r => r.json()).catch(() => null))).then(([p, t]) => {
     const has = m => m && (m.w + m.l > 0 || m.hist && m.hist.length);
     if (has(p) || has(t)) say(['기록을 불러왔어!', `랭크도 그대로야 — 뿌요뿌요 ${p ? p.text : '-'} · 테트리스 ${t ? t.text : '-'}`]);
     else say(['기록(전적·어드벤처·퍼즐·설정)은 불러왔어.', '그런데 이 서버에는 이 파일의 랭크 기록이 없어. 랭크는 랭크전을 한 서버에만 저장돼서, 다른 서버(다른 주소)로는 옮겨지지 않아.']);

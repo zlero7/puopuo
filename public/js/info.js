@@ -10,9 +10,7 @@ const pad2 = n => String(n).padStart(2, '0');
 const fmtDate = t => { const d = new Date(t); return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const emCv = (g, d, cls = '') => `<canvas class="${cls}" data-em="${g},${d}"></canvas>`;
 const chCv = id => `<canvas data-char="${esc(id || 'lumi')}"></canvas>`;
-const httpOk = serverOk;
-// 앱: 로그인하지 않았을 때 랭크 칸에 보여 줄 안내(누르면 로그인 창)
-function needLoginMsg(bar) { setInfo(bar, '<div class="empty">로그인하면 내 랭크를 볼 수 있어요.<br><button class="mini needlogin" style="--d:#1747b0;margin-top:8px">로그인</button></div>'); const b = $('iBody').querySelector('.needlogin'); if (b) b.addEventListener('click', () => openAcct('login', () => infoRank(++infoSeq))); }
+const httpOk = () => location.protocol.startsWith('http');
 
 function renderStats() {
   stats = loadStats();
@@ -101,10 +99,9 @@ function infoHist() {
 /* ---------- 랭크 ---------- */
 function infoRank(seq) {
   const bar = styleBox(rkStyle);
-  if (!httpOk()) { setInfo(bar, `<div class="empty">${APP ? '서버 주소를 정하면(오른쪽 위 계정) 볼 수 있어요.' : '랭크는 서버에 접속한 주소(http://…)로 열어야 볼 수 있어요.'}</div>`); return; }
-  if (APP && !appCfg.account) { needLoginMsg(bar); return; }
+  if (!httpOk()) { setInfo(bar, '<div class="empty">랭크는 서버에 접속한 주소(http://…)로 열어야 볼 수 있어요.</div>'); return; }
   setInfo(bar, '<div class="empty">불러오는 중…</div>');
-  apiGet('/rank/me', { style: rkStyle }).then(m => {
+  fetch(rankUrl('me', rkStyle)).then(r => r.json()).then(m => {
     if (seq !== infoSeq) return;
     const s = m.season, master = !m.placing && m.group === 5;
     const sub = m.placing ? `배치 ${m.placed}/${m.need} · ${m.pw}승 ${m.pl}패` : master ? `${m.rp} RP` : `${m.rp} / 100 RP`;
@@ -120,15 +117,15 @@ function infoRank(seq) {
     const ms = (m.matches || []).map(x => `<div class="mrow ${x.win ? 'w' : 'l'}"><i class="bar"></i><div class="mmode"><b>${x.win ? '승리' : '패배'}</b><small>랭크전 · ${STYLE_KO[rkStyle]}</small><small>${fmtDate(x.at)}</small></div>` +
       `<div class="mvs">${x.opp ? chCv(x.opp.char) + `<span>${esc(x.opp.name || '상대')}</span>` : ''}</div><div class="mres"><b>${x.score ? `${x.score[0]} : ${x.score[1]}` : '-'}</b><small>시리즈</small></div>${rankCell(x)}<div class="mact"></div></div>`).join('');
     setInfo(bar, hero + season + past + `<h4>최근 랭크전</h4>` + (ms || '<div class="empty">아직 랭크전 기록이 없어요.</div>'));
-  }).catch(e => { if (seq !== infoSeq) return; if (e && e.auth) needLoginMsg(bar); else setInfo(bar, '<div class="empty">랭크 정보를 불러오지 못했어요.</div>'); });
+  }).catch(() => { if (seq === infoSeq) setInfo(bar, '<div class="empty">랭크 정보를 불러오지 못했어요.</div>'); });
 }
 
 /* ---------- 순위표 ---------- */
 function infoBoard(seq) {
   const bar0 = styleBox(board.style);
-  if (!httpOk()) { setInfo(bar0, `<div class="empty">${APP ? '서버 주소를 정하면(오른쪽 위 계정) 볼 수 있어요.' : '순위표는 서버에 접속한 주소(http://…)로 열어야 볼 수 있어요.'}</div>`); return; }
+  if (!httpOk()) { setInfo(bar0, '<div class="empty">순위표는 서버에 접속한 주소(http://…)로 열어야 볼 수 있어요.</div>'); return; }
   if (!$('iBody').querySelector('.lbrow, .lbhead')) setInfo(bar0, '<div class="empty">불러오는 중…</div>');
-  apiGet('/rank/top', { style: board.style, season: board.season, page: board.page, q: board.q }).then(t => {
+  fetch(`/rank/top?style=${board.style}&season=${board.season}&page=${board.page}&q=${encodeURIComponent(board.q)}&token=${rankToken}`).then(r => r.json()).then(t => {
     if (seq !== infoSeq) return;
     board.page = t.page;
     const s = t.season, cur = t.seasons[0] && t.seasons[0].n === s.n;

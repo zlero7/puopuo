@@ -1,4 +1,2 @@
-data/
-deploy/.env
-dist/
 node_modules/
+data/

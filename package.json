@@ -2,87 +2,19 @@
   "name": "puyopuyo-online",
   "version": "1.0.0",
   "description": "웹 뿌요뿌요 — 연습, CPU 대전(2~4인), 온라인 대전·랭크전, 어드벤처, 여러 규칙(피버·빅뱅·스왑·파티·퓨전)",
-  "main": "electron/main.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "test": "node tests/smoke.js",
     "test:online": "node tests/online.js 3 && node tests/online.js 2 ranked",
     "test:rank": "node tests/rank-rules.js && node tests/rank.js",
     "test:verify": "node tests/verify.js",
-    "test:robust": "node tests/robust.js",
-    "app": "electron .",
-    "app:dir": "electron-builder --dir --publish never",
-    "app:win": "electron-builder --win --publish never",
-    "test:auth": "node tests/auth.js",
-    "test:app": "node tests/app-e2e.js"
+    "test:robust": "node tests/robust.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=18"
-  },
-  "devDependencies": {
-    "electron": "44.9.0",
-    "electron-builder": "26.15.3"
-  },
-  "author": "zlero7",
-  "build": {
-    "appId": "kr.puopuo.puyopuyo",
-    "productName": "뿌요뿌요",
-    "copyright": "뿌요뿌요",
-    "directories": {
-      "output": "dist",
-      "buildResources": "build"
-    },
-    "files": [
-      "electron/**/*",
-      "build/icon.png",
-      "public/**/*",
-      "!node_modules/**"
-    ],
-    "asar": true,
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build/icon.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
-      "shortcutName": "뿌요뿌요",
-      "installerLanguages": [
-        "ko_KR"
-      ],
-      "language": "1042",
-      "createDesktopShortcut": true,
-      "artifactName": "PuyoPuyo-Setup-${version}.${ext}"
-    },
-    "portable": {
-      "artifactName": "PuyoPuyo-${version}-portable.${ext}"
-    },
-    "executableName": "PuyoPuyo",
-    "electronFuses": {
-      "runAsNode": false,
-      "enableCookieEncryption": true,
-      "enableNodeOptionsEnvironmentVariable": false,
-      "enableNodeCliInspectArguments": false,
-      "enableEmbeddedAsarIntegrityValidation": true,
-      "onlyLoadAppFromAsar": true,
-      "grantFileProtocolExtraPrivileges": false
-    }
   }
 }
