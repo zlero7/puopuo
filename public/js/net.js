@@ -3,26 +3,17 @@
 
 /* ================= 온라인 ================= */
 const net = { ws: null };
-$('srv').value = location.protocol.startsWith('http') ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}` : 'ws://localhost:3000';   // 앱은 서버 주소를 본체에서 받음(appbridge.js)
+$('srv').value = location.protocol.startsWith('http') ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}` : 'ws://localhost:3000';
 const status = msg => { $('netStatus').textContent = msg; };
 function gsend(d) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({ t: 'g', d })); }
 function nsend(m) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); }
 function connect(then) {
-  if (net.ws && net.ws.readyState === 1 && net.authed) { then(); return; }
-  if (net.ws && net.ws.readyState <= 1) return;                       // 연결 중(앱은 로그인 확인 중 포함)
+  if (net.ws && net.ws.readyState === 1) { then(); return; }
+  if (net.ws && net.ws.readyState === 0) return;
   let ws;
-  if (APP && !appCfg.server) { status('서버 주소가 정해지지 않았어요. 계정 창에서 서버 주소를 정해 주세요.'); openAcct('login'); return; }
-  try { ws = new WebSocket(APP ? appCfg.ws : $('srv').value.trim()); } catch (e) { status('서버 주소 형식이 올바르지 않습니다. 예: ws://localhost:3000'); return; }
-  net.ws = ws; net.authed = !APP; net.pending = null; status('서버에 연결하는 중…');
-  ws.onopen = () => {
-    if (!APP) { status('서버에 연결되었습니다.'); then(); return; }
-    // 앱: 본체가 세션으로 1회용 접속표를 받아 오면 그것으로 로그인(세션·비밀번호는 이 화면에 없음)
-    APP.ticket().then(r => {
-      if (net.ws !== ws) return;
-      if (!r.ok) { status(r.msg || '로그인이 필요해요.'); if (r.err === 'auth') { appCfg.account = null; openAcct('login', () => connect(then)); } ws.close(); return; }
-      net.pending = then; ws.send(JSON.stringify({ t: 'auth', ticket: r.ticket, ver: appCfg.version }));
-    });
-  };
+  try { ws = new WebSocket($('srv').value.trim()); } catch (e) { status('서버 주소 형식이 올바르지 않습니다. 예: ws://localhost:3000'); return; }
+  net.ws = ws; status('서버에 연결하는 중…');
+  ws.onopen = () => { status('서버에 연결되었습니다.'); then(); };
   ws.onerror = () => status('서버에 연결할 수 없습니다. 서버가 켜져 있는지, 주소가 맞는지 확인하세요.');
   ws.onclose = () => {
     if (net.ws === ws) { net.ws = null; setWait(null); }
@@ -35,8 +26,6 @@ function connect(then) {
 }
 function onNet(m) {
   switch (m.t) {
-    case 'authok': { net.authed = true; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; if (f) f(); break; }
-    case 'autherr': { net.pending = null; status(m.msg || '로그인하지 못했어요.'); if (m.code !== 'old') { appCfg.account = null; openAcct('login'); } break; }
     case 'created':
       setWait(`방 ${m.code}`, m.size > 2 ? `1/${m.size}명` : '상대 기다리는 중');
       $('roomCode').textContent = m.code; $('roomBox').classList.remove('hidden'); $('bCancel').classList.remove('hidden');
@@ -129,9 +118,8 @@ const rankToken = (() => {
 })();
 const rankUrl = (p, style) => `/rank/${p}?style=${style}&token=${rankToken}`;
 function showRankRec() {
-  if (!serverOk()) { $('recRank').textContent = '서버 필요'; return; }
-  if (APP && !appCfg.account) { $('recRank').textContent = '로그인 필요'; return; }
-  apiGet('/rank/me', { style: stats.style || 'puyo' }).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(e => { if (e.auth) $('recRank').textContent = '로그인 필요'; });
+  if (!location.protocol.startsWith('http')) { $('recRank').textContent = '서버 필요'; return; }
+  fetch(rankUrl('me', stats.style || 'puyo')).then(r => r.json()).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(() => {});
 }
 function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null); }
 // 매칭·방 기다리는 중 표시: 다른 메뉴로 가도 기다림은 그대로이고, 화면 위 제목 옆에 '무슨 매칭 · 얼마나 기다렸는지'를 보여 줌(누르면 대전 화면으로)
@@ -155,7 +143,6 @@ $('bCancel').addEventListener('click', cancelWait);
 $('bJoin').addEventListener('click', () => {
   const code = $('code').value.trim().toUpperCase();
   if (code.length !== 4) { status('4자리 방 코드를 입력하세요.'); return; }
-  if (needLogin(() => $('bJoin').click())) return;
   if (askName(() => $('bJoin').click())) return;
   game.resetOnline = true;
   connect(() => nsend({ t: 'join', code, style: stats.style || 'puyo' }));

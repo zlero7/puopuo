@@ -8,7 +8,7 @@ catch { ({ chromium } = require(path.join(execSync('npm root -g').toString().tri
 const N = +process.argv[2] || 3, RANKED = process.argv[3] === 'ranked', PORT = 4600 + Math.floor(Math.random() * 300);
 
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, REQUIRE_AUTH: '0', PORT, HOST: '127.0.0.1', RANK_FILE: require('os').tmpdir() + `/ranks-${PORT}.json` }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: require('os').tmpdir() + `/ranks-${PORT}.json` }, stdio: 'pipe' });
   if (process.env.VDEBUG) srv.stdout.on('data', b => String(b).split('\n').filter(l => l.includes('[판정]')).forEach(l => console.log(l)));
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch();
