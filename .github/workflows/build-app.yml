@@ -15,6 +15,7 @@ permissions:
 jobs:
   # 테스트는 따로 돌림(실패해도 exe 만들기는 멈추지 않고, 결과는 Actions에서 확인)
   test:
+    name: 테스트(참고용)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +24,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: 브라우저 테스트용 Playwright 설치
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
       - run: npm test
       - run: npm run test:rank
       - run: npm run test:verify
+      - run: npm run test:robust
 
   windows:
     runs-on: windows-latest
