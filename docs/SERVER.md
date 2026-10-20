@@ -18,11 +18,11 @@
 
 **공통 준비 (서버를 켜는 법 둘 중 하나)**
 - Docker Desktop을 쓸 때: `deploy/.env` 만들기(`cp deploy/.env.example deploy/.env`) → `AUTH_SECRET`(= `openssl rand -hex 32`, PowerShell은 `-join ((1..32) | % { '{0:x2}' -f (Get-Random -Max 256) })`) 채우기.
-- Docker 없이: Node.js 22를 설치하고 저장소 폴더에서 `powershell -ExecutionPolicy Bypass -File deploy\windows\run-server.ps1`. 이 서버는 PC 안(127.0.0.1:3000)에서만 받으므로, 아래 A 또는 B의 HTTPS 프로그램이 바깥 연결을 받아 넘겨 줍니다.
+- Docker 없이: Node.js 22를 설치하고 저장소 폴더에서 `powershell -ExecutionPolicy Bypass -File deploy\windows\run-server.ps1`. 이 서버는 PC 안(127.0.0.1:38301)에서만 받으므로(포트 38301은 `-Port`로 바꿀 수 있어요. 3000번은 다른 개발 서버와 자주 겹쳐서 피했어요), 아래 A 또는 B의 HTTPS 프로그램이 바깥 연결을 받아 넘겨 줍니다.
 
 **A. Cloudflare Tunnel**
 1. [Cloudflare](https://dash.cloudflare.com) 무료 계정에 `zlero.xyz` 를 추가하고, 도메인을 산 곳에서 네임서버를 Cloudflare가 알려 주는 것으로 바꿉니다(적용까지 몇 분~몇 시간. 이미 쓰는 다른 DNS 레코드는 옮겨 오도록 확인).
-2. Zero Trust → Networks → Tunnels → 터널 만들기 → 토큰 복사. Public hostname: `puyo.zlero.xyz` → Service `HTTP` · `localhost:3000`(Docker 쓰면 `puyo:3000`).
+2. Zero Trust → Networks → Tunnels → 터널 만들기 → 토큰 복사. Public hostname: `puyo.zlero.xyz` → Service `HTTP` · `localhost:38301`(Docker 쓰면 `puyo:3000`). **이 포트가 다른 프로그램을 가리키면 그 프로그램이 인터넷에 공개되니 꼭 맞춰 주세요**.
 3. Docker: `deploy/.env` 에 `TUNNEL_TOKEN` 도 넣고 `cd deploy && docker compose -f docker-compose.tunnel.yml up -d --build`.
    Docker 없이: `run-server.ps1` 을 켜 두고, Windows용 `cloudflared` 를 설치해 터널을 서비스로 등록(대시보드가 명령을 알려 줌).
 
@@ -35,7 +35,7 @@
 
 **집 PC에서 지킬 것**
 - 서버가 켜져 있는 동안에만 접속돼요. 절전·최대 절전을 끄고(전원 옵션), Windows 업데이트 자동 재부팅 시간을 조정하세요.
-- 공유기 포트는 **80 · 443 말고는 열지 마세요**(3000번을 직접 열면 HTTPS가 없어서 비밀번호가 그대로 오가요). A안은 아무것도 열지 않아도 됩니다.
+- 공유기 포트는 **80 · 443 말고는 열지 마세요**(서버 포트를 직접 열면 HTTPS가 없어서 비밀번호가 그대로 오가요). A안은 아무것도 열지 않아도 됩니다.
 - `data` 폴더(`accounts.json` · `ranks.json` · `auth-secret.key`)를 주기적으로 다른 곳에 복사해 두세요. `AUTH_SECRET` 도 따로 적어 두세요.
 - 이 PC에 다른 사람이 접속하지 못하게 Windows 계정 비밀번호·방화벽을 지키세요(서버 데이터에 계정 해시가 있어요).
 
