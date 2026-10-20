@@ -1,0 +1,13 @@
+# HTTPS(자동 인증서) + 웹소켓 프록시. 접속자 주소는 Caddy가 X-Forwarded-For에 붙여 서버(TRUST_PROXY=1)에 알려 줌
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	request_body {
+		max_size 64KB
+	}
+	reverse_proxy puyo:3000
+}

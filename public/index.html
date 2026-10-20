@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>뿌요뿌요</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fonts/fonts.css">   <!-- 글꼴은 외부(구글 폰트)에서 받지 않고 앱에 내장 -->
 <style>
   :root {
     --font: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
@@ -28,6 +26,18 @@
   .hidden { display: none !important; }
   .gear { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: 14px; z-index: 6; font-family: var(--head); font-size: 16px;
     border: 0; border-radius: 999px; padding: 6px 14px; background: #2f78f0; color: #fff; cursor: pointer; box-shadow: 0 3px 0 #1747b0; }
+  .gear.acct { right: 118px; background: #ff7a2f; box-shadow: 0 3px 0 #b34a0e; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #acct h3 { margin: 0 0 8px; }
+  .actabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .actabs button { flex: 1; font-family: var(--head); font-size: 17px; padding: 6px 0; border: 2px solid #cfd1dc; border-radius: 8px; background: #fff; color: var(--muted); cursor: pointer; }
+  .actabs button.on { border-color: #2f78f0; color: #2f78f0; }
+  #acct label { display: block; font-size: 14px; color: var(--muted); margin: 8px 0 3px; }
+  #acct input { width: 100%; box-sizing: border-box; font-family: var(--font); font-size: 18px; padding: 7px 10px; border: 2px solid #cfd1dc; border-radius: 6px; }
+  #acct input:focus { outline: 0; border-color: #2f78f0; }
+  .acmsg { min-height: 20px; font-size: 14px; margin: 8px 0 0; color: var(--muted); }
+  .acmsg.bad { color: #d6263f; }
+  .acsec { margin-top: 14px; padding-top: 10px; border-top: 2px dashed #dcdde8; }
+  .acsec small { color: var(--muted); }
   .modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(26,20,60,0.5); padding: 16px; }
   .setcard { width: min(560px, 100%); max-height: 90vh; }
   .setchk { display: flex; align-items: center; gap: 10px; font-size: 16px; margin-bottom: 8px; cursor: pointer; }
@@ -503,6 +513,7 @@
   <div class="band-top"><button id="bBack" class="backbtn hidden" aria-label="뒤로">←</button><h1 id="bandTitle">메인 메뉴</h1><button id="mmBadge" class="mmbadge hidden" aria-label="매칭 화면으로"></button></div>
   <div class="band-white"></div>
   <button id="bSettings" class="gear" aria-label="설정">⚙ 설정</button>
+  <button id="bAcct" class="gear acct" aria-label="계정">로그인</button>
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">
     <div class="card setcard">
       <h3>설정</h3>
@@ -527,6 +538,35 @@
       <p class="padinfo">온라인 대전에서 상대에게 보이는 이름이야(10자까지). 나중에 내 정보에서 바꿀 수 있어.</p>
       <input id="naIn" maxlength="10" spellcheck="false" style="font-family: var(--head); font-size: 22px; width: 100%; padding: 6px 10px; border: 2px solid #cfd1dc; border-radius: 6px">
       <div class="btns"><button class="ghostbtn" id="naSkip">그냥 할래</button><button class="mini" id="naOk" style="--d:#1747b0">확인</button></div>
+    </div>
+  </div>
+  <div id="acct" class="modal hidden" role="dialog" aria-label="계정">
+    <div class="card setcard" style="max-width: 440px">
+      <h3>계정</h3>
+      <div id="acIn">
+        <div class="actabs"><button id="acTabLogin" class="on">로그인</button><button id="acTabReg">가입</button></div>
+        <label for="acId">아이디 <small>(영문 소문자·숫자·밑줄 4~16자)</small></label><input id="acId" maxlength="16" spellcheck="false" autocomplete="username" autocapitalize="off">
+        <div id="acRegOnly" class="hidden"><label for="acNick">닉네임 <small>(상대에게 보이는 이름, 10자까지)</small></label><input id="acNick" maxlength="10" spellcheck="false" autocomplete="nickname"></div>
+        <label for="acPw">비밀번호 <small>(8자 이상)</small></label><input id="acPw" type="password" maxlength="128" autocomplete="current-password">
+        <label id="acPw2L" for="acPw2" class="hidden">비밀번호 확인</label><input id="acPw2" type="password" maxlength="128" autocomplete="new-password" class="hidden">
+      </div>
+      <div id="acOut" class="hidden">
+        <p style="font-size:18px;margin:4px 0 10px">로그인: <b id="acWho"></b></p>
+        <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="acLogout">로그아웃</button><button class="ghostbtn" id="acLogoutAll">모든 기기에서 로그아웃</button></div>
+        <div class="acsec"><b>비밀번호 바꾸기</b>
+          <label for="acOld">지금 비밀번호</label><input id="acOld" type="password" maxlength="128" autocomplete="current-password">
+          <label for="acNew">새 비밀번호</label><input id="acNew" type="password" maxlength="128" autocomplete="new-password">
+          <label for="acNew2">새 비밀번호 확인</label><input id="acNew2" type="password" maxlength="128" autocomplete="new-password">
+          <div class="btns" style="justify-content:flex-start;margin-top:8px"><button class="mini" id="acPwGo" style="--d:#1747b0">바꾸기</button></div>
+        </div>
+      </div>
+      <p class="acmsg" id="acMsg"></p>
+      <div class="acsec" id="acSrvBox"><small>서버: <b id="acSrv"></b></small>
+        <p class="acmsg bad hidden" id="acSrvNeeded">서버 주소를 정해야 온라인 대전을 할 수 있어요.</p>
+        <label for="acSrvIn">서버 주소 바꾸기 <small>(https://로 시작)</small></label><input id="acSrvIn" spellcheck="false" placeholder="https://puyo.example.com">
+        <div class="btns" style="justify-content:flex-start;margin-top:8px"><button class="ghostbtn" id="acSrvGo">서버 바꾸기</button></div>
+      </div>
+      <div class="btns"><button class="ghostbtn" id="acClose">닫기</button><button class="mini" id="acGo" style="--d:#1747b0">로그인</button></div>
     </div>
   </div>
   <div class="band-bot" id="hints"></div>
@@ -824,6 +864,7 @@
   </div>
 
 <script src="js/core.js"></script>
+<script src="js/appbridge.js"></script>
 <script src="js/fever.js"></script>
 <script src="js/puyo.js"></script>
 <script src="js/tetris.js"></script>
@@ -834,6 +875,7 @@
 <script src="js/play.js"></script>
 <script src="js/input.js"></script>
 <script src="js/net.js"></script>
+<script src="js/account.js"></script>
 <script src="js/replay.js"></script>
 <script src="js/bigbang.js"></script>
 <script src="js/swap.js"></script>
