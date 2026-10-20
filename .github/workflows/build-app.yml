@@ -24,13 +24,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: 브라우저 테스트용 Playwright 설치
-        run: |
-          npm install --no-save playwright
-          npx playwright install --with-deps chromium
-      - run: npm test
+      # 브라우저가 필요한 테스트(npm test · test:online · test:verify)는 개발 환경에서 따로 돌림
       - run: npm run test:rank
-      - run: npm run test:verify
       - run: npm run test:robust
 
   windows:
