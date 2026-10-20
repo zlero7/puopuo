@@ -14,7 +14,9 @@
     "app:dir": "electron-builder --dir --publish never",
     "app:win": "electron-builder --win --publish never",
     "test:auth": "node tests/auth.js",
-    "test:app": "node tests/app-e2e.js"
+    "test:app": "node tests/app-e2e.js",
+    "test:updater": "node tests/updater.js",
+    "test:update-app": "node tests/update-e2e.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

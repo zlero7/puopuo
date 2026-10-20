@@ -3,10 +3,11 @@
 // - 온라인 대전·랭크전은 한 곳에서 돌리는 중앙 서버에 접속: 계정(아이디·비밀번호)은 서버가 확인하고, 세션은 이 본체가 OS 보안 저장소로 보관
 // - 화면(렌더러)은 상자 안에 가둠: Node 없음, 엄격한 CSP(서버 주소 외 접속 불가), 외부 이동·새 창·권한 요청 거부
 'use strict';
-const { app, BrowserWindow, Menu, dialog, protocol, session, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, protocol, session, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const api = require('./server-api');
+const updater = require('./updater');
 
 app.setAppUserModelId('kr.puopuo.puyopuyo');
 app.setPath('userData', path.join(app.getPath('appData'), 'puyopuyo'));   // 폴더 이름을 영문으로 고정
@@ -32,9 +33,10 @@ function serveFile(req) {
   if (u.hostname !== 'app') return new Response('forbidden', { status: 403 });
   let rel; try { rel = decodeURIComponent(u.pathname); } catch (e) { return new Response('bad request', { status: 400 }); }
   if (rel === '/') rel = '/index.html';
-  const file = path.normalize(path.join(PUBLIC, rel));
+  const base = updater.uiRoot() || PUBLIC;                 // 업데이트로 받은(서명·해시 확인된) 새 화면이 있으면 그것, 없으면 앱에 든 화면
+  const file = path.normalize(path.join(base, rel));
   const type = TYPES[path.extname(file).toLowerCase()];
-  if (!file.startsWith(PUBLIC + path.sep) || !type) return new Response('forbidden', { status: 403 });   // public 밖이나 정해진 종류가 아니면 거부
+  if (!file.startsWith(base + path.sep) || !type) return new Response('forbidden', { status: 403 });   // 화면 폴더 밖이나 정해진 종류가 아니면 거부
   let data; try { data = fs.readFileSync(file); } catch (e) { return new Response('not found', { status: 404 }); }
   return new Response(data, { headers: { 'Content-Type': type, 'Content-Security-Policy': csp(), 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-cache' } });
 }
@@ -43,7 +45,7 @@ function serveFile(req) {
 const trusted = e => !!(win && e.sender === win.webContents && e.senderFrame && e.senderFrame.url.startsWith(HOME));   // 우리 화면에서 온 요청만
 const handle = (ch, fn) => ipcMain.handle(ch, (e, v) => trusted(e) ? fn(v) : { ok: false, msg: '허용되지 않은 요청이에요.' });
 function setupIpc() {
-  handle('app:info', () => { const sv = api.getServer(), me = api.account(); return { version: app.getVersion(), packaged: app.isPackaged, server: sv ? sv.baseUrl : '', ws: sv ? sv.wsUrl : '', canChangeServer: api.canChangeServer(), account: me }; });
+  handle('app:info', () => { const sv = api.getServer(), me = api.account(); return { version: updater.version(), shell: app.getVersion(), update: updater.state(), packaged: app.isPackaged, server: sv ? sv.baseUrl : '', ws: sv ? sv.wsUrl : '', canChangeServer: api.canChangeServer(), account: me }; });
   handle('app:setServer', v => {
     const sv = api.normalizeServer(v, !app.isPackaged);
     if (!api.canChangeServer()) return { ok: false, msg: '이 앱은 서버 주소를 바꿀 수 없어요.' };
@@ -58,6 +60,23 @@ function setupIpc() {
   handle('auth:register', v => api.register(v)); handle('auth:login', v => api.login(v)); handle('auth:logout', () => api.logout());
   handle('auth:logoutAll', () => api.logoutAll()); handle('auth:password', v => api.changePassword(v)); handle('auth:ticket', () => api.ticket());
   handle('api:get', v => api.apiGet(v));
+  // 화면 업데이트: 화면이 제대로 떴다고 알리면 부팅 확인을 끝냄 · 받아 둔 새 화면을 지금 적용 · 설치 파일이 필요할 때 릴리스 페이지 열기(주소는 고정)
+  handle('ui:ready', () => { clearTimeout(bootTimer); bootTimer = null; return { ok: true }; });
+  handle('update:state', () => updater.state());
+  handle('update:apply', () => { if (!updater.apply()) return { ok: false }; setTimeout(() => { if (win) { armBoot(); win.webContents.reload(); } }, 50); return { ok: true, version: updater.version() }; });
+  handle('update:releases', () => { shell.openExternal('https://github.com/zlero7/puopuo/releases/latest'); return { ok: true }; });
+}
+// 새 화면으로 켠 뒤 일정 시간 안에 화면이 제대로 떴다는 신호(ui:ready)가 없으면 그 버전을 버리고 내장 화면으로 돌아감
+let bootTimer = null;
+function armBoot() {
+  clearTimeout(bootTimer); bootTimer = null;
+  if (!updater.uiRoot()) return;
+  bootTimer = setTimeout(() => { bootTimer = null; if (updater.failBoot() && win) { console.log('[업데이트] 새 화면이 켜지지 않아 내장 화면으로 돌아가요.'); win.webContents.reload(); } }, updater.bootMs());
+}
+// 업데이트 확인: 켠 직후 한 번, 그 뒤 6시간마다. 받아 두면 화면에 알려서 '지금 적용'을 고르게 함(적용 전에는 쓰던 화면 그대로)
+async function checkUpdates() {
+  const r = await updater.check();
+  if (win && (r === 'ready' || r === 'installer')) win.webContents.send('update', updater.state());
 }
 function buildMenu() {
   return Menu.buildFromTemplate([
@@ -114,11 +133,12 @@ app.whenReady().then(async () => {
     const sv = api.getServer(), u = d.url;
     cb({ cancel: !(u.startsWith(HOME) || u.startsWith('data:') || u.startsWith('blob:') || u.startsWith('devtools:') || (sv && (u === sv.wsUrl + '/' || u.startsWith(sv.wsUrl + '/') || u.startsWith(sv.baseUrl + '/')))) });
   });
-  api.resolveServer(); setupIpc();
+  api.resolveServer(); setupIpc(); updater.init();
   await api.restore().catch(() => {});                 // 저장된 로그인이 있으면 갱신
   Menu.setApplicationMenu(buildMenu());
-  createWindow();
+  createWindow(); armBoot();
   if (SMOKE) smoke();
+  else { setTimeout(checkUpdates, 6000); setInterval(checkUpdates, 6 * 3600 * 1000).unref(); }
 });
 app.on('web-contents-created', (_e, wc) => {           // 어떤 화면이든 밖으로 못 나가고 새 창·webview를 못 만듦
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));

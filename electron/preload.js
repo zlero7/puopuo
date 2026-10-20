@@ -13,5 +13,10 @@ contextBridge.exposeInMainWorld('puyoApp', {
   changePassword: (oldPw, newPw) => call('auth:password', { old: String(oldPw), new: String(newPw) }),
   ticket: () => call('auth:ticket'),
   api: (path, params) => call('api:get', { path: String(path), params: params && typeof params === 'object' ? params : {} }),
+  uiReady: () => call('ui:ready'),
+  updateState: () => call('update:state'),
+  applyUpdate: () => call('update:apply'),
+  openReleases: () => call('update:releases'),
+  onUpdate: cb => { if (typeof cb === 'function') ipcRenderer.on('update', (_e, st) => cb(st)); },
   onMenu: cb => { if (typeof cb === 'function') ipcRenderer.on('menu', (_e, what) => cb(String(what))); },
 });

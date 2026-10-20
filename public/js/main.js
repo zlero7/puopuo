@@ -4,6 +4,7 @@
 /* ================= 시작 ================= */
 build('vs');
 window.gameReady = true;
+if (APP && APP.uiReady) APP.uiReady().catch(() => {});   // 새 화면이 잘 떴다고 본체에 알림(안 알리면 이전 화면으로 되돌림)
 game.lowFx = stats.lowFx === true;
 // 게임 중엔 화면이 꺼지지 않게(지원하는 브라우저만)
 let wakeLock = null;

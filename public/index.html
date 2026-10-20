@@ -896,5 +896,12 @@
 <script src="js/puzzle.js"></script>
 <script src="js/rankfx.js"></script>
 <script src="js/main.js"></script>
+<style id="updCss">
+#updBar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,520px);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;padding:10px 14px;border-radius:12px;background:#1f2a44;color:#fff;border:1px solid #5b7cff;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:14px}
+#updBar.hidden{display:none}
+#updBar button{border:0;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;background:#5b7cff;color:#fff}
+#updBar button.sub{background:transparent;border:1px solid #8aa0ff}
+</style>
+<div id="updBar" class="hidden" role="status"><span id="updMsg"></span><button id="updGo"></button><button id="updLater" class="sub">나중에</button></div>
 </body>
 </html>

@@ -17,3 +17,23 @@ function needLogin(then) {
   if (!APP || appCfg.account) return false;
   openAcct('login', then); return true;
 }
+
+/* ---------- 화면 업데이트 알림(앱) ---------- */
+// 새 화면이 받아져 있으면 "지금 적용"(다시 불러오기), 앱 본체 교체가 필요하면 설치 파일 받는 곳으로 안내
+function showUpdate(st) {
+  const bar = document.getElementById('updBar'); if (!bar || !st) return;
+  const msg = document.getElementById('updMsg'), go = document.getElementById('updGo');
+  if (st.pending) {
+    msg.textContent = `새 버전 ${st.pending.version} 준비 완료`; go.textContent = '지금 적용';
+    go.onclick = () => { if (game.state === 'play' && !confirm('게임 중이에요. 지금 다시 불러올까요?')) return; APP.applyUpdate(); };
+  } else if (st.installer) {
+    msg.textContent = `새 버전 ${st.installer.version}은 앱을 새로 설치해야 해요`; go.textContent = '받으러 가기';
+    go.onclick = () => APP.openReleases();
+  } else { bar.classList.add('hidden'); return; }
+  document.getElementById('updLater').onclick = () => bar.classList.add('hidden');
+  bar.classList.remove('hidden');
+}
+if (APP) {
+  if (APP.onUpdate) APP.onUpdate(showUpdate);
+  if (APP.updateState) APP.updateState().then(showUpdate).catch(() => {});
+}

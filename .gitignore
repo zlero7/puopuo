@@ -2,3 +2,4 @@ data/
 deploy/.env
 dist/
 node_modules/
+update-private-key.pem
