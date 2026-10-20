@@ -2,6 +2,7 @@
 // - public/index.html 을 제공하고, 같은 포트에서 WebSocket 으로 방 매칭과 메시지 중계를 한다.
 // - 게임 판정은 각 클라이언트가 자기 필드를 직접 계산하고, 서버는 두 사람을 이어 주기만 한다.
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -14,6 +15,36 @@ const VERIFY = process.env.RANK_TRUST !== '1';
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   // 모든 네트워크 카드에서 접속 허용
+
+/* ---------- 보안 설정(환경 변수) ----------
+   기본값은 '인터넷에 여는 앱 서버' 기준: 로그인 필수 · 앱(puyo://app)에서만 웹소켓 접속 · 게임 화면(웹)은 제공하지 않음
+   REQUIRE_AUTH=0     로그인 없이 쓰는 개발·테스트 모드(예전 방식: 브라우저 토큰). 인터넷에 열지 말 것
+   SERVE_WEB=1        게임 화면(public/)도 이 서버가 제공(기본은 REQUIRE_AUTH=0일 때만)
+   ALLOWED_ORIGINS    웹소켓 접속을 허용할 Origin(쉼표로 여러 개, 기본 puyo://app)
+   TRUST_PROXY=1      프록시(Caddy·Nginx) 한 단계 뒤에 있을 때: X-Forwarded-For의 오른쪽에서 N번째를 접속자 주소로 씀
+   TLS_CERT·TLS_KEY   프록시 없이 직접 HTTPS(wss)로 열 때 인증서·키 파일 경로
+   MIN_CLIENT_VERSION 이보다 낮은 버전의 앱은 접속 거부   MAX_CONNS 동시 접속 상한 */
+const REQUIRE_AUTH = process.env.REQUIRE_AUTH !== '0';
+const SERVE_WEB = process.env.SERVE_WEB != null ? process.env.SERVE_WEB === '1' : !REQUIRE_AUTH;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'puyo://app').split(',').map(x => x.trim()).filter(Boolean);
+const TRUST_PROXY = +process.env.TRUST_PROXY || 0;
+const MIN_CLIENT_VERSION = process.env.MIN_CLIENT_VERSION || '0.0.0';
+const MAX_CONNS = +process.env.MAX_CONNS || 2000;
+const TLS = process.env.TLS_CERT && process.env.TLS_KEY ? { cert: fs.readFileSync(process.env.TLS_CERT), key: fs.readFileSync(process.env.TLS_KEY) } : null;
+const auth = REQUIRE_AUTH ? require('./auth') : null;
+const authApi = REQUIRE_AUTH ? require('./authApi') : null;
+const cmpVer = (a, b) => { const x = String(a).split('.').map(n => parseInt(n, 10) || 0), y = String(b).split('.').map(n => parseInt(n, 10) || 0); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+// 접속자 주소: 프록시 뒤에서는 프록시가 붙인 값을 믿음(왼쪽 값은 접속자가 마음대로 적을 수 있어 오른쪽에서 센다)
+function clientIp(req) {
+  const sock = req.socket.remoteAddress || '';
+  if (!TRUST_PROXY) return sock;
+  const xs = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
+  return xs.length >= TRUST_PROXY ? xs[xs.length - TRUST_PROXY] : sock;
+}
+function secHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'DENY');
+  if (TLS || TRUST_PROXY) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+}
 
 
 // 같은 내부망(공유기·학교망)에서 다른 사람이 들어올 수 있는 주소 목록
@@ -32,21 +63,32 @@ function lanAddresses() {
 }
 const INDEX = path.join(__dirname, 'public', 'index.html');
 
-const server = http.createServer((req, res) => {
+const handler = (req, res) => {
   const url = req.url.split('?')[0];
-  if (url === '/' || url === '/index.html') {
+  secHeaders(res);
+  if (REQUIRE_AUTH && url.startsWith('/auth/')) {      // 계정 API(가입·로그인·접속표)
+    authApi.handle(req, res, url, clientIp(req)).catch(e => { console.error('계정 API 오류:', e && e.message); if (!res.headersSent) res.writeHead(500); res.end(); });
+    return;
+  }
+  if (SERVE_WEB && (url === '/' || url === '/index.html')) {
     fs.readFile(INDEX, (err, data) => {
       if (err) { res.writeHead(500); res.end('index.html 을 읽을 수 없습니다'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(data);
     });
-  } else if (/^\/js\/[\w-]+\.js$/.test(url)) {      // 게임 스크립트(경로 탈출 불가: 영문·숫자·-·_ 파일 이름만)
+  } else if (SERVE_WEB && /^\/js\/[\w-]+\.js$/.test(url)) {      // 게임 스크립트(경로 탈출 불가: 영문·숫자·-·_ 파일 이름만)
     fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
       res.end(data);
     });
-  } else if (/^\/img\/[\w-]+\.(webp|png)$/.test(url)) {   // 그림(티어 엠블럼 등). 경로 탈출 불가: 영문·숫자·-·_ 이름만
+  } else if (SERVE_WEB && /^\/fonts\/[\w.-]+\.(woff2|css)$/.test(url)) {    // 내장 글꼴(슬래시가 없어 경로 탈출 불가)
+    fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': url.endsWith('.css') ? 'text/css; charset=utf-8' : 'font/woff2', 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    });
+  } else if (SERVE_WEB && /^\/img\/[\w-]+\.(webp|png)$/.test(url)) {   // 그림(티어 엠블럼 등). 경로 탈출 불가: 영문·숫자·-·_ 이름만
     fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': url.endsWith('.webp') ? 'image/webp' : 'image/png', 'Cache-Control': 'public, max-age=86400' });
@@ -54,24 +96,35 @@ const server = http.createServer((req, res) => {
     });
   } else if (url === '/rank/top' || url === '/rank/me') {      // 랭크전 순위표 · 내 레이팅
     const q = new URLSearchParams(req.url.split('?')[1] || ''), style = rank.STYLES.includes(q.get('style')) ? q.get('style') : 'puyo';
-    let body;
-    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), rank.validToken(q.get('token')) ? q.get('token') : '');
-    else if (!rank.validToken(q.get('token'))) { res.writeHead(400); res.end(); return; }
-    else body = rank.me(q.get('token'), style);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    let body, me;
+    if (REQUIRE_AUTH) { const a = authApi.authed(req); me = a ? a.uid : ''; if (url === '/rank/me' && !a) { res.writeHead(401, { 'Cache-Control': 'no-store' }); res.end(); return; } }   // 로그인한 사람만 '내 것'을 봄(토큰을 주소에 싣지 않음)
+    else { me = rank.validToken(q.get('token')) ? q.get('token') : ''; if (url === '/rank/me' && !me) { res.writeHead(400); res.end(); return; } }
+    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), me);
+    else body = rank.me(me, style);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': url === '/rank/me' ? 'no-store' : 'no-cache' });
     res.end(JSON.stringify(body));
-  } else if (url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
+  } else if (SERVE_WEB && url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ port: PORT, lan: HOST === '127.0.0.1' || HOST === 'localhost' ? [] : lanAddresses().map(a => a.url) }));   // 이 컴퓨터에서만 열었으면(데스크톱 앱 기본) 다른 사람 접속 주소는 없음
   } else if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
+    res.end(JSON.stringify(REQUIRE_AUTH ? { ok: true } : { ok: true, rooms: rooms.size }));   // 로그인 서버는 방 수 같은 내부 정보를 밖에 알리지 않음
   } else {
     res.writeHead(404); res.end();
   }
-});
+};
+const server = TLS ? https.createServer(TLS, handler) : http.createServer(handler);
 
-const wss = new WebSocketServer({ server, maxPayload: 64 * 1024 });
+const wss = new WebSocketServer({
+  server, maxPayload: 64 * 1024,
+  // 연결을 받기 전에 걸러냄: 동시 접속 상한 · 허용한 Origin(앱)이 아니면 거부
+  verifyClient: (info, cb) => {
+    if (wss.clients.size >= MAX_CONNS) { cb(false, 503, 'busy'); return; }
+    if (REQUIRE_AUTH && !ALLOWED_ORIGINS.includes(info.origin)) { cb(false, 403, 'forbidden'); return; }
+    cb(true);
+  },
+});
+const online = new Map();       // 계정 uid → 지금 접속 중인 연결(한 계정은 한 곳에서만)
 const rooms = new Map();        // code -> { code, size, board, players: [ws], seats: [ws], ready: Set, started }
 const quickWaiting = new Map(); // '판크기:인원' -> 아직 다 안 찬 빠른 매칭 방
 const BOARD_KEYS = ['wide', 'classic', 'tiny'], RULE_KEYS = ['tsu', 'fever', 'bigbang', 'swap', 'party', 'fusion'];
@@ -266,10 +319,14 @@ function allow(ws, kind) {
   return false;
 }
 wss.on('connection', (ws, req) => {
-  const ip = req.socket.remoteAddress || '';
+  const ip = clientIp(req);
   if ((perIp.get(ip) || 0) >= MAX_CONN_PER_IP) { ws.close(1013, 'too many'); return; }
   perIp.set(ip, (perIp.get(ip) || 0) + 1);
-  ws.on('close', () => { const n = (perIp.get(ip) || 1) - 1; if (n > 0) perIp.set(ip, n); else perIp.delete(ip); });
+  ws.on('close', () => {
+    const n = (perIp.get(ip) || 1) - 1; if (n > 0) perIp.set(ip, n); else perIp.delete(ip);
+    clearTimeout(ws.authTimer); if (ws.acct && online.get(ws.acct.uid) === ws) online.delete(ws.acct.uid);
+  });
+  if (REQUIRE_AUTH) ws.authTimer = setTimeout(() => { if (!ws.acct) ws.close(4401, 'auth'); }, +process.env.AUTH_WS_TIMEOUT_MS || 8000);   // 8초 안에 로그인(접속표)하지 않으면 끊음
   ws.bucket = { g: { n: RATE.g[1], at: Date.now() }, other: { n: RATE.other[1], at: Date.now() } }; ws.dropped = 0;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
@@ -281,11 +338,23 @@ wss.on('connection', (ws, req) => {
     try { m = clean(JSON.parse(raw)); } catch { return; }
     if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
     if (!allow(ws, m.t === 'g' ? 'g' : 'other')) return;
+    if (REQUIRE_AUTH && !ws.acct) { if (m.t === 'auth') doAuth(ws, m); return; }   // 로그인 전에는 auth 말고는 전부 무시
     try { onMessage(ws, m); } catch (e) { console.error('메시지 처리 오류:', m.t, e && e.message); }
   });
 
   ws.on('close', () => leave(ws));
 });
+
+// 웹소켓 로그인: 앱 본체가 세션으로 받아 온 1회용 접속표를 첫 메시지로 보냄. 접속표는 30초 · 한 번만 쓸 수 있음
+function doAuth(ws, m) {
+  const a = auth.useTicket(m.ticket);
+  if (!a) { send(ws, { t: 'autherr', msg: '로그인 정보가 올바르지 않거나 만료됐어요. 다시 로그인해 주세요.' }); ws.close(4401, 'auth'); return; }
+  if (cmpVer(typeof m.ver === 'string' ? m.ver.slice(0, 20) : '0', MIN_CLIENT_VERSION) < 0) { send(ws, { t: 'autherr', code: 'old', msg: '앱이 너무 오래돼서 접속할 수 없어요. 새 버전으로 업데이트해 주세요.' }); ws.close(4426, 'old'); return; }
+  const old = online.get(a.uid);
+  if (old && old !== ws) { send(old, { t: 'error', msg: '다른 곳에서 같은 계정으로 접속해서 이 연결을 끊었어요.' }); old.close(4409, 'dup'); }
+  online.set(a.uid, ws); ws.acct = { uid: a.uid, name: a.name }; clearTimeout(ws.authTimer);
+  send(ws, { t: 'authok', name: a.name });
+}
 
 function onMessage(ws, m) {
   if (m.style === 'puyo' || m.style === 'tetris') ws.style = m.style;
@@ -319,10 +388,11 @@ function onMessage(ws, m) {
       break;
     }
     case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
-      if (!rank.validToken(m.token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
+      const token = REQUIRE_AUTH ? ws.acct.uid : m.token, nick = REQUIRE_AUTH ? ws.acct.name : typeof m.name === 'string' ? m.name : '';   // 로그인 서버는 계정이 곧 신원 · 이름도 계정 것
+      if (!rank.validToken(token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
       leave(ws);
-      ws.rank = { token: m.token, style: m.style, rec: rank.get(m.token, m.style, typeof m.name === 'string' ? m.name : '', m.char), since: Date.now(), bot: !!m.bot };
-      for (const o of rankQ) if (o !== ws && o.rank.token === m.token) { rankQ.delete(o); send(o, { t: 'error', msg: '다른 창에서 랭크전 대기를 시작해서 이 창의 대기는 취소됐어요.' }); }   // 한 사람은 대기열에 한 번만
+      ws.rank = { token, style: m.style, rec: rank.get(token, m.style, nick, m.char), since: Date.now(), bot: !!m.bot };
+      for (const o of rankQ) if (o !== ws && o.rank.token === token) { rankQ.delete(o); send(o, { t: 'error', msg: '다른 창에서 랭크전 대기를 시작해서 이 창의 대기는 취소됐어요.' }); }   // 한 사람은 대기열에 한 번만
       rankQ.add(ws);
       send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });
       break;
@@ -369,7 +439,7 @@ function onMessage(ws, m) {
         if (R.botLoop && d.t === 'atk') R.botLoop.inbox.push({ n: d.n, at: Date.now() + 500, chain: R.botLoop.chainN });   // AI에게 공격이 날아가는 시간
         if (R.botLoop && d.t === 'ce') { R.botLoop.chainN++; R.botLoop.bot.release(); }   // 사람 연쇄 끝: AI 쪽에 붙잡혀 있던 방해가 떨어질 수 있음
       }
-      if (d.t === 'hi') d = { t: 'hi', name: rank.cleanName(d.name), char: typeof d.char === 'string' ? d.char.slice(0, 12) : '' };   // 닉네임 필터(일반 방도)
+      if (d.t === 'hi') d = { t: 'hi', name: REQUIRE_AUTH && ws.acct ? ws.acct.name : rank.cleanName(d.name), char: typeof d.char === 'string' ? d.char.slice(0, 12) : '' };   // 로그인 서버는 이름을 계정 것으로 고정(위조 방지), 아니면 닉네임 필터
       for (const p of room.players) if (p !== ws) send(p, { t: 'g', d, f });
       break;
     }
@@ -385,7 +455,7 @@ setInterval(() => {
 }, 30000);
 
 // 서버를 끌 때 랭크 기록을 바로 저장(모아서 저장하는 중이던 결과가 날아가지 않게)
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { rank.flush(); process.exit(0); });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { rank.flush(); if (auth) auth.flush(); process.exit(0); });
 // 예상 못 한 오류가 나도 서버 전체가 꺼지지 않게(기록만 남김)
 process.on('uncaughtException', e => console.error('처리하지 못한 오류:', e && e.stack || e));
 
@@ -399,6 +469,8 @@ server.listen(PORT, HOST, () => {
   const lan = lanAddresses();
   console.log('');
   console.log('  뿌요뿌요 서버가 켜졌습니다');
+  console.log(`  ${TLS ? 'HTTPS' : 'HTTP'} · ${REQUIRE_AUTH ? `로그인 필수 · 접속 허용 Origin: ${ALLOWED_ORIGINS.join(', ')}` : '로그인 없음(개발·테스트용, 인터넷에 열지 마세요)'}${SERVE_WEB ? ' · 웹 화면 제공' : ''}${TRUST_PROXY ? ` · 프록시 ${TRUST_PROXY}단계 신뢰` : ''}`);
+  if (REQUIRE_AUTH && !TLS && !TRUST_PROXY && HOST !== '127.0.0.1' && HOST !== 'localhost') console.log('  ⚠ 암호화 없이 열려 있어요. 인터넷에 열 때는 HTTPS(Caddy 같은 프록시 + TRUST_PROXY=1, 또는 TLS_CERT·TLS_KEY)를 쓰세요.');
   console.log('');
   console.log(`  이 컴퓨터       http://localhost:${PORT}`);
   if (HOST === '127.0.0.1' || HOST === 'localhost') {

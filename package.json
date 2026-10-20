@@ -12,7 +12,8 @@
     "test:robust": "node tests/robust.js",
     "app": "electron .",
     "app:dir": "electron-builder --dir --publish never",
-    "app:win": "electron-builder --win --publish never"
+    "app:win": "electron-builder --win --publish never",
+    "test:auth": "node tests/auth.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

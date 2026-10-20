@@ -18,7 +18,7 @@ const ok = (c, msg) => { console.log(`${c ? '✓' : '✗'} ${msg}`); if (!c) pro
 const tok = c => 'robust' + c.repeat(14);
 
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1', RANK_BOT_WAIT: '300', RANK_READY_MS: '2500' }, stdio: 'pipe' });
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, REQUIRE_AUTH: '0', PORT, HOST: '127.0.0.1', RANK_FILE: FILE, RANK_OPEN: '1', RANK_BOT_WAIT: '300', RANK_READY_MS: '2500' }, stdio: 'pipe' });
   let errs = ''; srv.stderr.on('data', d => { errs += d; });
   await sleep(700);
   try {
