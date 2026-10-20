@@ -1,4 +1,4 @@
 {
   "serverUrl": "https://puyo.zlero.xyz",
-  "allowServerChange": true
+  "allowServerChange": false
 }
