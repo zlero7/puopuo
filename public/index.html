@@ -349,7 +349,16 @@
   #t-create .tt { top: 12% !important; }
   #t-local .td { right: 20%; bottom: 3%; font-size: clamp(11px, 1.7vh, 14px); }
   #t-local .tt { top: 3% !important; }
-  #t-join .tt { top: 2% !important; font-size: clamp(22px, 4.4vh, 44px); }
+  #t-join .tt { top: 12% !important; }                 /* 방 만들기와 같은 크기·위치 */
+  #t-join .ico { top: 12% !important; }
+  @media (min-height: 740px) and (max-height: 859px) {  /* 조금 낮은 화면: 제목은 그대로 두고 설명 글을 빼서 코드 칸이 제목과 안 겹치게 */
+    #t-join .td { display: none; }
+    #t-join .joinrow { bottom: 9% !important; }
+  }
+  @media (max-height: 739px) {                          /* 아주 낮은 화면에서만 제목을 줄임 */
+    #t-join .tt { top: 2% !important; font-size: clamp(22px, 4.4vh, 44px); }
+    #t-join .ico { top: 6% !important; }
+  }
   #t-join .joinrow { bottom: 29%; }
   #t-join .joinrow input { padding: 3px 8px; }
   #t-join .mini { padding: 3px 14px; }
@@ -464,6 +473,7 @@
     .rkhero { flex-direction: column; text-align: center; }
     .rkhero canvas { width: 96px; height: 96px; }
     .tile .td { display: none; }                 /* 좁은 화면: 타일 설명은 아래 설명 칸(#mDesc)에서만 */
+    #t-join .joinrow { right: 34%; }              /* 좁은 화면: 코드 칸·참가 버튼이 오른쪽 그림(뿌요)을 가리지 않게 */
     /* 메인 메뉴 타일(폰): 제목은 왼쪽 가운데, 그림은 오른쪽 절반, 작은 뿌요 아이콘은 숨김(서로 겹치지 않게) */
     #sc-main .tile { min-height: 170px; }
     #sc-main .tile .art { left: auto !important; right: 5% !important; top: 12% !important; width: 50% !important; height: 76% !important; }
