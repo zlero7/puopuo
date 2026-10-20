@@ -1,0 +1,51 @@
+# 데스크톱 앱(exe) 빌드: Windows 러너에서 설치 파일과 포터블 exe를 만들어 올림
+# - 브랜치에 푸시하거나 Actions 탭에서 'Run workflow'를 누르면 결과물이 '아티팩트'로 올라옴(30일 보관)
+# - v로 시작하는 태그(예: v1.0.0)를 푸시하면 같은 파일이 GitHub 릴리스에도 붙음
+name: 앱(exe) 빌드
+
+on:
+  push:
+    branches: [claude/desktop-app-exe]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # 테스트는 따로 돌림(실패해도 exe 만들기는 멈추지 않고, 결과는 Actions에서 확인)
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:rank
+      - run: npm run test:verify
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: exe 만들기
+        run: npm run app:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PuyoPuyo-windows
+          path: |
+            dist/*.exe
+          if-no-files-found: error
+      - name: 릴리스에 붙이기(태그일 때만)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe

@@ -62,7 +62,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify(body));
   } else if (url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ port: PORT, lan: lanAddresses().map(a => a.url) }));
+    res.end(JSON.stringify({ port: PORT, lan: HOST === '127.0.0.1' || HOST === 'localhost' ? [] : lanAddresses().map(a => a.url) }));   // 이 컴퓨터에서만 열었으면(데스크톱 앱 기본) 다른 사람 접속 주소는 없음
   } else if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
@@ -401,15 +401,19 @@ server.listen(PORT, HOST, () => {
   console.log('  뿌요뿌요 서버가 켜졌습니다');
   console.log('');
   console.log(`  이 컴퓨터       http://localhost:${PORT}`);
-  if (lan.length) {
+  if (HOST === '127.0.0.1' || HOST === 'localhost') {
+    console.log('  (이 컴퓨터에서만 접속할 수 있게 열었습니다)');
+  } else if (lan.length) {
     console.log('  같은 네트워크   ' + lan.map(a => `${a.url}  (${a.name})`).join('\n                  '));
   } else {
     console.log('  같은 네트워크   (네트워크에 연결된 IPv4 주소를 찾지 못했습니다)');
   }
   console.log('');
-  console.log('  다른 사람이 접속이 안 되면');
-  console.log('   - Windows: 방화벽 알림에서 Node.js 를 허용하세요(개인 네트워크).');
-  console.log('     이미 거부했다면 "Windows Defender 방화벽 > 앱 허용"에서 Node.js 를 체크하세요.');
-  console.log('   - 같은 와이파이/공유기에 있는지 확인하세요. 학교·회사 와이파이는 기기끼리 통신을 막아 둔 경우가 있습니다.');
-  console.log('');
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
+    console.log('  다른 사람이 접속이 안 되면');
+    console.log('   - Windows: 방화벽 알림에서 Node.js 를 허용하세요(개인 네트워크).');
+    console.log('     이미 거부했다면 "Windows Defender 방화벽 > 앱 허용"에서 Node.js 를 체크하세요.');
+    console.log('   - 같은 와이파이/공유기에 있는지 확인하세요. 학교·회사 와이파이는 기기끼리 통신을 막아 둔 경우가 있습니다.');
+    console.log('');
+  }
 });
