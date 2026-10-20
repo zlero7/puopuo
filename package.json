@@ -13,7 +13,8 @@
     "app": "electron .",
     "app:dir": "electron-builder --dir --publish never",
     "app:win": "electron-builder --win --publish never",
-    "test:auth": "node tests/auth.js"
+    "test:auth": "node tests/auth.js",
+    "test:app": "node tests/app-e2e.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
@@ -37,11 +38,8 @@
     "files": [
       "electron/**/*",
       "build/icon.png",
-      "server.js",
-      "rank.js",
-      "sim.js",
-      "verify.js",
-      "public/**/*"
+      "public/**/*",
+      "!node_modules/**"
     ],
     "asar": true,
     "win": {
@@ -76,6 +74,15 @@
     "portable": {
       "artifactName": "PuyoPuyo-${version}-portable.${ext}"
     },
-    "executableName": "PuyoPuyo"
+    "executableName": "PuyoPuyo",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    }
   }
 }
