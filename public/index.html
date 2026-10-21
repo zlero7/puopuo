@@ -601,7 +601,7 @@
       </div>
       <div class="spanel hidden" data-p="game">
         <div class="setrow" style="grid-template-columns: 1fr auto"><label for="fpsCap">프레임 제한<small style="display:block;font-size:13px;color:var(--muted)">120·144Hz 모니터에서 60으로 묶으면 컴퓨터가 덜 힘들어요</small></label><select id="fpsCap"><option value="0">모니터 기준</option><option value="60">60 FPS</option><option value="30">30 FPS</option></select></div>
-        <div class="setrow"><label for="gSpeed">낙하 속도<small style="display:block;font-size:13px;color:var(--muted)">조각이 떨어지는 속도예요. 연습·AI·로컬 대전에만 적용되고, 온라인·랭크전·어드벤처는 언제나 1.0배예요</small></label><input type="range" id="gSpeed" min="0.5" max="2" step="0.1"><span id="gSpeedV"></span></div>
+        <div class="setrow"><label for="gSpeed">낙하 속도<small style="display:block;font-size:13px;color:var(--muted)">연습·AI·로컬 대전에만 적용돼요</small></label><input type="range" id="gSpeed" min="0.5" max="2" step="0.1"><span id="gSpeedV"></span></div>
         <label class="setchk"><input type="checkbox" id="skipChar"><span>지난번 캐릭터로 바로 시작<small>게임을 시작할 때 캐릭터 고르기 창을 건너뛰어요. 캐릭터는 캐릭터 메뉴에서 바꿀 수 있어요</small></span></label>
         <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
         <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>
@@ -611,13 +611,13 @@
         <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
       </div>
       <div class="spanel hidden" data-p="keys">
-        <h4 class="shead">테트리스 조작 감도 <small>(TETR.IO와 같은 용어 · 테트리스에만 적용)</small></h4>
+        <h4 class="shead">테트리스 조작 감도</h4>
         <div class="handbox">
-          <div class="setrow"><label for="hDas">DAS<small>누르고 있으면 자동으로 움직이기 시작하는 시간</small></label><input type="range" id="hDas" min="30" max="400" step="1"><span id="hDasV"></span></div>
-          <div class="setrow"><label for="hArr">ARR<small>자동으로 움직일 때 한 칸마다 걸리는 시간 (0 = 벽까지 한 번에)</small></label><input type="range" id="hArr" min="0" max="150" step="1"><span id="hArrV"></span></div>
-          <div class="setrow"><label for="hSdf">SDF<small>빠르게 내리기 속도 (배수, 맨 끝 = 즉시)</small></label><input type="range" id="hSdf" min="5" max="41" step="1"><span id="hSdfV"></span></div>
-          <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="hTetrio">TETR.IO 기본값</button><button class="ghostbtn" id="hFast">빠른 설정 (DAS 100 · ARR 0 · SDF 즉시)</button></div>
-          <p class="padinfo">180도 회전(기본 A), 조각이 나오기 전에 눌러 둔 회전·홀드를 바로 적용(IRS·IHS), 조각 사이 대기 없음도 TETR.IO처럼 동작해요.</p>
+          <div class="setrow"><label for="hDas">DAS<small>자동 이동이 시작되는 시간</small></label><input type="range" id="hDas" min="30" max="400" step="1"><span id="hDasV"></span></div>
+          <div class="setrow"><label for="hArr">ARR<small>자동 이동 간격 (0 = 벽까지)</small></label><input type="range" id="hArr" min="0" max="150" step="1"><span id="hArrV"></span></div>
+          <div class="setrow"><label for="hSdf">SDF<small>빠르게 내리기 배수 (끝 = 즉시)</small></label><input type="range" id="hSdf" min="5" max="41" step="1"><span id="hSdfV"></span></div>
+          <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="hTetrio">TETR.IO 기본값</button><button class="ghostbtn" id="hFast">빠른 설정</button></div>
+          <p class="padinfo">180도 회전은 기본 A 키예요.</p>
         </div>
         <h4 class="shead">키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h4>
         <div id="keyList" class="keylist"></div>
