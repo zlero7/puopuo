@@ -183,7 +183,7 @@ let matchKind = null;
 const mmSay = m => { $('mmMsg').textContent = m || ''; };
 function openMatch(k) {
   const M = MATCH[k]; if (!M) return; matchKind = k; stats = loadStats(); renderStyle();
-  $('mmTitle').textContent = M.title; $('mmSub').textContent = M.sub; mmSay(''); $('mmDesc').textContent = '';
+  $('mDesc').textContent = ''; $('mmTitle').textContent = M.title; $('mmSub').textContent = M.sub; mmSay(''); $('mmDesc').textContent = '';
   document.querySelectorAll('#matchModal .mmrow').forEach(r => r.classList.toggle('hidden', !M.rows.includes(r.dataset.m)));
   $('matchModal').querySelector('.mmrow[data-m="style"] .lab').textContent = k === 'local' ? '1P 스타일' : '내 스타일';
   $('bJoin').classList.toggle('hidden', k !== 'join'); $('mmGo').classList.toggle('hidden', k === 'join'); $('mmGo').textContent = M.go;
@@ -221,7 +221,7 @@ function moveSel(dx, dy) {
 }
 document.querySelectorAll('.seg').forEach(b => {
   b.addEventListener('click', () => act(b.dataset.act));
-  b.addEventListener('focus', () => { $('mDesc').textContent = b.dataset.desc || ''; });
+  b.addEventListener('focus', () => { if (!b.closest('#matchModal')) $('mDesc').textContent = b.dataset.desc || ''; });   // 대전 설정 창 안의 설명은 창 안에만 표시
 });
 document.addEventListener('pointerdown', () => { if (!AC) { audio(); applyVolume(); if (game.state === 'menu') bgmPlay('menu'); } }, { once: true });
 document.addEventListener('keydown', () => { if (!AC) { audio(); applyVolume(); if (game.state === 'menu') bgmPlay('menu'); } }, { once: true });
