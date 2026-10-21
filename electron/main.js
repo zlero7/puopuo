@@ -3,7 +3,7 @@
 // - 온라인 대전·랭크전은 한 곳에서 돌리는 중앙 서버에 접속: 계정(아이디·비밀번호)은 서버가 확인하고, 세션은 이 본체가 OS 보안 저장소로 보관
 // - 화면(렌더러)은 상자 안에 가둠: Node 없음, 엄격한 CSP(서버 주소 외 접속 불가), 외부 이동·새 창·권한 요청 거부
 'use strict';
-const { app, BrowserWindow, Menu, dialog, protocol, session, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, protocol, session, ipcMain, shell, screen, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const api = require('./server-api');
@@ -65,6 +65,18 @@ function setupIpc() {
   handle('update:state', () => updater.state());
   handle('update:boot', async () => { if (!SMOKE) await startBootCheck(); return updater.state(); });   // 시작 화면이 기다림: 켠 직후 확인 결과(최대 12초)
   handle('update:apply', () => { if (!updater.apply()) return { ok: false }; setTimeout(() => { if (win) { armBoot(); win.webContents.reload(); } }, 50); return { ok: true, version: updater.version() }; });
+  // 매칭이 잡혔을 때: 창이 가려져 있어도 알아채게 작업표시줄을 깜빡이고 앞으로 가져옴(창이 이미 앞이면 아무것도 안 함)
+  let attnAt = 0;
+  handle('app:attention', () => {
+    if (!win || win.isFocused() || Date.now() - attnAt < 2000) return { ok: true };
+    attnAt = Date.now(); if (win.isMinimized()) win.restore(); win.show(); win.flashFrame(true); return { ok: true };
+  });
+  // 방 코드 복사·붙여넣기: 화면에는 클립보드 권한을 주지 않고, 4글자 코드 모양일 때만 본체가 대신 읽고 씀
+  const CODE = /^[A-Z0-9]{4}$/;
+  // (Electron 버전에 따라 clipboard 함수가 글자를 바로 주거나 Promise를 주므로 await로 둘 다 받음)
+  handle('app:copyCode', async v => { const t = String(v || '').trim().toUpperCase(); if (!CODE.test(t)) return { ok: false }; await clipboard.writeText(t); return { ok: true }; });
+  handle('app:pasteCode', async () => { const t = String((await clipboard.readText()) || '').trim().toUpperCase(); return { ok: true, code: CODE.test(t) ? t : '' }; });
+  handle('update:openLog', () => { shell.showItemInFolder(fs.existsSync(updater.logPath()) ? updater.logPath() : app.getPath('userData')); return { ok: true }; });
   handle('update:releases', () => { shell.openExternal('https://github.com/zlero7/puopuo/releases/latest'); return { ok: true }; });
 }
 // 새 화면으로 켠 뒤 일정 시간 안에 화면이 제대로 떴다는 신호(ui:ready)가 없으면 그 버전을 버리고 내장 화면으로 돌아감
@@ -99,14 +111,41 @@ function buildMenu() {
     { label: '계정', submenu: [{ label: '내 계정 · 서버', click: () => win && win.webContents.send('menu', 'account') }] },
   ]);
 }
+/* ---------- 창 크기·위치·전체화면 기억 ---------- */
+const WIN_FILE = () => path.join(app.getPath('userData'), 'window.json');
+let lastNormal = null, winSaveT = null;
+function loadWinState() {
+  try {
+    const s = JSON.parse(fs.readFileSync(WIN_FILE(), 'utf8')), n = v => Number.isFinite(v) ? Math.round(v) : null;
+    const w = n(s.width), h = n(s.height); if (!w || !h || w < 640 || h < 480 || w > 10000 || h > 10000) return null;
+    const out = { width: w, height: h, max: s.max === true, full: s.full === true }, x = n(s.x), y = n(s.y);
+    if (x != null && y != null) {                         // 저장한 자리가 지금 모니터 안에 있을 때만 그 자리에(모니터를 뺐으면 가운데)
+      const vis = screen.getAllDisplays().some(d => { const a = d.workArea; return x + 100 < a.x + a.width && x + w - 100 > a.x && y + 40 < a.y + a.height && y > a.y - 20; });
+      if (vis) { out.x = x; out.y = y; }
+    }
+    return out;
+  } catch (e) { return null; }
+}
+function saveWinState() {
+  if (!win || win.isDestroyed() || SMOKE) return;
+  const b = win.isMaximized() || win.isFullScreen() || win.isMinimized() ? lastNormal : win.getBounds(); if (!b) return;
+  try { fs.writeFileSync(WIN_FILE(), JSON.stringify({ ...b, max: win.isMaximized(), full: win.isFullScreen() })); } catch (e) {}
+}
 function createWindow() {
+  const ws = SMOKE ? null : loadWinState();
   win = new BrowserWindow({
-    width: 1280, height: 820, minWidth: 640, minHeight: 480, show: false, title: '뿌요뿌요', backgroundColor: '#e9ebf2', autoHideMenuBar: true,   // 메뉴는 Alt를 누르면 보임
+    width: ws ? ws.width : 1280, height: ws ? ws.height : 820, ...(ws && ws.x != null ? { x: ws.x, y: ws.y } : {}), minWidth: 640, minHeight: 480, show: false, title: '뿌요뿌요', backgroundColor: '#e9ebf2', autoHideMenuBar: true,   // 메뉴는 Alt를 누르면 보임
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, allowRunningInsecureContent: false,
       webviewTag: false, spellcheck: false, devTools: !app.isPackaged },
   });
-  win.once('ready-to-show', () => win.show());
+  if (ws && ws.max) win.maximize();
+  win.once('ready-to-show', () => { win.show(); if (ws && ws.full) win.setFullScreen(true); });
+  const track = () => { if (win && !win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) lastNormal = win.getBounds(); clearTimeout(winSaveT); winSaveT = setTimeout(saveWinState, 600); };
+  ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'].forEach(ev => win.on(ev, track));
+  win.on('close', saveWinState);
+  win.on('focus', () => win.flashFrame(false));
+  lastNormal = win.getBounds();
   win.on('closed', () => { win = null; });
   win.loadURL(HOME + 'index.html');
 }

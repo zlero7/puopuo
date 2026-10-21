@@ -95,5 +95,41 @@ fs.mkdirSync(path.join(root, '.tmp-9.9.9-dead'));
 core.prune(root, 2);
 ok(fs.readdirSync(root).filter(n => /^\d/.test(n)).join() === '1.0.3,1.0.4' && !fs.readdirSync(root).some(n => n.startsWith('.tmp')), '오래된 버전과 임시 폴더는 정리(최근 2개만 남김)');
 
+
+// ---- 차등 받기(패치) · 업데이트 내용 ----
+{
+  const readFrom = dir => n => { try { return fs.readFileSync(path.join(dir, n)); } catch (e) { return null; } };
+  const old = build('1.0.1');                                                         // 이전 버전(파일 3개)
+  fs.writeFileSync(path.join(pubDir, 'js', 'a.js'), 'console.log(2)');                // a.js만 바뀜
+  const nb = core.buildBundle({ publicDir: pubDir, version: '1.0.2', shellApi: 1, privatePem: K.priv, prevFiles: old.manifest.files, notes: '캐릭터 화질 개선' });
+  ok(nb.manifest.notes === '캐릭터 화질 개선' && core.parseManifest(nb.manifestBytes).notes === '캐릭터 화질 개선', '업데이트 내용이 서명된 매니페스트에 들어감');
+  // 작은 파일만 있으면 패치가 이득이 아니라 안 만들 수 있으니, 큰 파일을 넣어 확인
+  fs.writeFileSync(path.join(pubDir, 'big.png'), crypto.randomBytes(60000));
+  const old2 = core.buildBundle({ publicDir: pubDir, version: '1.0.3', shellApi: 1, privatePem: K.priv });
+  fs.writeFileSync(path.join(pubDir, 'js', 'a.js'), 'console.log(3)');
+  const nb2 = core.buildBundle({ publicDir: pubDir, version: '1.0.4', shellApi: 1, privatePem: K.priv, prevFiles: old2.manifest.files });
+  ok(nb2.patchBytes && nb2.manifest.patch && Object.keys(nb2.manifest.patch.files).join() === 'js/a.js', '바뀐 파일(js/a.js)만 담은 패치가 만들어짐');
+  ok(nb2.patchBytes.length < nb2.bundleBytes.length / 5, `패치(${nb2.patchBytes.length}B)가 전체(${nb2.bundleBytes.length}B)보다 훨씬 작음`);
+  // 내 파일이 이전 버전(old2)인 폴더
+  const mine = path.join(tmp, 'mine'); fs.mkdirSync(path.join(mine, 'js'), { recursive: true });
+  for (const [n, b64] of Object.entries(JSON.parse(zlib.gunzipSync(old2.bundleBytes)).files)) { fs.mkdirSync(path.dirname(path.join(mine, n)), { recursive: true }); fs.writeFileSync(path.join(mine, n), Buffer.from(b64, 'base64')); }
+  const man2 = core.parseManifest(nb2.manifestBytes);
+  ok(core.planPatch(man2, readFrom(mine)) === true, '이전 버전 파일을 갖고 있으면 패치만 받아도 됨');
+  const full = core.openPatch(man2, nb2.patchBytes, readFrom(mine));
+  ok(Object.keys(full).length === Object.keys(man2.files).length && core.sha512(full['js/a.js']) === man2.files['js/a.js'], '패치 + 내 파일로 전체 파일이 만들어지고 해시가 모두 맞음');
+  const dst = core.stageFiles(man2, nb2.manifestBytes, nb2.sigB64, full, path.join(tmp, 'patchroot'));
+  ok(!!core.verifyDir(dst, K.pub), '패치로 만든 폴더도 서명·해시 재확인을 통과');
+  // 내 파일이 한 단계보다 더 옛날이면 패치 불가 → 전체 받기
+  fs.writeFileSync(path.join(mine, 'big.png'), 'old'); ok(core.planPatch(man2, readFrom(mine)) === false, '내 파일이 더 옛날 것이면 패치를 안 쓰고 전체를 받음');
+  fs.writeFileSync(path.join(mine, 'big.png'), Buffer.from(JSON.parse(zlib.gunzipSync(old2.bundleBytes)).files['big.png'], 'base64'));
+  // 공격: 패치 변조 / 내 파일 변조
+  const badPatch = Buffer.from(nb2.patchBytes); badPatch[badPatch.length - 3] ^= 1;
+  ok(throws(() => core.openPatch(man2, badPatch, readFrom(mine))), '패치가 한 글자라도 바뀌면 거부');
+  ok(throws(() => core.openPatch(man2, nb2.patchBytes, n => (n === 'big.png' ? Buffer.from('evil') : readFrom(mine)(n)))), '내 파일이 이전 것과 다르면(변조 포함) 거부');
+  const m3 = JSON.parse(nb2.manifestBytes); m3.patch.files['js/a.js'] = 'A'.repeat(88);
+  ok(core.parseManifest(Buffer.from(JSON.stringify(m3))) === null, '패치 파일 해시가 전체 목록과 다르면 매니페스트 거부');
+  const m4 = JSON.parse(nb2.manifestBytes); m4.notes = 'x'.repeat(3000);
+  ok(core.parseManifest(Buffer.from(JSON.stringify(m4))) === null, '너무 긴 업데이트 내용은 거부');
+}
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exit(fail ? 1 : 0);

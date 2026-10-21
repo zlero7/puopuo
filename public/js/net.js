@@ -6,7 +6,19 @@ const net = { ws: null };
 $('srv').value = location.protocol.startsWith('http') ? `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}` : 'ws://localhost:3000';   // 앱은 서버 주소를 본체에서 받음(appbridge.js)
 const status = msg => { $('netStatus').textContent = msg; };
 function gsend(d) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({ t: 'g', d })); }
-function nsend(m) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); }
+function nsend(m) {
+  if (m.t === 'quick' || m.t === 'rq') net.queued = m;           // 매칭 대기 요청을 기억해 두었다가, 연결이 끊기면 다시 연결해서 이어서 보냄
+  else if (m.t === 'leave') net.queued = null;
+  if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m));
+}
+// 매칭을 기다리다 연결이 끊겼을 때 자동으로 다시 연결(1·2·4·8·15초 간격으로 5번). 로그아웃했거나 직접 취소했으면 하지 않음
+function reconnectWait() {
+  const n = net.retry = (net.retry || 0) + 1, delay = [1, 2, 4, 8, 15][n - 1];
+  if (!delay || (APP && !appCfg.account)) { net.queued = null; net.retry = 0; setWait(null); status('서버와의 연결이 끊겼어요. 다시 시도해 주세요.'); return; }
+  status(`연결이 끊겨 다시 연결하는 중… (${n}/5)`);
+  clearTimeout(net.retryT);
+  net.retryT = setTimeout(() => { if (!net.queued || (net.ws && net.ws.readyState <= 1)) return; connect(() => net.queued && nsend(net.queued)); }, delay * 1000);
+}
 function connect(then) {
   if (net.ws && net.ws.readyState === 1 && net.authed) { then(); return; }
   if (net.ws && net.ws.readyState <= 1) return;                       // 연결 중(앱은 로그인 확인 중 포함)
@@ -25,8 +37,10 @@ function connect(then) {
   };
   ws.onerror = () => status('서버에 연결할 수 없습니다. 서버가 켜져 있는지, 주소가 맞는지 확인하세요.');
   ws.onclose = () => {
-    if (net.ws === ws) { net.ws = null; setWait(null); }
-    $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden');
+    const wasWaiting = net.ws === ws && !!net.queued && !!net.wait && game.mode !== 'online';
+    if (net.ws === ws) { net.ws = null; if (!wasWaiting) setWait(null); }
+    $('roomBox').classList.add('hidden'); if (!wasWaiting) $('bCancel').classList.add('hidden');
+    if (wasWaiting) { reconnectWait(); return; }
     if (game.net && (game.state === 'play' || game.state === 'over')) {
       game.net = false; showMessage('연결 끊김', '서버와의 연결이 끊겼습니다. 다시 접속해 주세요.');
     } else if (game.state === 'menu' && $('netStatus').textContent) status('서버와의 연결이 끊겼어요. 다시 시도해 주세요.');   // 기다리던 중이었으면 더는 찾는 중이 아님
@@ -43,7 +57,7 @@ function abortOffline() {
 }
 function onNet(m) {
   switch (m.t) {
-    case 'authok': { net.authed = true; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; if (f) f(); break; }
+    case 'authok': { net.authed = true; if (net.queued) net.retry = 0; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; if (f) f(); break; }
     case 'autherr': { net.pending = null; status(m.msg || '로그인하지 못했어요.'); if (m.code !== 'old') { appCfg.account = null; openAcct('login'); } break; }
     case 'created':
       setWait(`방 ${m.code}`, m.size > 2 ? `1/${m.size}명` : '상대 기다리는 중');
@@ -77,8 +91,8 @@ function onNet(m) {
       if (game.state === 'over') fixOver(m);
       break;
     }
-    case 'error': status(m.msg); setWait(null); break;
-    case 'start': abortOffline(); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
+    case 'error': status(m.msg); net.queued = null; setWait(null); break;
+    case 'start': net.queued = null; net.retry = 0; if (APP && APP.attention && !document.hasFocus()) APP.attention().catch(() => {}); abortOffline(); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
       {
         // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
@@ -141,7 +155,7 @@ function showRankRec() {
   if (APP && !appCfg.account) { $('recRank').textContent = '로그인 필요'; return; }
   apiGet('/rank/me', { style: stats.style || 'puyo' }).then(m => { game.myRank = m; $('recRank').textContent = m.text; drawArts(); }).catch(e => { if (e.auth) $('recRank').textContent = '로그인 필요'; });
 }
-function cancelWait() { nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null); }
+function cancelWait() { net.queued = null; clearTimeout(net.retryT); net.retry = 0; nsend({ t: 'leave' }); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null); }
 // 매칭·방 기다리는 중 표시: 다른 메뉴로 가도 기다림은 그대로이고, 화면 위 제목 옆에 '무슨 매칭 · 얼마나 기다렸는지'를 보여 줌(누르면 대전 화면으로)
 function setWait(kind, sub) {
   if (!kind) net.wait = null;
@@ -258,3 +272,21 @@ function showRankRes(m) {
   box.classList.remove('hidden');
   requestAnimationFrame(() => box.querySelectorAll('canvas').forEach(c => { const g = fitCanvas(c); if (g) drawTierEmblem(g.x, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.92, +c.dataset.g, +c.dataset.d); }));
 }
+
+/* ---------- 방 코드 복사 · 붙여넣기 ---------- */
+const CODE_RE = /^[A-Z0-9]{4}$/;
+$('bCopyCode').addEventListener('click', async () => {
+  const code = $('roomCode').textContent.trim(); if (!CODE_RE.test(code)) return;
+  try { if (APP) { const r = await APP.copyCode(code); if (!r.ok) throw 0; } else await navigator.clipboard.writeText(code); status(`방 코드 ${code}를 복사했어요. 친구에게 붙여넣어 보내 주세요.`); }
+  catch (e) { status('복사하지 못했어요. 코드를 직접 알려 주세요.'); }
+});
+// 복사해 둔 코드가 있으면 입력 칸에 넣음. quiet: 대전 화면을 열 때 조용히(칸이 비어 있을 때만)
+async function pasteCode(quiet) {
+  if (quiet && $('code').value) return;
+  let c = '';
+  try { c = APP ? ((await APP.pasteCode()) || {}).code || '' : ''; } catch (e) {}
+  if (c) { $('code').value = c; if (!quiet) status(`방 코드 ${c}를 붙여넣었어요.`); }
+  else if (!quiet) status('복사해 둔 방 코드(영문·숫자 4자리)가 없어요.');
+}
+$('bPaste').addEventListener('click', () => pasteCode(false));
+if (!APP) $('bPaste').classList.add('hidden');            // 웹은 브라우저 권한 문제로 앱에서만

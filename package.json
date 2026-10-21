@@ -16,7 +16,9 @@
     "test:auth": "node tests/auth.js",
     "test:app": "node tests/app-e2e.js",
     "test:updater": "node tests/updater.js",
-    "test:update-app": "node tests/update-e2e.js"
+    "test:update-app": "node tests/update-e2e.js",
+    "test:backup": "node tests/backup.js",
+    "test:features": "node tests/app-features-e2e.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

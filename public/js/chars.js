@@ -41,11 +41,15 @@ function charAi(base, ch, kind) {
    chars_vs.webp: 대전 초상(배경 포함 상반신) 480×352 · 모두 CHARS 순서대로 가로 한 줄 */
 const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image(), vs: new Image() } : null;
 const CHAR_CELL = { card: [600, 708], bust: [320, 320], icon: [256, 256], vs: [480, 352] };   // AI 업스케일(2배)한 그림 기준 칸 크기
-if (CHAR_IMG) for (const k in CHAR_IMG) {
+// 그림은 처음 필요할 때 불러옴(시작이 빨라지고 안 쓰는 화면의 그림은 받지 않음). 작은 것(아이콘·상반신·표정)은 바로 시작
+const CHAR_LOAD = {};
+function loadCharImg(k) {
+  if (!CHAR_IMG || CHAR_LOAD[k]) return; CHAR_LOAD[k] = true;
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
   CHAR_IMG[k].src = `img/chars_${k}.webp?v=3`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 }
-const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth;
+if (CHAR_IMG) ['icon', 'bust', 'face'].forEach(loadCharImg);
+const charImgOk = k => { if (!CHAR_IMG) return false; loadCharImg(k); return CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth; };
 // 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
 function charImg(c, k, id, x, y, w, h) {
   const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);

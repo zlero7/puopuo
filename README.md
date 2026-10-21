@@ -312,6 +312,8 @@ Esc(모바일은 Ⅱ 버튼)를 누르면 연습·AI 대전은 일시정지되�
 | 서버 주소 | `https://puyo.zlero.xyz`로 **고정**돼 있음(`electron/app-config.json`, `allowServerChange: false`라서 앱에서 바꿀 수 없음). 다른 서버를 쓰려면 이 파일의 `serverUrl`을 바꿔 다시 빌드하고, 앱에서 직접 바꾸게 하려면 `allowServerChange`를 `true`로(바꿀 땐 앱 본체가 확인 창을 따로 띄움). 개발 중에는 `PUYO_SERVER`로 덮어쓸 수 있음(설치된 exe에서는 무시됨) |
 | 받기 | GitHub 저장소 → **Actions** → `앱(exe) 빌드` → 가장 최근 실행 → 맨 아래 **Artifacts** `PuyoPuyo-windows`(zip 안에 설치 파일 `PuyoPuyo-Setup-버전.exe`와 포터블 `PuyoPuyo-버전-portable.exe`). `v1.0.0` 같은 태그를 푸시하면 **Releases**에도 붙음 |
 | 업데이트 | 화면(`public/`)은 **설치 파일을 다시 받지 않아도** 앱이 서명된 새 화면을 내려받아 "지금 적용"으로 바꿔 끼움(서명·해시 검증, 실패하면 자동 복귀). 설정·사용법은 `docs/UPDATES.md` |
+| 편의 | 매칭이 잡히면 작업표시줄이 깜빡이고 창이 앞으로 · 매칭 대기 중 연결이 끊기면 자동 재연결(5번) · 방 코드 복사/붙여넣기 · 창 크기·위치·전체화면 기억 · 새 버전 첫 실행 때 업데이트 내용 안내 · 설정(소리·게임·조작·계정 탭) |
+| 최적화 | 프레임 제한(60/30) · 캐릭터 그림은 필요할 때 불러옴 · 업데이트는 바뀐 파일만(패치) · 서버는 계정·랭크를 하루 한 번 자동 백업 |
 | 개발 | `npm start`로 서버(로그인 필수, 기본 3000 포트) → 다른 창에서 `PUYO_SERVER=http://127.0.0.1:3000 npm run app`(PowerShell: `$env:PUYO_SERVER="http://127.0.0.1:3000"; npm run app`). 로그인 없는 예전 방식은 `REQUIRE_AUTH=0 npm start`(테스트용) |
 | 단축키 | F11 전체 화면 · Ctrl+R 새로고침 · Ctrl +/−/0 확대·축소 · Alt 메뉴 |
 

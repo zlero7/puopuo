@@ -467,6 +467,11 @@ server.on('error', err => {
 
 server.listen(PORT, HOST, () => {
   const lan = lanAddresses();
+  if (REQUIRE_AUTH && process.env.BACKUP !== '0') {       // 계정·랭크·비밀키를 하루에 한 번 data/backups 에 복사(BACKUP=0이면 끔, BACKUP_DIR·BACKUP_KEEP으로 바꿈)
+    const dataDir = process.env.AUTH_DIR || path.join(__dirname, 'data');
+    const files = [process.env.ACCOUNTS_FILE || path.join(dataDir, 'accounts.json'), process.env.RANK_FILE || path.join(__dirname, 'data', 'ranks.json'), process.env.AUTH_SECRET_FILE || path.join(dataDir, 'auth-secret.key')];
+    require('./backup').start({ files, dir: process.env.BACKUP_DIR || path.join(dataDir, 'backups') });
+  }
   console.log('');
   console.log('  뿌요뿌요 서버가 켜졌습니다');
   console.log(`  ${TLS ? 'HTTPS' : 'HTTP'} · ${REQUIRE_AUTH ? `로그인 필수 · 접속 허용 Origin: ${ALLOWED_ORIGINS.join(', ')}` : '로그인 없음(개발·테스트용, 인터넷에 열지 마세요)'}${SERVE_WEB ? ' · 웹 화면 제공' : ''}${TRUST_PROXY ? ` · 프록시 ${TRUST_PROXY}단계 신뢰` : ''}`);

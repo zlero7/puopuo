@@ -40,6 +40,7 @@ jobs:
       - run: npm run test:rank
       - run: npm run test:robust
       - run: npm run test:updater
+      - run: npm run test:backup
 
   # 서버 이미지가 빌드되고 실제로 켜지는지
   docker:
@@ -119,7 +120,12 @@ jobs:
         shell: bash
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
-        run: node tools/build-ui-bundle.js
+          UPDATE_NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          mkdir -p dist
+          # 직전 릴리스의 매니페스트를 받아 두면 바뀐 파일만 담은 작은 패치도 만듦(없으면 전체 묶음만)
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/ui-manifest.json" -o dist/prev-manifest.json || rm -f dist/prev-manifest.json
+          node tools/build-ui-bundle.js
       - uses: actions/upload-artifact@v4
         with:
           name: PuyoPuyo-windows

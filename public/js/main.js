@@ -21,8 +21,14 @@ if (!stats.tutSeen && !stats.games) {          // 처음 온 사람: 튜토리�
 document.fonts && document.fonts.ready.then(() => { if (game.state === 'menu') drawArts(); });
 let last = 0;
 let frameErrs = 0;
+let lastDraw = 0;
+// 프레임 제한(설정 > 게임): 0은 모니터 기준. 모니터가 120·144Hz여도 60으로 묶어 CPU·배터리를 아낌. 메뉴(움직임이 거의 없음)는 항상 30으로
+const fpsGap = () => game.state === 'menu' ? 1000 / 30 : stats.fps > 0 ? 1000 / stats.fps : 0;
 function frame(ts) {
   requestAnimationFrame(frame);                 // 먼저 다음 프레임을 예약(이번 프레임에서 오류가 나도 게임이 멈추지 않게)
+  const gap = fpsGap();
+  if (gap && ts - lastDraw < gap - 2) return;   // 아직 시간이 안 됐으면 건너뜀(−2ms: 모니터 주기와 어긋나 한 프레임씩 더 걸리지 않게)
+  lastDraw = ts;
   try { step(ts); } catch (e) { if (frameErrs++ < 5) console.error(e); }
 }
 // 느린 기기 자동 감지: 게임 중 3초 평균 한 프레임이 26ms(약 38fps)보다 길면 '가볍게' 모드(설정에서 직접 켤 수도 있음)

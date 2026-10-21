@@ -77,6 +77,7 @@
     el('stVer').textContent = `앱 버전 v${appCfg.version}` + (appCfg.shell && appCfg.shell !== appCfg.version ? ` (본체 ${appCfg.shell})` : '');
     stSay('');
   };
+  el('stLog').addEventListener('click', () => APP.openUpdateLog());
   el('stLogin').addEventListener('click', () => { closeSettings(); open('login'); });
   el('stLogout').addEventListener('click', async () => {
     await APP.logout(); appCfg.account = null; if (net.ws) net.ws.close(); el('pName').readOnly = false; el('pName').title = '';

@@ -41,6 +41,12 @@ function parseManifest(bytes) {
   if (!m.files || typeof m.files !== 'object' || Array.isArray(m.files)) return null;
   const names = Object.keys(m.files); if (!names.length || names.length > LIMITS.files || !m.files['index.html']) return null;
   for (const n of names) if (!safeRel(n) || typeof m.files[n] !== 'string' || m.files[n].length !== 88) return null;
+  if (m.notes !== undefined && (typeof m.notes !== 'string' || m.notes.length > 2000)) return null;          // 업데이트 내용(서명에 포함돼 변조 불가)
+  if (m.patch !== undefined) {                                                                               // 바뀐 파일만 담은 작은 묶음(차등 받기)
+    const q = m.patch;
+    if (!q || typeof q.name !== 'string' || !/^[\w.\-]{1,80}$/.test(q.name) || !Number.isInteger(q.size) || q.size < 1 || q.size > LIMITS.bundle || typeof q.sha512 !== 'string' || q.sha512.length !== 88 || !q.files || typeof q.files !== 'object' || Array.isArray(q.files)) return null;
+    for (const n of Object.keys(q.files)) if (m.files[n] !== q.files[n]) return null;                        // 패치 안 파일은 전체 목록의 같은 파일이어야 함
+  }
   return m;
 }
 // 새 매니페스트를 받아도 되는지: { ok:true, manifest } 또는 { ok:false, reason: 'sig'|'format'|'old'|'shell', manifest? }
@@ -71,10 +77,40 @@ function openBundle(manifest, bundleBytes) {
   }
   return out;
 }
+// 패치로 받아도 되는지: 새 버전 파일 중 지금 내 파일과 다른 것이 모두 패치 안에 있는지(readLocal: 상대 경로 → Buffer | null)
+function planPatch(manifest, readLocal) {
+  if (!manifest.patch) return false;
+  for (const [n, h] of Object.entries(manifest.files)) {
+    if (manifest.patch.files[n] === h) continue;
+    let b = null; try { b = readLocal(n); } catch (e) {}
+    if (!b || sha512(b) !== h) return false;
+  }
+  return true;
+}
+// 패치(gzip JSON { files: { 경로: base64 } })와 내 파일을 합쳐 전체 파일 목록을 만듦. 모든 파일을 서명된 매니페스트의 해시와 대조. 어긋나면 예외
+function openPatch(manifest, patchBytes, readLocal) {
+  const q = manifest.patch; if (!q) throw new Error('no patch');
+  if (!Buffer.isBuffer(patchBytes) || patchBytes.length !== q.size) throw new Error('patch size');
+  if (sha512(patchBytes) !== q.sha512) throw new Error('patch hash');
+  let json; try { json = JSON.parse(zlib.gunzipSync(patchBytes, { maxOutputLength: LIMITS.unpacked }).toString('utf8')); } catch (e) { throw new Error('patch format'); }
+  const pf = json && json.files; if (!pf || typeof pf !== 'object' || Array.isArray(pf)) throw new Error('patch files');
+  if (Object.keys(pf).length !== Object.keys(q.files).length) throw new Error('patch list');
+  const out = {}; let total = 0;
+  for (const [n, h] of Object.entries(manifest.files)) {
+    let buf;
+    if (q.files[n] === h) { if (typeof pf[n] !== 'string') throw new Error('patch missing: ' + n); buf = Buffer.from(pf[n], 'base64'); }
+    else buf = readLocal(n);
+    if (!buf) throw new Error('local missing: ' + n);
+    total += buf.length; if (total > LIMITS.unpacked) throw new Error('too big');
+    if (sha512(buf) !== h) throw new Error('file hash: ' + n);
+    out[n] = buf;
+  }
+  return out;
+}
 const rmrf = p => { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) {} };
 // 번들을 rootDir/<버전>/ 에 저장(임시 폴더에 다 쓴 뒤 이름을 바꿈 → 도중에 끊겨도 반쪽짜리가 남지 않음)
-function stage(manifest, manifestBytes, sigB64, bundleBytes, rootDir) {
-  const files = openBundle(manifest, bundleBytes);
+function stage(manifest, manifestBytes, sigB64, bundleBytes, rootDir) { return stageFiles(manifest, manifestBytes, sigB64, openBundle(manifest, bundleBytes), rootDir); }
+function stageFiles(manifest, manifestBytes, sigB64, files, rootDir) {
   fs.mkdirSync(rootDir, { recursive: true });
   const dir = path.join(rootDir, manifest.version), tmp = path.join(rootDir, `.tmp-${manifest.version}-${crypto.randomBytes(4).toString('hex')}`);
   try {
@@ -136,16 +172,23 @@ function listFiles(dir, base = dir, out = []) {
   }
   return out;
 }
-function buildBundle({ publicDir, version, shellApi, privatePem }) {
+function buildBundle({ publicDir, version, shellApi, privatePem, prevFiles, notes }) {
   if (!SEMVER.test(version)) throw new Error('버전은 1.2.3 모양이어야 해요: ' + version);
   const files = {}, hashes = {};
   for (const [rel, f] of listFiles(publicDir)) { const b = fs.readFileSync(f); files[rel] = b.toString('base64'); hashes[rel] = sha512(b); }
   if (!hashes['index.html']) throw new Error('public/index.html이 없어요');
   const bundleBytes = zlib.gzipSync(Buffer.from(JSON.stringify({ files })), { level: 9 });
   const manifest = { v: 1, version, shellApi, created: new Date().toISOString(), bundle: { name: 'ui-bundle.json.gz', size: bundleBytes.length, sha512: sha512(bundleBytes) }, files: hashes };
+  if (notes) manifest.notes = String(notes).slice(0, 2000);
+  let patchBytes = null;
+  if (prevFiles && typeof prevFiles === 'object') {                      // 이전 버전과 다른 파일만 모은 작은 묶음(앱이 이전 버전 파일을 갖고 있으면 이것만 받음)
+    const changed = {}, ph = {}; for (const n of Object.keys(files)) if (prevFiles[n] !== hashes[n]) { changed[n] = files[n]; ph[n] = hashes[n]; }
+    const pb = zlib.gzipSync(Buffer.from(JSON.stringify({ files: changed })), { level: 9 });
+    if (pb.length < bundleBytes.length * 0.8) { patchBytes = pb; manifest.patch = { name: 'ui-patch.json.gz', size: pb.length, sha512: sha512(pb), files: ph }; }
+  }
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2));
   const sigB64 = crypto.sign(null, manifestBytes, crypto.createPrivateKey(privatePem)).toString('base64');
-  return { manifestBytes, sigB64, bundleBytes, manifest };
+  return { manifestBytes, sigB64, bundleBytes, patchBytes, manifest };
 }
 
-module.exports = { LIMITS, safeRel, sha512, cmp, verifySig, parseManifest, check, openBundle, stage, verifyDir, loadInstalled, markBad, readBad, prune, buildBundle, publicKey };
+module.exports = { LIMITS, safeRel, sha512, cmp, verifySig, parseManifest, check, openBundle, planPatch, openPatch, stage, stageFiles, verifyDir, loadInstalled, markBad, readBad, prune, buildBundle, publicKey };
