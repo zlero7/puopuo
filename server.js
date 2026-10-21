@@ -8,6 +8,7 @@ const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 const rank = require('./rank');
+const social = require('./social');
 const { newMatch } = require('./verify');
 const { createBot } = require('./sim');
 // 랭크전은 서버가 기록을 다시 계산해서 승패를 정함. RANK_TRUST=1이면(테스트용) 예전처럼 두 사람 보고로 정함
@@ -99,7 +100,7 @@ const handler = (req, res) => {
     let body, me;
     if (REQUIRE_AUTH) { const a = authApi.authed(req); me = a ? a.uid : ''; if (url === '/rank/me' && !a) { res.writeHead(401, { 'Cache-Control': 'no-store' }); res.end(); return; } }   // 로그인한 사람만 '내 것'을 봄(토큰을 주소에 싣지 않음)
     else { me = rank.validToken(q.get('token')) ? q.get('token') : ''; if (url === '/rank/me' && !me) { res.writeHead(400); res.end(); return; } }
-    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), me);
+    if (url === '/rank/top') body = rank.top(style, +q.get('season') || 0, +q.get('page') || 1, (q.get('q') || '').slice(0, 20), me, REQUIRE_AUTH ? uid => { const a = auth.byUid(uid); return a ? social.fmtPid(auth.ensurePid(a)) : null; } : null);
     else body = rank.me(me, style);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': url === '/rank/me' ? 'no-store' : 'no-cache' });
     res.end(JSON.stringify(body));
@@ -387,11 +388,18 @@ function onMessage(ws, m) {
       if (!room.started) send(ws, { t: 'waiting', have: room.players.length, size });
       break;
     }
+    case 'soc': {          // 친구 · 프로필(로그인한 사람만)
+      if (!REQUIRE_AUTH || !ws.acct) return;
+      const a = auth.byUid(ws.acct.uid); if (!a) return;
+      const r = social.handle(a, m, { isOnline: uid => online.has(uid), notify: (uid, msg) => { const o = online.get(uid); if (o) send(o, { t: 'soc', ...msg }); } });
+      if (r) send(ws, { t: 'soc', ...r });
+      break;
+    }
     case 'rq': {           // 랭크전 대기열(레이팅이 가까운 사람끼리)
       const token = REQUIRE_AUTH ? ws.acct.uid : m.token, nick = REQUIRE_AUTH ? ws.acct.name : typeof m.name === 'string' ? m.name : '';   // 로그인 서버는 계정이 곧 신원 · 이름도 계정 것
       if (!rank.validToken(token) || !rank.STYLES.includes(m.style)) { send(ws, { t: 'error', msg: '랭크전 정보가 올바르지 않습니다.' }); return; }
       leave(ws);
-      ws.rank = { token, style: m.style, rec: rank.get(token, m.style, nick, m.char), since: Date.now(), bot: !!m.bot };
+      ws.rank = { token, style: m.style, rec: rank.get(token, m.style, nick, REQUIRE_AUTH ? (auth.byUid(ws.acct.uid) || {}).char : m.char), since: Date.now(), bot: !!m.bot };
       for (const o of rankQ) if (o !== ws && o.rank.token === token) { rankQ.delete(o); send(o, { t: 'error', msg: '다른 창에서 랭크전 대기를 시작해서 이 창의 대기는 취소됐어요.' }); }   // 한 사람은 대기열에 한 번만
       rankQ.add(ws);
       send(ws, { t: 'rwait', text: rank.labelOf(rank.view(ws.rank.rec)), botIn: ws.rank.bot ? Math.ceil(BOT_WAIT / 1000) : 0 });

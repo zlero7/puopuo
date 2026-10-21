@@ -46,6 +46,7 @@ jobs:
       - run: npm run test:robust
       - run: npm run test:updater
       - run: npm run test:backup
+      - run: npm run test:social
       - run: npm run test:version
 
   # 서버 이미지가 빌드되고 실제로 켜지는지

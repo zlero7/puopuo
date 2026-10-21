@@ -46,7 +46,15 @@ try {
     console.error(`계정 파일을 읽지 못해 빈 상태로 시작합니다(${e.message}). 원래 파일: ${bak}`);
   }
 }
-for (const a of Object.values(db.accounts)) byId.set(a.id, a);
+const byPid = new Map();         // 친구 코드 → 계정(아이디와 달리 남에게 보여 줘도 되는 이름표)
+const PID_CH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';     // 헷갈리는 글자(0/O, 1/I) 뺌
+const normPid = p => typeof p === 'string' ? p.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : '';
+function ensurePid(a) {
+  if (a.pid && byPid.get(a.pid) === a) return a.pid;
+  let p; do { p = Array.from(crypto.randomBytes(8), b => PID_CH[b % PID_CH.length]).join(''); } while (byPid.has(p));
+  a.pid = p; byPid.set(p, a); save(); return p;
+}
+for (const a of Object.values(db.accounts)) { byId.set(a.id, a); if (a.pid) byPid.set(a.pid, a); }
 let timer = null;
 const save = () => { clearTimeout(timer); timer = setTimeout(flush, 300); };
 function flush() {
@@ -150,7 +158,7 @@ async function register({ id, name, pw }) {
   const hash = await hashPw(pw);
   if (byId.has(id)) return { err: 'id_taken' };                 // 해시하는 동안 같은 아이디가 가입했을 수 있음
   const a = { uid: crypto.randomBytes(12).toString('hex'), id, name: name.trim(), pw: hash, tv: 0, created: now(), last: now() };
-  db.accounts[a.uid] = a; byId.set(id, a); save();
+  db.accounts[a.uid] = a; byId.set(id, a); ensurePid(a); save();
   return { ok: true, acct: a };
 }
 async function login({ id, pw }) {
@@ -171,4 +179,5 @@ async function changePassword(a, oldPw, newPw) {
 }
 function revokeAll(a) { a.tv++; save(); }
 
-module.exports = { register, login, changePassword, revokeAll, sessionFor, fromSession, ticketFor, useTicket, ipLimit, lockLeft, pub, flush, normId, checkId, checkName, checkPassword, SESSION_MS };
+const byUid = uid => db.accounts[uid] || null;
+module.exports = { byUid, byPid: p => byPid.get(normPid(p)) || null, ensurePid, normPid, saveSoon: () => save(), register, login, changePassword, revokeAll, sessionFor, fromSession, ticketFor, useTicket, ipLimit, lockLeft, pub, flush, normId, checkId, checkName, checkPassword, SESSION_MS };

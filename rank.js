@@ -239,6 +239,17 @@ function me(token, style) {
   roll(p);
   return { ...view(p), matches: p.matches.slice(0, 20) };
 }
+// 남의 전적 보기(읽기만 함): 한 스타일의 티어·시즌/통산 전적·최근 랭크전. 배치 중 경기는 결과를 가림
+const MATCH_PUB = 10;
+function profile(uid, style) {
+  const p = STYLES.includes(style) && db.players[`${uid}:${style}`];
+  if (!p) return { style, has: false };
+  roll(p);
+  const v = view(p);
+  return { style, has: true, text: v.text, placing: v.placing, placed: v.placed, need: v.need, group: v.group, div: v.div, rp: v.rp, masterRank: v.masterRank, peak: v.placing ? '' : v.peak,
+    sw: p.sw, sl: p.sl, w: p.w, l: p.l, season: v.season.name, hist: (p.hist || []).slice(0, 4),
+    matches: p.matches.slice(0, MATCH_PUB).map(m => ({ at: m.at, win: m.win, score: m.score, placing: !!m.placing, d: m.placing && m.event !== 'placed' ? null : m.d, event: m.event, after: m.placing && m.event !== 'placed' ? '' : m.after, group: m.placing && m.event !== 'placed' ? -1 : m.group, div: m.div, opp: m.opp && { name: m.opp.name, char: m.opp.char, text: m.opp.text, group: m.opp.group, div: m.opp.div } })) };
+}
 // 순위표 줄: 등수 · 티어 · RP · 캐릭터 · 이름 · 칭호(지난 시즌 최고 기록) · 이긴 시리즈 수
 function boardRows(list) {
   return list.slice().sort((a, b) => b.total - a.total).map((p, i) => {
@@ -248,7 +259,7 @@ function boardRows(list) {
   });
 }
 // 순위표: 시즌(지난 시즌은 저장해 둔 것) · 플래티넘 이상 · 이름 검색 · 페이지
-function top(style, season, page = 1, q = '', token = '') {
+function top(style, season, page = 1, q = '', token = '', pidOf = null) {
   ensureSeason();
   const cur = seasonOf(), s = season && season < cur ? season : cur;
   let rows = s === cur ? curBoard(style) : ((db.boards[s] || {})[style] || []);
@@ -256,7 +267,7 @@ function top(style, season, page = 1, q = '', token = '') {
   if (q) rows = rows.filter(r => r.name.toLowerCase().includes(String(q).toLowerCase()));
   const pages = Math.max(1, Math.ceil(rows.length / PAGE)), pg = Math.max(1, Math.min(pages, +page || 1));
   const seasons = [cur, ...Object.keys(db.boards).map(Number).filter(n => n < cur).sort((a, b) => b - a)].map(n => ({ n, name: seasonInfo(n).name }));
-  return { season: seasonInfo(s), seasons, total, page: pg, pages, rows: rows.slice((pg - 1) * PAGE, pg * PAGE).map(({ key, ...r }) => ({ ...r, me: !!token && key === `${token}:${style}` })) };
+  return { season: seasonInfo(s), seasons, total, page: pg, pages, rows: rows.slice((pg - 1) * PAGE, pg * PAGE).map(({ key, ...r }) => ({ ...r, me: !!token && key === `${token}:${style}`, pid: pidOf ? pidOf(String(key).split(':')[0]) || undefined : undefined })) };
 }
 // AI 상대(랭크전에 사람이 없을 때): 저장하지 않는 기록. 숨은 실력 점수·보이는 티어를 상대와 비슷하게
 const BOT_CHARS = [['lumi', '루미'], ['toto', '토토'], ['pin', '핀'], ['moka', '모카'], ['byeol', '별이'], ['kuro', '쿠로'], ['somi', '솜이'], ['bolt', '볼트']];
@@ -273,4 +284,4 @@ const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { cleanName, touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { profile, cleanName, touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
