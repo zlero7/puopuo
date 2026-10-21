@@ -180,10 +180,14 @@ async function smoke() {
         fonts: document.fonts.check("20px 'Black Han Sans'", '메인'), ls: (() => { try { localStorage.setItem('t', '1'); return localStorage.getItem('t') === '1'; } catch (e) { return false; } })(),
         outside: await fetch('https://example.com/').then(() => 'allowed', () => 'blocked'),
         info: window.puyoApp ? await window.puyoApp.info() : null,
+        menu: (() => {                                   // 켜자마자 메인 메뉴의 그림 칸(캔버스)이 실제로 그려져 있는지(그려진 점 수 / 크기)
+          const o = []; document.querySelectorAll('#sc-main canvas.art, #sc-main canvas.ico').forEach(c => { let n = -1; try { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; } catch (e) {} o.push((c.dataset.art || 'ico') + ':' + n + '/' + c.width + 'x' + c.height); });
+          return { canvases: o, state: typeof game === 'object' ? game.state : '?', splash: !!document.getElementById('splash'), iconOk: typeof charImgOk === 'function' ? !!charImgOk('icon') : null, pending: !!window.artPending };
+        })(),
         images: await (async () => { const o = {}; for (const f of ['chars_icon', 'chars_bust', 'chars_face', 'chars_card', 'chars_vs', 'tiers']) { const i = new Image(); i.src = 'img/' + f + '.webp'; try { await i.decode(); o[f] = i.naturalWidth + 'x' + i.naturalHeight; } catch (e) { o[f] = 'FAIL'; } } return o; })(),
       }))()`);
       clearTimeout(timer);
-      const good = r.origin === 'puyo://app' && r.app === 'object' && r.game === 'object' && r.node === 'undefined/undefined' && r.outside === 'blocked' && r.fonts && r.ls && Object.values(r.images).every(v => v !== 'FAIL');   // 만든 앱에서 그림도 실제로 읽히는지
+      const good = r.origin === 'puyo://app' && r.app === 'object' && r.game === 'object' && r.node === 'undefined/undefined' && r.outside === 'blocked' && r.fonts && r.ls && Object.values(r.images).every(v => v !== 'FAIL') && r.menu.canvases.length > 0 && r.menu.canvases.every(s => !/:(0|-1)\//.test(s));   // 만든 앱에서 그림도 실제로 읽히는지
       done({ ok: !!good, ...r, version: app.getVersion(), packaged: app.isPackaged }, good ? 0 : 1);
     } catch (e) { done({ ok: false, err: String(e && e.message || e) }, 1); }
   });
