@@ -278,7 +278,7 @@
     background-size: 12px 12px, 100% 100%;
   }
   .tile[data-act]:focus, .tile.sel {
-    transform: scale(1.035) rotate(-1deg); z-index: 2;
+    transform: scale(1.035); z-index: 2;   /* 살짝 커지기만(기울임은 글자가 흐려져 보여서 뺌) */
   }
   .tile:active { transform: scale(0.99); }
   .t-green  { --c: #39c63c; --d: #1a8027; }
