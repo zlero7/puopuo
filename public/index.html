@@ -34,6 +34,9 @@
   #acct label { display: block; font-size: 14px; color: var(--muted); margin: 8px 0 3px; }
   #acct input { width: 100%; box-sizing: border-box; font-family: var(--font); font-size: 18px; padding: 7px 10px; border: 2px solid #cfd1dc; border-radius: 6px; }
   #acct input:focus { outline: 0; border-color: #2f78f0; }
+  #settings .acsec label { display: block; font-size: 14px; color: var(--muted); margin: 8px 0 3px; }
+  #settings .acsec input { width: 100%; box-sizing: border-box; font-family: var(--font); font-size: 18px; padding: 7px 10px; border: 2px solid #cfd1dc; border-radius: 6px; }
+  #settings .acsec input:focus { outline: 0; border-color: #2f78f0; }
   .acmsg { min-height: 20px; font-size: 14px; margin: 8px 0 0; color: var(--muted); }
   .acmsg.bad { color: #d6263f; }
   .acsec { margin-top: 14px; padding-top: 10px; border-top: 2px dashed #dcdde8; }
@@ -45,6 +48,14 @@
   .setchk small { display: block; font-size: 13px; color: var(--muted); }
   #rkfx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 18; cursor: pointer; backdrop-filter: blur(6px); }
   .setcard h3 small { font-family: var(--font); font-size: 13px; color: var(--muted); }
+  .stabs { display: flex; gap: 6px; margin: 4px 0 14px; border-bottom: 2px solid #dcdde8; }
+  .stabs button { flex: 1; font-family: var(--head); font-size: 18px; padding: 8px 0 7px; border: 0; border-bottom: 4px solid transparent; margin-bottom: -2px; background: transparent; color: var(--muted); cursor: pointer; }
+  .stabs button:hover { color: #2f78f0; } .stabs button.on { color: #2f78f0; border-bottom-color: #2f78f0; }
+  .spanel { min-height: 240px; max-height: 56vh; overflow: auto; padding-right: 4px; }
+  .spanel.hidden { display: none; }
+  .shead { margin: 0 0 8px; font-family: var(--head); font-size: 17px; } .shead small { font-family: var(--font); font-size: 13px; color: var(--muted); }
+  .stwho { font-size: 18px; margin: 4px 0 12px; } .stver { font-size: 12px; color: var(--muted); margin-top: 16px; }
+  body.app #stabAcct { display: block !important; }
   .setrow { display: grid; grid-template-columns: 90px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 16px; }
   .keylist { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 8px; align-items: center; font-size: 15px; margin-bottom: 8px; }
   .keylist button { font-family: var(--font); font-size: 14px; min-width: 110px; padding: 5px 8px; border: 2px solid #cfd1dc; border-radius: 6px; background: #f6f6fa; cursor: pointer; }
@@ -556,19 +567,43 @@
   <div id="settings" class="modal hidden" role="dialog" aria-label="설정">
     <div class="card setcard">
       <h3>설정</h3>
-      <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
-      <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
-      <h3>게임</h3>
-      <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
-      <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>
-      <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
-      <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
-      <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
-      <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
-      <h3>키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h3>
-      <div id="keyList" class="keylist"></div>
-      <p class="padinfo" id="padInfo"></p>
-      <div class="btns"><button class="ghostbtn" id="bKeyReset">기본값으로</button><button class="mini" id="bSetClose" style="--d:#1747b0">닫기</button></div>
+      <div class="stabs" role="tablist">
+        <button class="on" data-stab="sound" role="tab">소리</button><button data-stab="game" role="tab">게임</button><button data-stab="keys" role="tab">조작</button><button data-stab="account" id="stabAcct" role="tab" class="hidden">계정</button>
+      </div>
+      <div class="spanel" data-p="sound">
+        <div class="setrow"><label for="vBgm">배경음악</label><input type="range" id="vBgm" min="0" max="1" step="0.05"><span id="vBgmV"></span></div>
+        <div class="setrow"><label for="vSfx">효과음</label><input type="range" id="vSfx" min="0" max="1" step="0.05"><span id="vSfxV"></span></div>
+      </div>
+      <div class="spanel hidden" data-p="game">
+        <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
+        <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>
+        <label class="setchk"><input type="checkbox" id="ghost"><span>뿌요 떨어질 자리 표시<small>지금 쌍이 떨어지면 놓일 칸에 작은 표시를 보여 줘요</small></span></label>
+        <label class="setchk"><input type="checkbox" id="cbMode"><span>색약 모드<small>뿌요마다 색과 함께 모양 표시(▲ ■ ● ★ ◆)를 넣어 색을 구분하기 쉽게 해요</small></span></label>
+        <label class="setchk"><input type="checkbox" id="oppRank"><span>랭크전 중 상대 랭크 아이콘 표시<small>상대 이름표 옆에 티어 엠블럼을 보여 줘요</small></span></label>
+        <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
+      </div>
+      <div class="spanel hidden" data-p="keys">
+        <h4 class="shead">키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h4>
+        <div id="keyList" class="keylist"></div>
+        <p class="padinfo" id="padInfo"></p>
+        <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="bKeyReset">기본값으로</button></div>
+      </div>
+      <div class="spanel hidden" data-p="account">
+        <p class="stwho" id="stWho"></p>
+        <div id="stIn" class="hidden"><div class="btns" style="justify-content:flex-start"><button class="mini" id="stLogin" style="--d:#1747b0">로그인 · 가입</button></div></div>
+        <div id="stOut" class="hidden">
+          <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="stLogout">로그아웃</button><button class="ghostbtn" id="stLogoutAll">모든 기기에서 로그아웃</button></div>
+          <div class="acsec"><b>비밀번호 바꾸기</b>
+            <label for="stOld">지금 비밀번호</label><input id="stOld" type="password" maxlength="128" autocomplete="current-password">
+            <label for="stNew">새 비밀번호 <small>(8자 이상)</small></label><input id="stNew" type="password" maxlength="128" autocomplete="new-password">
+            <label for="stNew2">새 비밀번호 확인</label><input id="stNew2" type="password" maxlength="128" autocomplete="new-password">
+            <div class="btns" style="justify-content:flex-start;margin-top:8px"><button class="mini" id="stPwGo" style="--d:#1747b0">바꾸기</button></div>
+          </div>
+        </div>
+        <p class="acmsg" id="stMsg"></p>
+        <p class="stver" id="stVer"></p>
+      </div>
+      <div class="btns"><button class="mini" id="bSetClose" style="--d:#1747b0">닫기</button></div>
     </div>
   </div>
   <div id="nameAsk" class="modal hidden" role="dialog" aria-label="닉네임">
@@ -595,12 +630,7 @@
       <div id="acOut" class="hidden">
         <p style="font-size:18px;margin:4px 0 10px">로그인: <b id="acWho"></b></p>
         <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="acLogout">로그아웃</button><button class="ghostbtn" id="acLogoutAll">모든 기기에서 로그아웃</button></div>
-        <div class="acsec"><b>비밀번호 바꾸기</b>
-          <label for="acOld">지금 비밀번호</label><input id="acOld" type="password" maxlength="128" autocomplete="current-password">
-          <label for="acNew">새 비밀번호</label><input id="acNew" type="password" maxlength="128" autocomplete="new-password">
-          <label for="acNew2">새 비밀번호 확인</label><input id="acNew2" type="password" maxlength="128" autocomplete="new-password">
-          <div class="btns" style="justify-content:flex-start;margin-top:8px"><button class="mini" id="acPwGo" style="--d:#1747b0">바꾸기</button></div>
-        </div>
+        <p class="acmsg" style="margin-top:12px">비밀번호는 <b>설정 → 계정</b>에서 바꿀 수 있어요.</p>
       </div>
       <p class="acmsg" id="acMsg"></p>
       <div class="acsec" id="acSrvBox"><small>서버: <b id="acSrv"></b></small>

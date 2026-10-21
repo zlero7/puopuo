@@ -2,14 +2,23 @@
 'use strict';
 
 /* ================= 설정 창 ================= */
-let keyWait = null;
+let keyWait = null, setTab = 'sound';
+// 설정 탭: 소리 · 게임 · 조작 · 계정(앱)
+function setSetTab(t) {
+  if (t === 'account' && !APP) t = 'sound';
+  setTab = t; keyWait = null;
+  document.querySelectorAll('#settings .stabs button').forEach(b => b.classList.toggle('on', b.dataset.stab === t));
+  document.querySelectorAll('#settings .spanel').forEach(p => p.classList.toggle('hidden', p.dataset.p !== t));
+  if (t === 'keys') renderKeys();
+}
+document.querySelectorAll('#settings .stabs button').forEach(b => b.addEventListener('click', () => setSetTab(b.dataset.stab)));
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
   $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('lowFx').checked = stats.lowFx === true || (stats.lowFx !== false && !!game.lowFx); $('vib').checked = stats.vib !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
-  $('settings').classList.remove('hidden'); $('bSetClose').focus();
+  $('settings').classList.remove('hidden'); setSetTab(setTab); if (typeof paintStAcct === 'function') paintStAcct(); $('bSetClose').focus();
   if (game.state === 'play') openPause();
 }
 function closeSettings() { $('settings').classList.add('hidden'); keyWait = null; setHints(game.state === 'menu' ? 'menu' : 'game'); }
@@ -27,7 +36,14 @@ function renderKeys() {
 window.addEventListener('keydown', e => {          // 키 설정 입력(다른 입력보다 먼저 받음)
   if ($('settings').classList.contains('hidden')) return;
   e.stopImmediatePropagation();
-  if (!keyWait) { if (e.key === 'Escape') { e.preventDefault(); closeSettings(); } return; }
+  if (!keyWait) {
+    if (e.key === 'Escape') { e.preventDefault(); closeSettings(); }
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.target.type !== 'range' && e.target.tagName !== 'INPUT') {
+      const tabs = [...document.querySelectorAll('#settings .stabs button')].filter(b => getComputedStyle(b).display !== 'none'), i = tabs.findIndex(b => b.dataset.stab === setTab);
+      e.preventDefault(); setSetTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].dataset.stab);
+    }
+    return;
+  }
   e.preventDefault();
   stats = loadStats(); const keys = { ...DEF_KEYS, ...(stats.keys || {}) };
   const k = e.key === 'Delete' || e.key === 'Backspace' ? '' : e.key.length === 1 ? e.key.toLowerCase() : e.key;

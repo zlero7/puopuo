@@ -25,9 +25,9 @@
   }
   function open(t, then) {
     if (t === 'login' || t === 'reg') tab = t; after = then || null;
-    say(''); ['acPw', 'acPw2', 'acOld', 'acNew', 'acNew2'].forEach(i => { el(i).value = ''; });
+    say(''); ['acPw', 'acPw2'].forEach(i => { el(i).value = ''; });
     paint(); el('acct').classList.remove('hidden');
-    setTimeout(() => (appCfg.server ? (appCfg.account ? el('acOld') : el('acId')) : el('acSrvIn')).focus(), 50);
+    setTimeout(() => (appCfg.server ? (appCfg.account ? el('acClose') : el('acId')) : el('acSrvIn')).focus(), 50);
   }
   window.openAcct = open;
   const close = () => { el('acct').classList.add('hidden'); after = null; };
@@ -65,16 +65,39 @@
     if (!confirm('이 계정으로 로그인한 모든 기기에서 로그아웃할까요?')) return;
     const r = await APP.logoutAll(); appCfg.account = null; if (net.ws) net.ws.close(); paint(); say(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
   });
-  el('acPwGo').addEventListener('click', async () => {
-    if (el('acNew').value !== el('acNew2').value) { say('새 비밀번호 확인이 달라요.'); return; }
-    const r = await APP.changePassword(el('acOld').value, el('acNew').value);
-    if (r.ok) { ['acOld', 'acNew', 'acNew2'].forEach(i => { el(i).value = ''; }); say('비밀번호를 바꿨어요. 다른 기기는 모두 로그아웃돼요.', false); } else say(fmtErr(r));
-  });
   el('acSrvGo').addEventListener('click', async () => {
     const r = await APP.setServer(el('acSrvIn').value);       // 본체가 확인 창을 따로 띄움. 성공하면 화면이 새로고침됨
     if (!r.ok) say(r.msg || '바꾸지 못했어요.');
   });
   el('acSrvIn').addEventListener('keydown', e => { if (e.key === 'Enter') el('acSrvGo').click(); });
+  /* ---- 설정 > 계정 탭: 로그인 상태 · 로그아웃 · 비밀번호 바꾸기 ---- */
+  const stSay = (msg, bad = true) => { const m = el('stMsg'); m.textContent = msg || ''; m.className = 'acmsg' + (msg && bad ? ' bad' : ''); };
+  window.paintStAcct = function () {
+    const me = appCfg.account;
+    el('stWho').innerHTML = me ? `로그인: <b>${esc(me.name)}</b> <small>(${esc(me.id)})</small>` : '로그인되어 있지 않아요.';
+    el('stIn').classList.toggle('hidden', !!me); el('stOut').classList.toggle('hidden', !me);
+    el('stVer').textContent = `앱 버전 v${appCfg.version}` + (appCfg.shell && appCfg.shell !== appCfg.version ? ` (본체 ${appCfg.shell})` : '');
+    stSay('');
+  };
+  el('stLogin').addEventListener('click', () => { closeSettings(); open('login'); });
+  el('stLogout').addEventListener('click', async () => {
+    await APP.logout(); appCfg.account = null; if (net.ws) net.ws.close(); el('pName').readOnly = false; el('pName').title = '';
+    $('recRank').textContent = '로그인 필요'; paint(); paintStAcct(); stSay('로그아웃했어요.', false);
+  });
+  el('stLogoutAll').addEventListener('click', async () => {
+    if (!confirm('이 계정으로 로그인한 모든 기기에서 로그아웃할까요?')) return;
+    const r = await APP.logoutAll(); appCfg.account = null; if (net.ws) net.ws.close(); paint(); paintStAcct(); stSay(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
+  });
+  el('stPwGo').addEventListener('click', async () => {
+    if (!el('stOld').value || !el('stNew').value) { stSay('지금 비밀번호와 새 비밀번호를 적어 주세요.'); return; }
+    if (el('stNew').value !== el('stNew2').value) { stSay('새 비밀번호 확인이 달라요.'); return; }
+    el('stPwGo').disabled = true;
+    try {
+      const r = await APP.changePassword(el('stOld').value, el('stNew').value);
+      if (r.ok) { ['stOld', 'stNew', 'stNew2'].forEach(i => { el(i).value = ''; }); stSay('비밀번호를 바꿨어요. 다른 기기는 모두 로그아웃돼요.', false); } else stSay(fmtErr(r));
+    } finally { el('stPwGo').disabled = false; }
+  });
+  ['stOld', 'stNew', 'stNew2'].forEach(i => el(i).addEventListener('keydown', e => { if (e.key === 'Enter') el('stPwGo').click(); }));
   APP.onMenu(w => { if (w === 'account') open(); });
   appReady.then(() => {
     if (appCfg.account) { stats = loadStats(); stats.name = appCfg.account.name; saveStats(); el('pName').readOnly = true; }
