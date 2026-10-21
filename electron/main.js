@@ -180,9 +180,10 @@ async function smoke() {
         fonts: document.fonts.check("20px 'Black Han Sans'", '메인'), ls: (() => { try { localStorage.setItem('t', '1'); return localStorage.getItem('t') === '1'; } catch (e) { return false; } })(),
         outside: await fetch('https://example.com/').then(() => 'allowed', () => 'blocked'),
         info: window.puyoApp ? await window.puyoApp.info() : null,
+        images: await (async () => { const o = {}; for (const f of ['chars_icon', 'chars_bust', 'chars_face', 'chars_card', 'chars_vs', 'tiers']) { const i = new Image(); i.src = 'img/' + f + '.webp'; try { await i.decode(); o[f] = i.naturalWidth + 'x' + i.naturalHeight; } catch (e) { o[f] = 'FAIL'; } } return o; })(),
       }))()`);
       clearTimeout(timer);
-      const good = r.origin === 'puyo://app' && r.app === 'object' && r.game === 'object' && r.node === 'undefined/undefined' && r.outside === 'blocked' && r.fonts && r.ls;
+      const good = r.origin === 'puyo://app' && r.app === 'object' && r.game === 'object' && r.node === 'undefined/undefined' && r.outside === 'blocked' && r.fonts && r.ls && Object.values(r.images).every(v => v !== 'FAIL');   // 만든 앱에서 그림도 실제로 읽히는지
       done({ ok: !!good, ...r, version: app.getVersion(), packaged: app.isPackaged }, good ? 0 : 1);
     } catch (e) { done({ ok: false, err: String(e && e.message || e) }, 1); }
   });
