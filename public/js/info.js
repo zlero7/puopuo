@@ -45,7 +45,7 @@ const styleBox = cur => `<div class="segs">${styleSegs(cur)}</div>`;
 
 /* ---------- 요약 ---------- */
 function infoSum() {
-  const C = ['#39c63c', '#ffb400', '#ff4559', '#2f78f0', '#ff8a1c', '#9a4fd8'];
+  const C = ['#39c63c', '#ffb400', '#c93445', '#2660c0', '#ff8a1c', '#7b3fad'], TXT = ['#0f2d10', '#3a2600', '#fff', '#fff', '#3b1b00', '#fff'];   // 밝은 바탕은 짙은 글자, 어두운 바탕은 흰 글자(대비 4.5 이상)
   const w = wins(), l = losses(), tr = stats.tRec || {}, pr = stats.practice || {};
   const rate = (a, b) => a + b ? `승률 ${Math.round(a / (a + b) * 100)}%` : '아직 경기 없음';
   const aw = stats.ai.reduce((a, x) => a + x.w, 0), al = stats.ai.reduce((a, x) => a + x.l, 0);
@@ -65,7 +65,7 @@ function infoSum() {
       ['울트라', (tr.ultra || 0).toLocaleString() + '점', '3분 최고 점수'], ['마라톤', (tr.marathon || 0).toLocaleString() + '점', '150줄 최고 점수']]],
   ];
   setInfo('', SEC.map(([t, cs]) => `<h4>${t}</h4><div class="chips">` +
-    cs.map(([k, v, sub], i) => `<div class="chip" style="--c:${C[i % C.length]}"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`).join('') + '</div>').join(''));
+    cs.map(([k, v, sub], i) => `<div class="chip" style="--c:${C[i % C.length]};--t:${TXT[i % C.length]}"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`).join('') + '</div>').join(''));
 }
 
 /* ---------- 기록 ---------- */

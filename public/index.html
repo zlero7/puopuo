@@ -9,7 +9,7 @@
   :root {
     --font: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
     --head: "Black Han Sans", "Jua", "Malgun Gothic", sans-serif;
-    --ink: #22212e; --muted: #6d6b80;
+    --ink: #22212e; --muted: #5a5870;
     --bandH: clamp(58px, 10vh, 92px); --footH: clamp(46px, 8vh, 70px);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -551,6 +551,24 @@
     .pad [data-k=menu] { grid-area: 1 / 4; } .pad [data-k=hold] { grid-area: 1 / 5; } .pad [data-k=ccw] { grid-area: 2 / 4; } .pad [data-k=cw] { grid-area: 2 / 5; }
   }
   @media (prefers-reduced-motion: reduce) { .tile, .tile[data-act]:focus .ico { transition: none; animation: none; } }
+
+  /* ===== 가독성(글자·배경 대비) 보정: 화면별로 글자색과 배경색의 대비를 재서(WCAG 기준 4.5 미만) 낮은 곳만 고침 ===== */
+  .tag { background: #0e6fb5; }
+  .gear { background: #2563d4; box-shadow: 0 3px 0 #173f9b; }
+  .seg { color: var(--muted); }
+  .seg.on { background: color-mix(in srgb, var(--c) 60%, #000); }                       /* 밝은 초록·주황·노랑 위 흰 글자가 안 보이던 것: 같은 색을 조금 어둡게 */
+  .td, .rec { background: rgba(16, 8, 36, 0.58); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }   /* 칸 안 설명·기록 글자 뒤 판을 진하게 */
+  .tile .tt small { text-shadow: 1px 0 0 var(--d), -1px 0 0 var(--d), 0 1px 0 var(--d), 0 -1px 0 var(--d), 0 2px 0 var(--d), 0 0 4px var(--d); }
+  .t-purple { --c: #8445c8; }
+  #t-profile label { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
+  .chip { color: var(--t, #fff); }
+  .chip span, .chip small { opacity: 1; }
+  .stabs button.on, .actabs button.on { color: #2563d4; border-bottom-color: #2563d4; }
+  .actabs button.on { border-color: #2563d4; }
+  .stabs button:hover { color: #2563d4; }
+  .tgrp { background: linear-gradient(180deg, color-mix(in srgb, var(--g2) 82%, #000), color-mix(in srgb, var(--g2) 62%, #000)); }   /* 랭크 티어 창: 밝은 바탕(금·은·청록) 위 흰 글자 */
+  .tdiv { background: rgba(0, 0, 0, 0.3); }
+  .tdiv.me { background: rgba(255, 255, 255, 0.3); }
 </style>
 </head>
 <body>
@@ -1012,6 +1030,11 @@
 body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
 #updBar button{border:0;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;background:#5b7cff;color:#fff}
 #updBar button.sub{background:transparent;border:1px solid #8aa0ff}
+  .tile .tt small { -webkit-text-stroke: 3px var(--d); paint-order: stroke fill; }
+  .advst .tt small { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75), 0 0 4px rgba(0, 0, 0, 0.55); }
+  #t-profile label { display: inline-block; background: rgba(16, 8, 36, 0.5); padding: 1px 9px; border-radius: 6px; }
+  .band-bot { background: #1b66dc; }
+  .tdiv.me { background: rgba(0, 0, 0, 0.5); }
 </style>
 <div id="gameWait" class="hidden" role="status"></div>
 <div id="updBar" class="hidden" role="status"><span id="updMsg"></span><button id="updGo"></button><button id="updLater" class="sub">나중에</button></div>
