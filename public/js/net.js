@@ -186,9 +186,10 @@ $('mmBadge').addEventListener('click', () => { if (game.state === 'menu') openMe
 $('bCancel').addEventListener('click', cancelWait);
 $('bJoin').addEventListener('click', () => {
   const code = $('code').value.trim().toUpperCase();
-  if (code.length !== 4) { status('4자리 방 코드를 입력하세요.'); return; }
+  if (code.length !== 4) { mmSay('4자리 방 코드를 입력하세요.'); return; }
   if (needLogin(() => $('bJoin').click())) return;
   if (askName(() => $('bJoin').click())) return;
+  if (typeof closeMatch === 'function') closeMatch();
   game.resetOnline = true;
   connect(() => nsend({ t: 'join', code, style: stats.style || 'puyo' }));
 });

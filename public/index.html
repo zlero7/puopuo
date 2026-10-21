@@ -157,12 +157,12 @@
     background: url(img/chars_card.webp?v=3) no-repeat; background-size: 800% 100%; background-position: calc(var(--n) * 100% / 7) 0; }   /* 카드 그림(이름·소개 포함): 한 줄 8칸 그림에서 --n번째 칸 */
   .charcard.cardimg .tt { display: none; }
   #sc-ai { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 1fr; }
-  #sc-vs { grid-template-columns: 1.15fr 1fr 0.9fr; grid-template-rows: auto 1fr 1fr auto; }
-  #sc-vs #t-rank { grid-row: 2 / 4; grid-column: 3; }
+  #sc-vs { grid-template-columns: 1.15fr 1fr 0.9fr; grid-template-rows: 1fr 1fr auto; }
+  #sc-vs #t-rank { grid-row: 1 / 3; grid-column: 3; }
 
-  #sc-vs .card { grid-column: 1 / 4; }
-  #sc-vs #t-quick { grid-row: 2; grid-column: 1; } #sc-vs #t-local { grid-row: 3; grid-column: 1; }
-  #sc-vs #t-create { grid-row: 2; grid-column: 2; } #sc-vs #t-join { grid-row: 3; grid-column: 2; }
+  #sc-vs .card { grid-row: 3; grid-column: 1 / 4; }
+  #sc-vs #t-quick { grid-row: 1; grid-column: 1; } #sc-vs #t-local { grid-row: 2; grid-column: 1; }
+  #sc-vs #t-create { grid-row: 1; grid-column: 2; } #sc-vs #t-join { grid-row: 2; grid-column: 2; }
   #sc-solo { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
   #sc-psolo { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
   #sc-stats { grid-template-columns: 0.75fr 1.9fr; grid-template-rows: 1fr; }
@@ -258,12 +258,13 @@
     position: relative; border: 0; padding: 0; margin: 0; background: none; cursor: pointer; font: inherit; color: #fff;
     min-height: 0; min-width: 0; outline: none; text-align: left;
     isolation: isolate;
+    transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
   }
   /* 그림자·흰 테두리는 칸 자체의 filter(drop-shadow)가 아니라 뒤에 깔리는 도형으로: filter가 있으면 브라우저가 칸 전체를 변형 전 크기로 그려 두고 늘려서,
      마우스를 올려 커지고 기울어질 때 글자·그림이 흐려졌음. filter가 없으면 변형된 크기에서 다시 그려 선명함 */
   .tile::before, .tile::after { content: ""; position: absolute; z-index: -1; clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%); pointer-events: none; }
   .tile::before { inset: 0; transform: translateY(6px); background: rgba(0, 0, 0, 0.16); transition: transform 0.16s ease-out, background 0.16s ease-out, filter 0.16s ease-out; }
-  .tile::after { inset: -4px; background: #fff; opacity: 0; transition: opacity 0.16s ease-out; }
+  .tile::after { inset: -5px; background: #1b1654; opacity: 0; transition: opacity 0.16s ease-out; }   /* 선택(호버) 테두리: 밝은 바탕에서도, 어떤 색 칸 옆에서도 눈에 띄는 진한 남색 */
   .tile[data-act]:focus::after, .tile.sel::after { opacity: 1; }
   .tile[data-act]:focus::before, .tile.sel::before { transform: translateY(10px); background: rgba(0, 0, 0, 0.26); filter: blur(6px); }
   .tile .in, .tile .in::before { position: absolute; clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%); }
@@ -277,8 +278,9 @@
     background-size: 12px 12px, 100% 100%;
   }
   .tile[data-act]:focus, .tile.sel {
-    z-index: 2;   /* 움직이지 않음: 확대·기울임·올림은 글자·그림이 흔들리거나 흐려져 보여서, 흰 테두리와 그림자가 부드럽게 나타나는 것으로만 표시 */
+    transform: scale(1.035) rotate(-1deg); z-index: 2;
   }
+  .tile:active { transform: scale(0.99); }
   .t-green  { --c: #39c63c; --d: #1a8027; }
   .t-yellow { --c: #ffc915; --d: #d08a00; }
   .t-purple { --c: #9a4fd8; --d: #5e2399; }
@@ -642,6 +644,42 @@
   <div id="newsBox" class="modal hidden" role="dialog" aria-label="업데이트 내용">
     <div class="card setcard" style="max-width: 460px"><h3 id="newsTitle">업데이트 내용</h3><p id="newsText" class="newstext"></p><div class="btns"><button class="mini" id="newsOk" style="--d:#1747b0">확인</button></div></div>
   </div>
+  <div id="matchModal" class="modal hidden" role="dialog" aria-label="대전 설정">
+    <div class="card setcard mmcard">
+      <h3 id="mmTitle">대전</h3>
+      <p class="mmsub" id="mmSub"></p>
+      <div class="mmrow" data-m="style"><span class="lab">내 스타일</span><div class="segs">
+            <button class="seg" style="--c:#ff4559" data-act="style:me:puyo" data-desc="뿌요뿌요로 대전해. 상대가 테트리스여도 겨룰 수 있어.">뿌요뿌요</button>
+            <button class="seg" style="--c:#2f78f0" data-act="style:me:tetris" data-desc="테트리스로 대전해. 상대가 뿌요뿌요여도 겨룰 수 있어.">테트리스</button>
+          </div></div>
+      <div class="mmrow" data-m="p2"><span class="lab">로컬 2P 스타일</span><div class="segs">
+            <button class="seg" style="--c:#ff4559" data-act="style:p2:puyo" data-desc="로컬 대전에서 2P가 뿌요뿌요로 플레이해.">뿌요뿌요</button>
+            <button class="seg" style="--c:#2f78f0" data-act="style:p2:tetris" data-desc="로컬 대전에서 2P가 테트리스로 플레이해.">테트리스</button>
+          </div></div>
+      <div class="mmrow" data-m="pl"><span class="lab">인원</span><div class="segs">
+            <button class="seg" style="--c:#2f78f0" data-act="pl:2" data-desc="1:1로 대전해.">2인</button>
+            <button class="seg" style="--c:#2f78f0" data-act="pl:3" data-desc="로컬 대전은 빈자리를 CPU가 채우고, 온라인은 이 인원이 모이면 시작해. 3명 대전해. 마지막까지 살아남으면 승리야. 공격은 나를 공격한 사람에게, 없으면 점수 1등에게 가.">3인</button>
+            <button class="seg" style="--c:#2f78f0" data-act="pl:4" data-desc="로컬 대전은 빈자리를 CPU가 채우고, 온라인은 이 인원이 모이면 시작해. 4명이 대전해. 마지막까지 살아남으면 승리야. 3~4인은 한 판 승부야.">4인</button>
+          </div></div>
+      <div class="mmrow" data-m="rule"><span class="lab">규칙</span><div class="segs">
+            <button class="seg" style="--c:#ff4559" data-act="rule:tsu" data-desc="기본 규칙이야. 연쇄를 직접 쌓아서 공격해.">통상</button>
+            <button class="seg" style="--c:#ff5fd0" data-act="rule:fever" data-desc="온라인은 방을 만든 사람의 규칙을 따라. 상쇄할 때마다 피버 게이지가 차고, 7칸이 차면 연쇄 씨앗판이 떨어지는 피버가 시작돼. 뿌요뿌요에만 적용돼.">피버</button>
+            <button class="seg" style="--c:#ff8a1c" data-act="rule:bigbang" data-desc="방해 공격 없이 라운드마다 같은 퍼즐(뿌요는 연쇄 씨앗판, 테트리스는 줄 채우기)을 동시에 풀어. 더 많이·더 빨리 완성한 사람이 이기고 나머지는 체력이 깎여.">빅뱅</button>
+            <button class="seg" style="--c:#2f78f0" data-act="rule:swap" data-desc="뿌요뿌요 판과 테트리스 판을 둘 다 가지고 25초마다 번갈아 써. 쌓인 공격은 바뀐 판으로 넘어가.">스왑</button>
+            <button class="seg" style="--c:#9a4fd8" data-act="rule:party" data-desc="2분 동안 점수로 겨뤄. 조각에 붙은 ★아이템을 터뜨리면 방해 폭탄·판 정리·조작 반전 같은 효과가 나와. 꼭대기까지 차도 탈락하지 않고 점수가 깎여.">파티</button>
+            <button class="seg" style="--c:#1aa0e8" data-act="rule:fusion" data-desc="뿌요 쌍과 테트리미노가 한 판에 섞여 나와. 블록은 뿌요를 뚫고 떨어지고, 줄을 채우거나 뿌요 4개를 이으면 지워져. 스타일과 상관없이 모두 퓨전 판으로 겨뤄.">퓨전</button>
+          </div></div>
+      <div class="mmrow" data-m="board"><span class="lab">판</span><div class="segs">
+            <button class="seg" style="--c:#39c63c" data-act="board:wide" data-desc="뿌요 판을 가로 8칸 × 세로 14칸으로 넓게 써.">넓게 8×14</button>
+            <button class="seg" style="--c:#39c63c" data-act="board:classic" data-desc="온라인은 방을 만든 사람의 판 크기를 따라. 원작과 같은 가로 6칸 × 세로 12칸 판이야. 3열 맨 위가 막히면 끝나.">원작 6×12</button>
+            <button class="seg" style="--c:#39c63c" data-act="board:tiny" data-desc="작은 뿌요로 가로 12칸 × 세로 24칸을 쓰는 타이니 뿌요야. 큰 연쇄를 길게 짤 수 있고, 방해뿌요가 한 번에 60개까지 떨어져.">타이니</button>
+          </div></div>
+      <div class="mmrow" data-m="code"><span class="lab">방 코드</span><input id="code" maxlength="4" placeholder="4자리" autocomplete="off" spellcheck="false"><button class="mini" id="bPaste" title="복사한 방 코드를 붙여넣어요" style="--d:#6d6b80">붙여넣기</button></div>
+      <p class="mmdesc" id="mmDesc"></p>
+      <p class="mmmsg" id="mmMsg"></p>
+      <div class="btns"><button class="ghostbtn" id="mmCancel">취소</button><button class="mini" id="mmGo" style="--d:#1747b0">시작</button><button class="mini" id="bJoin" style="--d:#1747b0">참가</button></div>
+    </div>
+  </div>
   <div id="rkTiers" class="modal hidden" role="dialog" aria-label="랭크 티어 안내">
     <div class="card tiercard"><button class="tclose" id="rkClose" aria-label="닫기">✕</button><h3>랭크 티어</h3><p class="tsub" id="rkSub"></p><div id="rkGrid"></div></div>
   </div>
@@ -781,39 +819,6 @@
       </section>
 
       <section id="sc-vs" class="screen hidden">
-        <div class="stylebar">
-          <span class="lab">내 스타일</span>
-          <div class="segs">
-            <button class="seg" style="--c:#ff4559" data-act="style:me:puyo" data-desc="뿌요뿌요로 대전해. 상대가 테트리스여도 겨룰 수 있어.">뿌요뿌요</button>
-            <button class="seg" style="--c:#2f78f0" data-act="style:me:tetris" data-desc="테트리스로 대전해. 상대가 뿌요뿌요여도 겨룰 수 있어.">테트리스</button>
-          </div>
-          <span class="lab">인원</span>
-          <div class="segs">
-            <button class="seg" style="--c:#2f78f0" data-act="pl:2" data-desc="1:1로 대전해.">2인</button>
-            <button class="seg" style="--c:#2f78f0" data-act="pl:3" data-desc="로컬 대전은 빈자리를 CPU가 채우고, 온라인은 이 인원이 모이면 시작해. 3명 대전해. 마지막까지 살아남으면 승리야. 공격은 나를 공격한 사람에게, 없으면 점수 1등에게 가.">3인</button>
-            <button class="seg" style="--c:#2f78f0" data-act="pl:4" data-desc="로컬 대전은 빈자리를 CPU가 채우고, 온라인은 이 인원이 모이면 시작해. 4명이 대전해. 마지막까지 살아남으면 승리야. 3~4인은 한 판 승부야.">4인</button>
-          </div>
-          <span class="lab">규칙</span>
-          <div class="segs">
-            <button class="seg" style="--c:#ff4559" data-act="rule:tsu" data-desc="기본 규칙이야. 연쇄를 직접 쌓아서 공격해.">통상</button>
-            <button class="seg" style="--c:#ff5fd0" data-act="rule:fever" data-desc="온라인은 방을 만든 사람의 규칙을 따라. 상쇄할 때마다 피버 게이지가 차고, 7칸이 차면 연쇄 씨앗판이 떨어지는 피버가 시작돼. 뿌요뿌요에만 적용돼.">피버</button>
-            <button class="seg" style="--c:#ff8a1c" data-act="rule:bigbang" data-desc="방해 공격 없이 라운드마다 같은 퍼즐(뿌요는 연쇄 씨앗판, 테트리스는 줄 채우기)을 동시에 풀어. 더 많이·더 빨리 완성한 사람이 이기고 나머지는 체력이 깎여.">빅뱅</button>
-            <button class="seg" style="--c:#2f78f0" data-act="rule:swap" data-desc="뿌요뿌요 판과 테트리스 판을 둘 다 가지고 25초마다 번갈아 써. 쌓인 공격은 바뀐 판으로 넘어가.">스왑</button>
-            <button class="seg" style="--c:#9a4fd8" data-act="rule:party" data-desc="2분 동안 점수로 겨뤄. 조각에 붙은 ★아이템을 터뜨리면 방해 폭탄·판 정리·조작 반전 같은 효과가 나와. 꼭대기까지 차도 탈락하지 않고 점수가 깎여.">파티</button>
-            <button class="seg" style="--c:#1aa0e8" data-act="rule:fusion" data-desc="뿌요 쌍과 테트리미노가 한 판에 섞여 나와. 블록은 뿌요를 뚫고 떨어지고, 줄을 채우거나 뿌요 4개를 이으면 지워져. 스타일과 상관없이 모두 퓨전 판으로 겨뤄.">퓨전</button>
-          </div>
-          <span class="lab">판</span>
-          <div class="segs">
-            <button class="seg" style="--c:#39c63c" data-act="board:wide" data-desc="뿌요 판을 가로 8칸 × 세로 14칸으로 넓게 써.">넓게 8×14</button>
-            <button class="seg" style="--c:#39c63c" data-act="board:classic" data-desc="온라인은 방을 만든 사람의 판 크기를 따라. 원작과 같은 가로 6칸 × 세로 12칸 판이야. 3열 맨 위가 막히면 끝나.">원작 6×12</button>
-            <button class="seg" style="--c:#39c63c" data-act="board:tiny" data-desc="작은 뿌요로 가로 12칸 × 세로 24칸을 쓰는 타이니 뿌요야. 큰 연쇄를 길게 짤 수 있고, 방해뿌요가 한 번에 60개까지 떨어져.">타이니</button>
-          </div>
-          <span class="lab">로컬 2P</span>
-          <div class="segs">
-            <button class="seg" style="--c:#ff4559" data-act="style:p2:puyo" data-desc="로컬 대전에서 2P가 뿌요뿌요로 플레이해.">뿌요뿌요</button>
-            <button class="seg" style="--c:#2f78f0" data-act="style:p2:tetris" data-desc="로컬 대전에서 2P가 테트리스로 플레이해.">테트리스</button>
-          </div>
-        </div>
         <button class="tile t-yellow" id="t-quick" data-act="quick" data-desc="먼저 기다리고 있던 사람과 바로 대전을 시작해.">
           <span class="in"></span>
           <canvas class="art" data-art="vs" style="left:52%;top:14%;width:40%;height:66%"></canvas>
@@ -829,7 +834,6 @@
           <span class="in"></span>
           <span class="tt" style="left:10%;top:16%">방 참가</span>
           <canvas class="ico" data-col="3" style="right:6%;top:6%"></canvas>
-          <div class="joinrow"><input id="code" maxlength="4" placeholder="코드" autocomplete="off" spellcheck="false"><button class="mini" id="bPaste" title="복사한 방 코드를 붙여넣어요" style="--d:#6d6b80">붙여넣기</button><button class="mini" id="bJoin">참가</button></div>
         </div>
         <button class="tile t-green" id="t-local" data-act="local" data-desc="한 키보드(또는 게임패드 2개)로 둘이 대전해. 1P는 WASD·Q/E·R, 2P는 방향키·. /·, 를 써.">
           <span class="in"></span>
@@ -1035,6 +1039,18 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   #t-profile label { display: inline-block; background: rgba(16, 8, 36, 0.5); padding: 1px 9px; border-radius: 6px; }
   .band-bot { background: #1b66dc; }
   .tdiv.me { background: rgba(0, 0, 0, 0.5); }
+  /* 대전 설정 창(빠른 매칭·방 만들기·방 참가·랭크전·로컬 대전): 예전에 대전 화면 위쪽에 있던 선택을 여기로 */
+  .mmcard { width: min(640px, 100%); }
+  .mmsub { margin: 0 0 8px; color: var(--muted); font-size: 15px; }
+  .mmrow { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .mmrow.hidden { display: none; }
+  .mmrow .lab { font-family: var(--head); font-size: 17px; color: #3a3850; width: 108px; flex: none; }
+  .mmrow .segs { flex-wrap: wrap; }
+  .mmrow input { font-family: var(--head); font-size: 24px; letter-spacing: 8px; text-align: center; text-transform: uppercase; width: 150px; padding: 6px 10px; border: 2px solid #cfd1dc; border-radius: 6px; }
+  .mmrow input:focus { outline: 0; border-color: #2563d4; }
+  .mmdesc { min-height: 40px; margin: 6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.4; }
+  .mmmsg { min-height: 20px; margin: 4px 0 0; font-size: 14px; color: #c4402a; }
+  #bJoin.hidden, #mmGo.hidden { display: none; }
 </style>
 <div id="gameWait" class="hidden" role="status"></div>
 <div id="updBar" class="hidden" role="status"><span id="updMsg"></span><button id="updGo"></button><button id="updLater" class="sub">나중에</button></div>

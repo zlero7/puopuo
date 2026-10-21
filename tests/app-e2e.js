@@ -22,7 +22,9 @@ const SP = 4601, EP = 9334;
     ok(await pg.evaluate(() => $('srv').parentElement.classList.contains('hidden')), '앱은 서버 주소 입력 칸을 화면에서 숨김');
     // 온라인 대전을 누르면 로그인 창이 먼저 뜸
     await pg.evaluate(() => showScreen('vs')); await pg.waitForTimeout(300);
-    await pg.click('#t-quick'); await pg.waitForTimeout(500);
+    await pg.click('#t-quick'); await pg.waitForTimeout(300);
+    ok(await pg.evaluate(() => !$('matchModal').classList.contains('hidden') && $('mmTitle').textContent === '빠른 매칭'), '빠른 매칭을 누르면 대전 설정 창이 먼저 뜸');
+    await pg.click('#mmGo'); await pg.waitForTimeout(500);
     ok(await pg.evaluate(() => !$('acct').classList.contains('hidden')), '로그인 전에 온라인 대전을 누르면 로그인 창이 뜸');
     await pg.screenshot({ path: path.join(D, 'e2e_login.png') });
     // 가입
