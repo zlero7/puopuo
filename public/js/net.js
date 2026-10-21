@@ -57,7 +57,8 @@ function abortOffline() {
 }
 function onNet(m) {
   switch (m.t) {
-    case 'authok': { net.authed = true; if (net.queued) net.retry = 0; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; if (f) f(); break; }
+    case 'soc': socOnMsg(m); break;
+    case 'authok': { net.authed = true; if (net.queued) net.retry = 0; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; socChar(); if (f) f(); break; }
     case 'autherr': { net.pending = null; status(m.msg || '로그인하지 못했어요.'); if (m.code !== 'old') { appCfg.account = null; openAcct('login'); } break; }
     case 'created':
       setWait(`방 ${m.code}`, m.size > 2 ? `1/${m.size}명` : '상대 기다리는 중');

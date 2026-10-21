@@ -155,7 +155,7 @@ function act(a) {
   else if (MATCH[k]) openMatch(k);                          // 빠른 매칭·랭크전·방 만들기·방 참가·로컬 대전은 설정 창을 먼저 띄움
   else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
   else if (k === 'adv') advPlay(+v);
-  else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); }
+  else if (k === 'char') { stats = loadStats(); stats.char = v; saveStats(); renderChars(v); socChar(); }
   else if (k === 'rule') { stats = loadStats(); stats.rule = v; saveStats(); renderStyle(); }
   else if (k === 'pl') { stats = loadStats(); stats.players = +v; saveStats(); renderStyle(); }
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
@@ -189,7 +189,7 @@ $('cmCancel').addEventListener('click', closeChar);
 $('charModal').addEventListener('click', e => {
   if (e.target === $('charModal')) { closeChar(); return; }
   const b = e.target.closest('.cmbtn'); if (!b) return;
-  const cb = charCb; stats = loadStats(); stats.char = b.dataset.id; saveStats(); renderChars(); closeChar(); if (cb) cb();
+  const cb = charCb; stats = loadStats(); stats.char = b.dataset.id; saveStats(); renderChars(); socChar(); closeChar(); if (cb) cb();
 });
 $('charModal').addEventListener('keydown', e => {
   e.stopPropagation();

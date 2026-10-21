@@ -12,11 +12,12 @@ const emCv = (g, d, cls = '') => `<canvas class="${cls}" data-em="${g},${d}"></c
 const chCv = id => `<canvas data-char="${esc(id || 'lumi')}"></canvas>`;
 const httpOk = serverOk;
 // 앱: 로그인하지 않았을 때 랭크 칸에 보여 줄 안내(누르면 로그인 창)
-function needLoginMsg(bar) { setInfo(bar, '<div class="empty">로그인하면 내 랭크를 볼 수 있어요.<br><button class="mini needlogin" style="--d:#1747b0;margin-top:8px">로그인</button></div>'); const b = $('iBody').querySelector('.needlogin'); if (b) b.addEventListener('click', () => openAcct('login', () => infoRank(++infoSeq))); }
+function needLoginMsg(bar, msg) { setInfo(bar, `<div class="empty">${msg || '로그인하면 내 랭크를 볼 수 있어요.'}<br><button class="mini needlogin" style="--d:#1747b0;margin-top:8px">로그인</button></div>`); const b = $('iBody').querySelector('.needlogin'); if (b) b.addEventListener('click', () => openAcct('login', () => renderInfo())); }
 
 function renderStats() {
   stats = loadStats();
   $('pName').value = stats.name;
+  { const ch = charOf(stats.char || 'lumi'); $('pPv').style.cssText = `--n:${Math.max(0, CHARS.findIndex(c => c.id === ch.id))};--d:${ch.d}`; $('pCharName').textContent = ch.name; }   // 내 대표 캐릭터(캐릭터 메뉴에서 고른 것)
   $('pGames').textContent = stats.games;
   const w = wins(), l = losses();
   $('pWins').textContent = w;
@@ -28,7 +29,7 @@ function renderInfo() {
   document.querySelectorAll('.itabs .seg').forEach(b => b.classList.toggle('on', b.dataset.act === 'itab:' + infoTab));
   rkStyle = rkStyle || stats.style || 'puyo'; board.style = board.style || stats.style || 'puyo';
   const seq = ++infoSeq;
-  ({ sum: infoSum, hist: infoHist, rank: infoRank, board: infoBoard })[infoTab](seq);
+  ({ sum: infoSum, hist: infoHist, rank: infoRank, board: infoBoard, friends: infoFriends })[infoTab](seq);
 }
 // innerHTML로 넣은 캔버스(캐릭터 얼굴 · 티어 엠블럼)를 그림
 function paintInfo() {
@@ -136,7 +137,7 @@ function infoBoard(seq) {
     const bar = bar0 + `<select id="lbSeason" title="시즌">${t.seasons.map(x => `<option value="${x.n}"${x.n === s.n ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
     const head = `<div class="lbhead">${emCv(5, 0)}<div class="t">순위표</div><div class="s">${STYLE_KO[board.style]} · 플래티넘 이상 ${t.total}명<br>${esc(s.name)} · ${cur ? `${s.daysLeft}일 남음` : '종료된 시즌'}</div></div>`;
     const cols = '<div class="lbcols"><span>순위</span><span>티어</span><span>랭크 점수</span><span></span><span>플레이어</span><span style="text-align:right">승리</span></div>';
-    const rows = t.rows.map(r => `<div class="lbrow${r.place === 1 ? ' first' : ''}${r.me ? ' me' : ''}"><div class="pl">${r.place}${r.place === 1 ? '<span class="star">★</span>' : ''}</div>` +
+    const rows = t.rows.map(r => `<div class="lbrow${r.place === 1 ? ' first' : ''}${r.me ? ' me' : ''}"${r.pid ? ` data-pid="${esc(r.pid)}" title="우클릭: 전적 보기 · 친구 추가"` : ''}><div class="pl">${r.place}${r.place === 1 ? '<span class="star">★</span>' : ''}</div>` +
       `<div>${emCv(r.group, r.div, 'em')}</div><div><span class="pt">${r.rp}</span><small>${esc(r.label)}</small></div><div>${chCv(r.char)}</div>` +
       `<div class="nm"><b>${esc(r.name)}${r.me ? ' (나)' : ''}</b><small>${esc(r.title || '')}</small></div><div class="wn">${r.wins}승</div></div>`).join('');
     const foot = `<div class="lbfoot"><input id="lbQ" placeholder="플레이어 이름 검색" maxlength="20" value="${esc(board.q)}" spellcheck="false">` +
@@ -199,3 +200,4 @@ $('rkClose').addEventListener('click', closeTierList);
 $('rkTiers').addEventListener('click', e => { if (e.target === $('rkTiers')) closeTierList(); });
 $('rkTiers').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeTierList(); });
 $('iBody').addEventListener('click', e => { if (e.target.closest('.rkhero canvas')) openTierList(); });
+$('pPortrait').addEventListener('click', () => showScreen('chars'));

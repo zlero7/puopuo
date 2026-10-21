@@ -654,6 +654,11 @@
       <div class="btns"><button class="mini" id="cmCancel" style="--d:#6b6890">취소</button></div>
     </div>
   </div>
+  <div id="profModal" class="modal hidden" role="dialog" aria-label="플레이어 전적">
+    <div class="card setcard profcard"><div id="profBody"></div><div class="btns"><button class="mini" id="profClose" style="--d:#6b6890">닫기</button></div></div>
+  </div>
+  <div id="ctxMenu" class="ctxmenu hidden" role="menu"></div>
+  <div id="socToast" class="toast hidden" role="status"></div>
   <div id="matchModal" class="modal hidden" role="dialog" aria-label="대전 설정">
     <div class="card setcard mmcard">
       <h3 id="mmTitle">대전</h3>
@@ -901,6 +906,7 @@
         <div class="tile t-purple" id="t-profile">
           <span class="in"></span>
           <div class="profile">
+            <div class="pvwrap" id="pPortrait" title="대표 캐릭터 · 눌러서 바꾸기"><div class="pv" id="pPv"></div><span id="pCharName"></span></div>
             <label for="pName">닉네임</label>
             <input id="pName" maxlength="10" spellcheck="false">
             <div class="big">
@@ -918,6 +924,7 @@
               <button class="seg" style="--c:#2f78f0" data-act="itab:hist" data-desc="지금까지 한 경기 목록이야. 종목을 골라 거르고, 오른쪽 ⤓로 리플레이를 받아 ▶로 볼 수 있어.">기록</button>
               <button class="seg" style="--c:#5e2399" data-act="itab:rank" data-desc="이번 시즌 내 랭크·RP·배치 진행과 지난 시즌 기록이야.">랭크</button>
               <button class="seg" style="--c:#ff8a1c" data-act="itab:board" data-desc="플래티넘 이상 랭크전 순위표야. 시즌을 골라 지난 시즌 순위도 볼 수 있어.">순위표</button>
+              <button class="seg" style="--c:#1fa37a" data-act="itab:friends" data-desc="친구를 추가하고, 친구나 순위표의 플레이어를 우클릭해 전적을 볼 수 있어. (앱에서 로그인하면 쓸 수 있어)">친구</button>
             </div>
             <div class="ibar" id="iBar"></div>
           </div>
@@ -998,6 +1005,7 @@
 <script src="js/adventure.js"></script>
 <script src="js/puzzle.js"></script>
 <script src="js/rankfx.js"></script>
+<script src="js/social.js"></script>
 <script src="js/main.js"></script>
 <style id="updCss">
 #updBar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,520px);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;padding:10px 14px;border-radius:12px;background:#1f2a44;color:#fff;border:1px solid #5b7cff;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:14px}
@@ -1051,6 +1059,33 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .tdiv.me { background: rgba(0, 0, 0, 0.5); }
   /* 대전 설정 창(빠른 매칭·방 만들기·방 참가·랭크전·로컬 대전): 예전에 대전 화면 위쪽에 있던 선택을 여기로 */
   .mmcard { width: min(640px, 100%); }
+  /* ---------- 대표 캐릭터 프로필 · 친구 · 전적 창 · 우클릭 메뉴 ---------- */
+  .pv { aspect-ratio: 480 / 330; width: 100%; background: url(img/chars_vs.webp?v=4) calc(var(--n, 0) * 14.2857%) 0 / 800% auto no-repeat; border: 3px solid var(--d, #5e2399); border-radius: 12px; box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.25); }
+  .pvwrap { position: relative; cursor: pointer; margin: 0 4px 4px; }
+  .pvwrap #pCharName { position: absolute; left: 10px; bottom: 8px; background: rgba(16, 8, 36, 0.78); color: #fff; font-family: var(--head); font-size: 15px; padding: 2px 10px; border-radius: 6px; }
+  .pvwrap:hover .pv, .pvwrap:focus-visible .pv { box-shadow: 0 0 0 3px #ffe066, 0 4px 0 3px rgba(0, 0, 0, 0.25); }
+  .profcard { width: min(760px, 100%); overflow: auto; }
+  .phead { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+  .phead .pv { width: 200px; flex: none; }
+  .pinfo { min-width: 0; } .pn { font-family: var(--head); font-size: 28px; display: flex; align-items: center; gap: 8px; } .ps { color: var(--muted); font-size: 14px; margin-top: 3px; } .prel { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #b7b5c8; margin-right: 6px; vertical-align: middle; } .dot.on { background: #2fbf4a; box-shadow: 0 0 0 3px rgba(47, 191, 74, 0.25); }
+  .pn .dot { margin: 0; }
+  #profBody .segs { margin: 6px 0 12px; } #profBody .rkhero canvas { width: 96px; height: 96px; } #profBody .rkhero .t { font-size: 28px; }
+  #profBody button, .frow button, .socme button, .socadd button { font-family: var(--head); font-size: 14px; padding: 5px 12px; border: 0; border-radius: 6px; background: #2563d4; color: #fff; cursor: pointer; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+  #profBody button.warn, .frow button.warn { background: #c93445; } #profBody .segs button.seg { background: #fff; color: #2a2850; box-shadow: none; font-size: 17px; padding: 7px 18px; }
+  #profBody .segs button.seg.on { background: var(--c); color: #fff; }
+  .socme, .socadd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; } .socme span { font-family: var(--head); } .socme small { color: var(--muted); }
+  .socme input, .socadd input { font-family: var(--head); font-size: 20px; letter-spacing: 3px; text-transform: uppercase; padding: 5px 10px; border: 2px solid #cfd1dc; border-radius: 6px; width: 190px; } .socadd input { font-size: 17px; letter-spacing: 1px; width: 260px; }
+  .socnote { min-height: 20px; font-size: 14px; color: #1f7a3a; margin-bottom: 4px; } .socnote.bad { color: #b3202f; }
+  .frow { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; background: #f6f6fa; border-radius: 6px; margin-bottom: 6px; padding: 6px 12px; min-height: 58px; }
+  .frow:hover { background: #ece8ff; } .frow canvas { width: 46px; height: 46px; } .frow .nm b { font-family: var(--head); font-weight: 400; font-size: 18px; display: block; } .frow .nm small { color: var(--muted); font-size: 13px; } .frow .acts { display: flex; gap: 6px; }
+  .empty.small { padding: 8px 0; }
+  .ctxmenu { position: fixed; z-index: 60; min-width: 150px; background: #1b1654; border: 2px solid #fff; border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; }
+  .ctxmenu.hidden, .toast.hidden { display: none; }
+  .ctxmenu button { background: transparent; color: #fff; border: 0; text-align: left; font-family: var(--head); font-size: 16px; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+  .ctxmenu button:hover, .ctxmenu button:focus { outline: 0; background: #3b33a0; } .ctxmenu button.warn { color: #ffb3bb; }
+  .toast { position: fixed; z-index: 70; left: 50%; bottom: 70px; transform: translateX(-50%); background: #1b1654; color: #fff; border: 2px solid #fff; border-radius: 10px; padding: 10px 18px; font-size: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+  .lbrow[data-pid] { cursor: context-menu; }
   .cmlist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
   .cmbtn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 8px; border: 3px solid #cfd1dc; border-radius: 12px; background: #fff; color: #2a2850; font: inherit; font-family: var(--head); font-size: 15px; cursor: pointer; transition: transform .15s, border-color .15s; }
   .cmbtn i { width: 64px; height: 64px; background: url(img/chars_icon.webp?v=4) calc(var(--n) * 14.2857%) 0 / 800% 100% no-repeat; }

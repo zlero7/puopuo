@@ -1,0 +1,65 @@
+// 친구·전적 보기 화면 종단 테스트(Linux · xvfb · playwright 필요): 진짜 서버 + 진짜 앱 창
+//  - 내 정보 > 친구 탭: 친구 코드 · 요청 보내기 · 받은 요청 수락 · 친구 줄 우클릭 메뉴 · 전적 보기 창 · 삭제
+//  - 순위표 줄(친구 코드가 달린 줄) 우클릭 메뉴 · 대표 캐릭터 프로필 카드
+// 실행: npm run test:social-e2e
+const { chromium } = require('playwright'); const { spawn } = require('child_process'); const fs = require('fs'); const path = require('path'); const WebSocket = require('ws');
+const ROOT = path.join(__dirname, '..'); const sleep = ms => new Promise(r => setTimeout(r, ms)); let fail = 0; const ok = (c, m) => { console.log(`${c ? '✓' : '✗'} ${m}`); if (!c) fail++; };
+const T = fs.mkdtempSync(path.join(require('os').tmpdir(), 'socui-')), xdg = path.join(T, 'xdg'), data = path.join(T, 'data'); fs.mkdirSync(xdg); fs.mkdirSync(data);
+const SP = 4721 + Math.floor(Math.random() * 50), EP = 9900 + Math.floor(Math.random() * 90);
+const srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: SP, HOST: '127.0.0.1', AUTH_DIR: data, RANK_FILE: path.join(data, 'ranks.json'), RANK_OPEN: '1', AUTH_SECRET: 'soc-ui-secret-soc-ui-secret-soc-ui-secret', BACKUP: '0' }, stdio: 'pipe' }); srv.stdout.on('data', () => {}); srv.stderr.on('data', () => {});
+const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(body) })).json();
+(async () => {
+  await sleep(1200);
+  const app = spawn('xvfb-run', ['-a', '-s', '-screen 0 1600x1000x24', 'node_modules/electron/dist/electron', '.', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${EP}`], { cwd: ROOT, detached: true,
+    env: { ...process.env, PUYO_SERVER: `http://127.0.0.1:${SP}`, XDG_CONFIG_HOME: xdg, PUYO_UPDATE_BASE: 'http://127.0.0.1:1/' }, stdio: 'pipe' });
+  let ws2 = null;
+  try {
+    await sleep(9000);
+    const b = await chromium.connectOverCDP(`http://127.0.0.1:${EP}`); const p = b.contexts()[0].pages().find(x => x.url().startsWith('puyo://'));
+    p.on('pageerror', e => { console.log('PAGEERR', e.message); fail++; });
+    ok((await p.evaluate(() => window.puyoApp.register('me0001', '나나', 'Zx9!kqwe12'))).ok, '가입·로그인');
+    await p.evaluate(() => { appCfg.account = { id: 'me0001', name: '나나' }; stats = loadStats(); stats.char = 'bolt'; saveStats(); openMenu('stats'); });
+    await p.waitForTimeout(800);
+    ok(await p.evaluate(() => document.getElementById('pCharName').textContent === '볼트' && /--n:\s*7/.test(document.getElementById('pPv').style.cssText)), '내 정보 프로필 카드에 대표 캐릭터(볼트)가 나옴');
+    await p.evaluate(() => infoTab = 'friends'); await p.evaluate(() => renderInfo()); await p.waitForTimeout(2500);
+    ok(await p.evaluate(() => /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(document.getElementById('socMine').value)), '친구 탭에 내 친구 코드가 보임');
+    // 상대 계정(스크립트로 접속)
+    const reg = await post('/auth/register', { id: 'rival02', name: '라이벌', pw: 'Qm7#rtyu45' }), tk = await post('/auth/ticket', {}, { Authorization: 'Bearer ' + reg.session.token });
+    ws2 = new WebSocket(`ws://127.0.0.1:${SP}`, { origin: 'puyo://app' }); const got = []; ws2.on('message', d => got.push(JSON.parse(d))); await new Promise(r => ws2.on('open', r));
+    ws2.send(JSON.stringify({ t: 'auth', ticket: tk.ticket, ver: '9.9.9' })); await sleep(400);
+    ws2.send(JSON.stringify({ t: 'soc', op: 'list' })); await sleep(400);
+    const rivalPid = got.find(m => m.t === 'soc' && m.op === 'list').me.pid;
+    // 내가 요청
+    await p.fill('#socCode', rivalPid); await p.click('[data-sc="add"]'); await p.waitForTimeout(800);
+    ok(await p.evaluate(() => /보낸 요청/.test(document.getElementById('iBody').textContent) && /라이벌/.test(document.getElementById('iBody').textContent)), '코드를 넣고 요청하면 "보낸 요청"에 뜸');
+    ok(got.some(m => m.t === 'soc' && m.op === 'ping' && m.what === 'request'), '상대에게 요청 알림이 감');
+    ws2.send(JSON.stringify({ t: 'soc', op: 'acc', pid: await p.evaluate(() => soc.me.pid) })); await sleep(600);
+    ok(await p.evaluate(() => /친구가 됐어요/.test(document.getElementById('socToast').textContent)), '상대가 수락하면 알림창이 뜸');
+    await p.evaluate(() => renderInfo()); await p.waitForTimeout(1500);
+    ok(await p.evaluate(() => document.querySelectorAll('.frow').length === 1 && /접속 중/.test(document.querySelector('.frow').textContent)), '친구 목록에 상대가 접속 중으로 보임');
+    // 우클릭 → 전적 보기
+    await p.click('.frow .nm', { button: 'right' }); await p.waitForTimeout(300);
+    ok(await p.evaluate(() => !document.getElementById('ctxMenu').classList.contains('hidden') && [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,친구 삭제'), '친구를 우클릭하면 "전적 보기 · 친구 삭제" 메뉴');
+    await p.click('#ctxMenu button:first-child'); await p.waitForTimeout(1200);
+    ok(await p.evaluate(() => !document.getElementById('profModal').classList.contains('hidden') && /라이벌/.test(document.getElementById('profBody').textContent) && /친구 삭제/.test(document.getElementById('profBody').textContent)), '전적 보기 창이 열림(친구라서 "친구 삭제" 버튼)');
+    ok(await p.evaluate(() => /아직 이 종목의 랭크전 기록이 없어요/.test(document.getElementById('profBody').textContent) && document.getElementById('profBody').textContent.indexOf('rival02') < 0), '랭크전 기록이 없으면 안내 · 로그인 아이디는 보이지 않음');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+    ok(await p.evaluate(() => document.getElementById('profModal').classList.contains('hidden')), 'Esc로 닫힘');
+    // 순위표 줄 우클릭(친구 코드가 달린 줄을 흉내)
+    await p.evaluate(() => { infoTab = 'board'; $('iBody').innerHTML = `<div class="lbrow" data-pid="ZZZZ-2222"><div>1</div><div>X</div><div>Y</div><div>Z</div><div class="nm"><b>가짜</b></div><div>1승</div></div>`; });
+    await p.click('.lbrow', { button: 'right' }); await p.waitForTimeout(300);
+    ok(await p.evaluate(() => [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,친구 추가'), '순위표 줄을 우클릭하면 "전적 보기 · 친구 추가" 메뉴');
+    await p.keyboard.press('Escape');
+    // 대표 캐릭터 동기화
+    await p.evaluate(() => { act('char:kuro'); }); await p.waitForTimeout(600);
+    ws2.send(JSON.stringify({ t: 'soc', op: 'list' })); await sleep(500);
+    ok(got.filter(m => m.t === 'soc' && m.op === 'list').pop().friends[0].char === 'kuro', '대표 캐릭터를 바꾸면 친구 쪽에도 반영');
+    // 삭제
+    await p.evaluate(() => { infoTab = 'friends'; renderInfo(); }); await p.waitForTimeout(1200);
+    p.once('dialog', d => d.accept()); await p.click('.frow [data-sc="del"]'); await p.waitForTimeout(800);
+    ok(await p.evaluate(() => document.querySelectorAll('.frow').length === 0), '친구 삭제');
+    await b.close();
+  } catch (e) { console.error('오류', e); fail++; }
+  try { process.kill(-app.pid, 'SIGTERM'); } catch (e) {} await sleep(1000); try { srv.kill('SIGTERM'); } catch (e) {} if (ws2) ws2.close();
+  console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exit(fail ? 1 : 0);
+})();
