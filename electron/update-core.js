@@ -107,6 +107,16 @@ function openPatch(manifest, patchBytes, readLocal) {
   }
   return out;
 }
+// Windows는 백신·색인이 방금 쓴 파일을 잠깐 잡고 있으면 폴더 이름 바꾸기가 EPERM/EBUSY로 실패하므로 몇 번 다시 시도(그래도 안 되면 복사로)
+function renameRetry(from, to) {
+  for (let i = 0; i < 8; i++) {
+    try { fs.renameSync(from, to); return; } catch (e) {
+      if (!/^(EPERM|EBUSY|EACCES)$/.test(e.code)) throw e;
+      const t = Date.now() + 150 * (i + 1); while (Date.now() < t) { /* 잠깐 기다림 */ }
+    }
+  }
+  fs.cpSync(from, to, { recursive: true }); rmrf(from);
+}
 const rmrf = p => { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) {} };
 // 번들을 rootDir/<버전>/ 에 저장(임시 폴더에 다 쓴 뒤 이름을 바꿈 → 도중에 끊겨도 반쪽짜리가 남지 않음)
 function stage(manifest, manifestBytes, sigB64, bundleBytes, rootDir) { return stageFiles(manifest, manifestBytes, sigB64, openBundle(manifest, bundleBytes), rootDir); }
@@ -119,7 +129,7 @@ function stageFiles(manifest, manifestBytes, sigB64, files, rootDir) {
       fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, buf);
     }
     fs.writeFileSync(path.join(tmp, 'manifest.json'), manifestBytes); fs.writeFileSync(path.join(tmp, 'manifest.sig'), sigB64.trim());
-    rmrf(dir); fs.renameSync(tmp, dir);
+    rmrf(dir); renameRetry(tmp, dir);
   } catch (e) { rmrf(tmp); throw e; }
   return dir;
 }

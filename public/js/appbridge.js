@@ -23,6 +23,7 @@ function needLogin(then) {
 function showUpdate(st) {
   if (document.getElementById('splash')) return;     // 시작 화면이 떠 있는 동안은 시작 화면이 알아서 처리
   const bar = document.getElementById('updBar'); if (!bar || !st) return;
+  if (st.rolledBack && !st.pending && !st.installer) { document.getElementById('updMsg').textContent = `새 화면 ${st.rolledBack.from}이 제대로 켜지지 않아 ${st.rolledBack.to}으로 돌아왔어요`; const g = document.getElementById('updGo'); g.textContent = '업데이트 기록'; g.onclick = () => APP.openUpdateLog(); document.getElementById('updLater').onclick = () => bar.classList.add('hidden'); bar.classList.remove('hidden'); return; }
   const msg = document.getElementById('updMsg'), go = document.getElementById('updGo');
   if (st.pending) {
     msg.textContent = `새 버전 ${st.pending.version} 준비 완료`; go.textContent = '지금 적용';
@@ -44,7 +45,8 @@ if (APP) {
 async function showNews() {
   if (!APP || !APP.updateState) return;
   try {
-    const st = await APP.updateState(); if (!st || !st.notes) return;
+    const st = await APP.updateState(); showUpdate(st);                // 새 화면이 켜지지 않아 되돌아왔으면 그 사실을 알림(시작 화면이 닫힌 뒤)
+    if (!st || !st.notes) return;
     let seen = ''; try { seen = localStorage.getItem('puyo-news-ver') || ''; } catch (e) {}
     if (seen === st.version) return;
     try { localStorage.setItem('puyo-news-ver', st.version); } catch (e) {}

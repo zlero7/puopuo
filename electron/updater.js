@@ -14,7 +14,7 @@ const BASE = (DEV && process.env.PUYO_UPDATE_BASE) || CONFIG.updateBase || '';  
 const ALLOWED = new Set(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com', 'github-releases.githubusercontent.com']);
 const allowedUrl = (u, base) => (u.protocol === 'https:' && ALLOWED.has(u.hostname)) || (DEV && u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname) && !!base);
 const rootDir = () => path.join(app.getPath('userData'), 'ui');
-let pem = '', installed = null, pending = null, installer = null, checking = false, enabled = false, lastError = '';
+let pem = '', installed = null, pending = null, installer = null, checking = false, enabled = false, lastError = '', rolledBack = null;
 const logFile = () => path.join(app.getPath('userData'), 'update.log');
 // 업데이트 기록(문제가 생겼을 때 이유를 알 수 있게): 날짜와 한 줄씩. 200KB가 넘으면 예전 것은 .old로 넘김
 function log(...a) {
@@ -35,6 +35,10 @@ function init() {
   enabled = !!core.publicKey(pem) && !!BASE;
   if (!enabled) { log('공개키나 받는 주소가 없어서 자동 업데이트는 꺼져 있어요(내장 화면만 사용).'); installed = null; return; }
   core.prune(rootDir(), 2);
+  try {                                                 // 앱 본체를 새로 설치했으면 예전에 '켜지지 않았다'고 적어 둔 버전도 다시 시도(본체가 고쳐졌을 수 있으므로)
+    const mark = path.join(rootDir(), 'shell.txt'), prev = fs.existsSync(mark) ? fs.readFileSync(mark, 'utf8').trim() : '';
+    if (prev !== app.getVersion()) { fs.rmSync(path.join(rootDir(), 'bad.json'), { force: true }); if (prev) log(`앱 본체가 ${prev} → ${app.getVersion()}으로 바뀌어 '켜지지 않은 버전' 기록을 비웠어요.`); fs.mkdirSync(rootDir(), { recursive: true }); fs.writeFileSync(mark, app.getVersion()); }
+  } catch (e) {}
   installed = core.loadInstalled(rootDir(), pem);        // 서명·해시를 다시 확인한 것만
   if (installed && core.cmp(installed.version, bundled()) <= 0) installed = null;   // 앱 본체에 든 화면이 더 높으면 그쪽을 씀
 }
@@ -42,13 +46,13 @@ function init() {
 const uiRoot = () => installed ? installed.dir : null;
 const version = () => installed ? installed.version : bundled();       // 서버가 확인하는 '클라이언트 버전'은 화면 버전
 const notes = () => (installed && installed.manifest && installed.manifest.notes) || '';       // 지금 쓰는 화면 버전의 업데이트 내용
-const state = () => ({ enabled, version: version(), shell: app.getVersion(), pending, installer, error: lastError, notes: notes() });
+const state = () => ({ enabled, version: version(), shell: app.getVersion(), pending, installer, error: lastError, notes: notes(), rolledBack });
 // 내 화면 파일 읽기(패치를 합칠 때 씀): 받아 둔 화면 폴더 → 없으면 앱에 든 화면
 const readLocal = rel => { if (!core.safeRel(rel)) return null; for (const root of [installed && installed.dir, path.join(app.getAppPath(), 'public')]) { if (!root) continue; try { return fs.readFileSync(path.join(root, rel)); } catch (e) {} } return null; };
 
 // 허용한 주소에서만 받음. 리다이렉트는 한 단계씩 직접 따라가며 매번 허용 목록인지 확인. 크기 상한을 넘으면 중단
 // (화면용 기본 세션의 요청 차단 규칙과 섞이지 않게 전용 세션을 씀)
-function get(url, max) {
+function get(url, max, meta) {
   return new Promise((resolve, reject) => {
     const u0 = new URL(url); if (!allowedUrl(u0, BASE)) return reject(new Error('host'));
     const ses = session.fromPartition('puyo-update', { cache: false });
@@ -59,6 +63,7 @@ function get(url, max) {
     req.on('redirect', (code, method, loc) => {
       let u; try { u = new URL(loc); } catch (e) { req.abort(); return fin(reject, new Error('redirect')); }
       if (++hops > 5 || !allowedUrl(u, BASE)) { req.abort(); return fin(reject, new Error('redirect host')); }
+      if (meta && meta.hops) meta.hops.push(u.href);
       req.followRedirect();
     });
     req.on('response', res => {
@@ -79,7 +84,11 @@ async function check(onPhase = () => {}) {
   checking = true;
   try {
     onPhase('checking');
-    const mb = await get(BASE + 'ui-manifest.json', core.LIMITS.manifest), sig = (await get(BASE + 'ui-manifest.sig', 4096)).toString('utf8');
+    // 매니페스트를 받는 중 '최신 릴리스'가 바뀌면(새 릴리스가 막 올라온 순간) 서명·묶음이 다른 릴리스 것과 섞여 서명 오류가 났음 → 매니페스트가 가리킨 릴리스 태그를 고정해서 나머지도 같은 릴리스에서 받음
+    const meta = { hops: [] }, mb = await get(BASE + 'ui-manifest.json', core.LIMITS.manifest, meta);
+    const pinHop = meta.hops.find(h => /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/v[\w.]+\/ui-manifest\.json$/.test(h));
+    const FROM = pinHop ? pinHop.slice(0, -'ui-manifest.json'.length) : BASE;
+    const sig = (await get(FROM + 'ui-manifest.sig', 4096)).toString('utf8');
     const r = core.check(mb, sig, pem, { version: version(), shellApi: SHELL_API });
     lastError = '';
     if (r.reason === 'shell') { installer = { version: r.manifest.version }; log(`새 버전 ${r.manifest.version}은 앱 본체 교체가 필요해요.`); return 'installer'; }
@@ -88,10 +97,10 @@ async function check(onPhase = () => {}) {
     onPhase('downloading');
     let files = null, how = '전체';
     if (r.manifest.patch && core.planPatch(r.manifest, readLocal)) {          // 바뀐 파일만 받기(내 파일이 한 단계 전 버전과 같을 때)
-      try { files = core.openPatch(r.manifest, await get(BASE + r.manifest.patch.name, r.manifest.patch.size + 1), readLocal); how = '패치'; }
+      try { files = core.openPatch(r.manifest, await get(FROM + r.manifest.patch.name, r.manifest.patch.size + 1), readLocal); how = '패치'; }
       catch (e) { log('패치를 쓰지 못해 전체를 받아요:', e && e.message); files = null; }
     }
-    if (!files) files = core.openBundle(r.manifest, await get(BASE + r.manifest.bundle.name, r.manifest.bundle.size + 1));
+    if (!files) files = core.openBundle(r.manifest, await get(FROM + r.manifest.bundle.name, r.manifest.bundle.size + 1));
     onPhase('installing');
     core.stageFiles(r.manifest, mb, sig, files, rootDir());
     pending = { version: r.manifest.version }; lastError = '';
@@ -109,11 +118,13 @@ function apply() {
 // 새 화면이 켜지지 않으면(부팅 확인 시간 안에 'ui:ready'가 안 옴) 그 버전을 건너뛰고 내장 화면으로 돌아감
 function failBoot() {
   if (!installed) return false;
-  log(`새 화면 ${installed.version}이 켜지지 않아 건너뛰어요.`); core.markBad(rootDir(), installed.version); installed = core.loadInstalled(rootDir(), pem);
+  const bad = installed.version;
+  log(`새 화면 ${bad}이 ${Math.round(bootMs() / 1000)}초 안에 '잘 떴다'고 알리지 못해 건너뛰어요.`); core.markBad(rootDir(), bad); installed = core.loadInstalled(rootDir(), pem);
   if (installed && core.cmp(installed.version, bundled()) <= 0) installed = null;
+  rolledBack = { from: bad, to: version() }; log(`${bad} → ${version()}으로 되돌아갔어요.`);
   return true;
 }
-const bootMs = () => (DEV && +process.env.PUYO_UPDATE_BOOT_MS) || 25000;
+const bootMs = () => (DEV && +process.env.PUYO_UPDATE_BOOT_MS) || 45000;
 
 const logPath = logFile;
-module.exports = { logPath, init, uiRoot, version, state, check, apply, failBoot, bootMs, enabled: () => enabled };
+module.exports = { log, logPath, init, uiRoot, version, state, check, apply, failBoot, bootMs, enabled: () => enabled };

@@ -80,11 +80,22 @@ function setupIpc() {
   handle('update:releases', () => { shell.openExternal('https://github.com/zlero7/puopuo/releases/latest'); return { ok: true }; });
 }
 // 새 화면으로 켠 뒤 일정 시간 안에 화면이 제대로 떴다는 신호(ui:ready)가 없으면 그 버전을 버리고 내장 화면으로 돌아감
-let bootTimer = null;
+let bootTimer = null, bootExtended = false, bootErrs = [];
+// 새 화면이 제대로 떴는지 지켜봄: 화면이 'ui:ready'를 알려 오면 끝. 제시간에 안 오면 화면 상태를 직접 들여다보고(window.gameReady),
+// 멀쩡하면 신호만 놓친 것이니 그대로 쓰고, 아직 읽는 중이면 한 번 더 기다리고, 정말 안 떴을 때만 이전 화면으로 되돌림
 function armBoot() {
-  clearTimeout(bootTimer); bootTimer = null;
+  clearTimeout(bootTimer); bootTimer = null; bootExtended = false; bootErrs = [];
   if (!updater.uiRoot()) return;
-  bootTimer = setTimeout(() => { bootTimer = null; if (updater.failBoot() && win) { console.log('[업데이트] 새 화면이 켜지지 않아 내장 화면으로 돌아가요.'); win.webContents.reload(); } }, updater.bootMs());
+  bootTimer = setTimeout(bootExpired, updater.bootMs());
+}
+async function bootExpired() {
+  bootTimer = null; if (!win || win.isDestroyed()) return;
+  let ready = false, loading = false, url = '';
+  try { ready = (await win.webContents.executeJavaScript('window.gameReady === true')) === true; loading = win.webContents.isLoading(); url = win.webContents.getURL(); } catch (e) {}
+  if (ready) { updater.log(`새 화면 ${updater.version()}의 '잘 떴다' 신호는 못 받았지만 화면은 정상이라 그대로 써요.`); return; }
+  if (loading && !bootExtended) { bootExtended = true; updater.log('화면을 아직 읽는 중이라 30초 더 기다려요.'); bootTimer = setTimeout(bootExpired, 30000); return; }
+  updater.log(`화면 상태: 주소=${url || '?'} 읽는 중=${loading} 오류=${bootErrs.join(' | ') || '없음'}`);
+  if (updater.failBoot() && win) win.webContents.reload();
 }
 // 업데이트 확인: 켠 직후 한 번, 그 뒤 6시간마다. 받아 두면 화면에 알려서 '지금 적용'을 고르게 함(적용 전에는 쓰던 화면 그대로)
 async function checkUpdates() {
@@ -144,6 +155,12 @@ function createWindow() {
   const track = () => { if (win && !win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) lastNormal = win.getBounds(); clearTimeout(winSaveT); winSaveT = setTimeout(saveWinState, 600); };
   ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'].forEach(ev => win.on(ev, track));
   win.on('close', saveWinState);
+  win.webContents.on('console-message', (ev, lv, msg, ln, src) => {            // 켜지는 동안 난 화면 오류를 기록(왜 안 떴는지 알 수 있게)
+    const d = ev && ev.message !== undefined ? ev : { level: lv, message: msg, lineNumber: ln, sourceId: src };
+    if (bootTimer && (d.level === 'error' || d.level === 3 || d.level === 2) && bootErrs.length < 5) bootErrs.push(`${String(d.message).slice(0, 120)} (${path.basename(String(d.sourceId || ''))}:${d.lineNumber})`);
+  });
+  win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => { if (isMain && code !== -3) updater.log(`화면 읽기 실패: ${desc}(${code}) ${String(url).slice(0, 80)}`); });
+  win.webContents.on('render-process-gone', (_e, d) => updater.log(`화면 프로세스가 멈췄어요: ${d && d.reason}`));
   win.on('focus', () => win.flashFrame(false));
   lastNormal = win.getBounds();
   win.on('closed', () => { win = null; });

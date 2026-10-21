@@ -5,9 +5,10 @@ const ROOT = path.join(__dirname, '..'); const core = require(path.join(ROOT,'el
 let logRef; let fail = 0; const ok = (c, m) => { console.log(`${c ? '✓' : '✗'} ${m}`); if (!c) fail++; };
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519'); const pub = publicKey.export({ type: 'spki', format: 'pem' }), prv = privateKey.export({ type: 'pkcs8', format: 'pem' });
 const other = crypto.generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
-function mk(version, marker, key, broken) {
+function mk(version, marker, key, broken, noSignal) {
   const d = fs.mkdtempSync(path.join(D, 'pub-')); fs.cpSync(path.join(ROOT,'public'), d, { recursive: true });
   let h = fs.readFileSync(path.join(d, 'index.html'), 'utf8'); h = h.replace('<body', `<body data-uiv="${marker}"`);
+  if (noSignal) { const mj = path.join(d, 'js', 'main.js'); fs.writeFileSync(mj, fs.readFileSync(mj, 'utf8').replace('if (APP && APP.uiReady) APP.uiReady().catch(() => {});', ';')); }   // 화면은 멀쩡한데 '잘 떴다' 신호만 안 보냄
   if (broken) h = h.replace('<script src="js/main.js"></script>', '<script src="js/none.js"></script>'); fs.writeFileSync(path.join(d, 'index.html'), h);
   return core.buildBundle({ publicDir: d, version, shellApi: 1, privatePem: key });
 }
@@ -40,6 +41,14 @@ async function run(env, fn) {
   // 망가진 새 화면은 자동 복귀
   cur = mk('9.0.3', 'BROKEN', prv, true);
   await run({ PUYO_UPDATE_BOOT_MS: '4000' }, async pg => { await sleep(16000);
-    ok(await pg().evaluate(() => !document.body.dataset.uiv || document.body.dataset.uiv !== 'BROKEN') && await pg().evaluate(() => typeof gameReady !== 'undefined' && window.gameReady === true), '화면이 안 뜨는 새 버전은 이전 화면으로 자동 복귀'); });
+    ok(await pg().evaluate(() => !document.body.dataset.uiv || document.body.dataset.uiv !== 'BROKEN') && await pg().evaluate(() => typeof gameReady !== 'undefined' && window.gameReady === true), '화면이 안 뜨는 새 버전은 이전 화면으로 자동 복귀'); await sleep(1500);
+    const st = await pg().evaluate(() => window.puyoApp.updateState()); ok(st.rolledBack && st.rolledBack.from === '9.0.3', '되돌아갔다는 사실이 기록돼 화면에 알릴 수 있음: ' + JSON.stringify(st.rolledBack)); ok(await pg().evaluate(() => !document.getElementById('updBar').classList.contains('hidden') && /돌아왔어요/.test(document.getElementById('updMsg').textContent)), '되돌아왔다는 안내가 화면에 뜸');; });
+  // 화면은 멀쩡한데 '잘 떴다' 신호만 놓친 경우: 되돌리지 않고 그대로 씀
+  cur = mk('9.0.4', 'NOSIG', prv, false, true);
+  await run({ PUYO_UPDATE_BOOT_MS: '4000' }, async pg => {
+    await sleep(14000); const p = pg();
+    ok(await p.evaluate(() => document.body.dataset.uiv === 'NOSIG' && window.gameReady === true), "'잘 떴다' 신호가 없어도 화면이 정상이면 되돌리지 않고 그대로 씀");
+    const lg = fs.readFileSync(path.join(xdg, 'puyopuyo', 'update.log'), 'utf8'); ok(/신호는 못 받았지만/.test(lg), '업데이트 기록에 그 이유가 남음');
+  });
   srv.close(); console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exit(fail ? 1 : 0);
 })();
