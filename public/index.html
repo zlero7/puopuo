@@ -657,6 +657,9 @@
   <div id="profModal" class="modal hidden" role="dialog" aria-label="플레이어 전적">
     <div class="card setcard profcard"><div id="profBody"></div><div class="btns"><button class="mini" id="profClose" style="--d:#6b6890">닫기</button></div></div>
   </div>
+  <div id="invModal" class="modal hidden" role="dialog" aria-label="대전 신청">
+    <div class="card setcard" style="max-width: 440px"><h3 id="invTitle">대전 신청</h3><p id="invText" class="newstext"></p><div class="btns"><button class="mini" id="invNo" style="--d:#6b6890">거절</button><button class="mini" id="invOk" style="--d:#1747b0">수락</button></div></div>
+  </div>
   <div id="ctxMenu" class="ctxmenu hidden" role="menu"></div>
   <div id="socToast" class="toast hidden" role="status"></div>
   <div id="matchModal" class="modal hidden" role="dialog" aria-label="대전 설정">
@@ -925,6 +928,7 @@
               <button class="seg" style="--c:#5e2399" data-act="itab:rank" data-desc="이번 시즌 내 랭크·RP·배치 진행과 지난 시즌 기록이야.">랭크</button>
               <button class="seg" style="--c:#ff8a1c" data-act="itab:board" data-desc="플래티넘 이상 랭크전 순위표야. 시즌을 골라 지난 시즌 순위도 볼 수 있어.">순위표</button>
               <button class="seg" style="--c:#1fa37a" data-act="itab:friends" data-desc="친구를 추가하고, 친구나 순위표의 플레이어를 우클릭해 전적을 볼 수 있어. (앱에서 로그인하면 쓸 수 있어)">친구</button>
+              <button class="seg" style="--c:#d6482a" data-act="itab:practice" data-desc="연습 모드(뿌요뿌요 연습·엔드리스 피버·테트리스 끝없이·마라톤·울트라·스프린트)의 전 세계 순위야. 앱에서 로그인하면 내 기록이 올라가.">연습 순위</button>
             </div>
             <div class="ibar" id="iBar"></div>
           </div>
@@ -1086,6 +1090,10 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .ctxmenu button:hover, .ctxmenu button:focus { outline: 0; background: #3b33a0; } .ctxmenu button.warn { color: #ffb3bb; }
   .toast { position: fixed; z-index: 70; left: 50%; bottom: 70px; transform: translateX(-50%); background: #1b1654; color: #fff; border: 2px solid #fff; border-radius: 10px; padding: 10px 18px; font-size: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
   .lbrow[data-pid] { cursor: context-menu; }
+  .prow { display: grid; grid-template-columns: 56px 54px 1fr auto; gap: 12px; align-items: center; background: #f6f6fa; border-radius: 6px; margin-bottom: 5px; padding: 5px 12px; min-height: 52px; }
+  .prow.me { outline: 3px solid #ffe066; } .prow .pl { font-family: var(--head); font-size: 24px; text-align: center; } .prow.top3 .pl { color: #d6482a; } .prow canvas { width: 42px; height: 42px; } .prow .nm b { font-family: var(--head); font-weight: 400; font-size: 17px; display: block; } .prow .sc { font-family: var(--head); font-size: 20px; text-align: right; }
+  .prow[data-pid] { cursor: context-menu; } .prow:hover { background: #ece8ff; }
+  .pmodes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .cmlist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
   .cmbtn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 8px; border: 3px solid #cfd1dc; border-radius: 12px; background: #fff; color: #2a2850; font: inherit; font-family: var(--head); font-size: 15px; cursor: pointer; transition: transform .15s, border-color .15s; }
   .cmbtn i { width: 64px; height: 64px; background: url(img/chars_icon.webp?v=4) calc(var(--n) * 14.2857%) 0 / 800% 100% no-repeat; }

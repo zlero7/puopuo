@@ -53,6 +53,7 @@ function recordGame() {
     else if (sm === 'endless') { game.newRecord = me.score > stats.practice.tBest; stats.practice.tBest = Math.max(stats.practice.tBest, me.score); }
     else if (sm === 'sprint') { if (me.done) { const t = me.doneAt; game.newRecord = !stats.tRec.sprint || t < stats.tRec.sprint; if (game.newRecord) stats.tRec.sprint = Math.round(t); } }
     else { game.newRecord = me.score > stats.tRec[sm]; stats.tRec[sm] = Math.max(stats.tRec[sm], me.score); }
+    if (typeof socPractice === 'function') socPractice(sm, isT);   // 글로벌 연습 순위에 올림(로그인한 앱에서만)
     r = 'p'; mode = `연습 · ${STYLE_KO[me.kind]}${isT ? ' ' + SOLO_KO[sm] : sm === 'efever' ? ' 엔드리스 피버' : ''}`;
   }
   else if (game.mode === 'local') { r = me.won ? 'w' : 'l'; mode = `로컬 대전 · ${STYLE_KO[me.kind]}${opLab}`; }

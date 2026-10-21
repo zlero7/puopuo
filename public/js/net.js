@@ -61,6 +61,7 @@ function onNet(m) {
     case 'authok': { net.authed = true; if (net.queued) net.retry = 0; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; socChar(); if (f) f(); break; }
     case 'autherr': { net.pending = null; status(m.msg || '로그인하지 못했어요.'); if (m.code !== 'old') { appCfg.account = null; openAcct('login'); } break; }
     case 'created':
+      if (net.inviteTo) socSendInvite(m.code);
       setWait(`방 ${m.code}`, m.size > 2 ? `1/${m.size}명` : '상대 기다리는 중');
       $('roomCode').textContent = m.code; $('roomBox').classList.remove('hidden'); $('bCancel').classList.remove('hidden');
       status(m.size > 2 ? `방 코드를 알려주고 기다리세요. (1/${m.size}명)` : '상대에게 방 코드를 알려주고 기다리세요.'); break;
@@ -93,7 +94,7 @@ function onNet(m) {
       break;
     }
     case 'error': status(m.msg); net.queued = null; setWait(null); break;
-    case 'start': net.queued = null; net.retry = 0; if (APP && APP.attention && !document.hasFocus()) APP.attention().catch(() => {}); abortOffline(); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
+    case 'start': net.invitedPid = null; net.queued = null; net.retry = 0; if (APP && APP.attention && !document.hasFocus()) APP.attention().catch(() => {}); abortOffline(); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
       {
         // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억

@@ -29,7 +29,7 @@ function renderInfo() {
   document.querySelectorAll('.itabs .seg').forEach(b => b.classList.toggle('on', b.dataset.act === 'itab:' + infoTab));
   rkStyle = rkStyle || stats.style || 'puyo'; board.style = board.style || stats.style || 'puyo';
   const seq = ++infoSeq;
-  ({ sum: infoSum, hist: infoHist, rank: infoRank, board: infoBoard, friends: infoFriends })[infoTab](seq);
+  ({ sum: infoSum, hist: infoHist, rank: infoRank, board: infoBoard, friends: infoFriends, practice: infoPractice })[infoTab](seq);
 }
 // innerHTML로 넣은 캔버스(캐릭터 얼굴 · 티어 엠블럼)를 그림
 function paintInfo() {

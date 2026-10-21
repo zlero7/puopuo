@@ -39,12 +39,35 @@ const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}
     ok(await p.evaluate(() => document.querySelectorAll('.frow').length === 1 && /접속 중/.test(document.querySelector('.frow').textContent)), '친구 목록에 상대가 접속 중으로 보임');
     // 우클릭 → 전적 보기
     await p.click('.frow .nm', { button: 'right' }); await p.waitForTimeout(300);
-    ok(await p.evaluate(() => !document.getElementById('ctxMenu').classList.contains('hidden') && [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,친구 삭제'), '친구를 우클릭하면 "전적 보기 · 친구 삭제" 메뉴');
-    await p.click('#ctxMenu button:first-child'); await p.waitForTimeout(1200);
+    ok(await p.evaluate(() => !document.getElementById('ctxMenu').classList.contains('hidden') && [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,대전 신청,친구 삭제'), '친구를 우클릭하면 "전적 보기 · 대전 신청 · 친구 삭제" 메뉴');
+    await p.click('#ctxMenu button:nth-child(1)'); await p.waitForTimeout(1200);
     ok(await p.evaluate(() => !document.getElementById('profModal').classList.contains('hidden') && /라이벌/.test(document.getElementById('profBody').textContent) && /친구 삭제/.test(document.getElementById('profBody').textContent)), '전적 보기 창이 열림(친구라서 "친구 삭제" 버튼)');
     ok(await p.evaluate(() => /아직 이 종목의 랭크전 기록이 없어요/.test(document.getElementById('profBody').textContent) && document.getElementById('profBody').textContent.indexOf('rival02') < 0), '랭크전 기록이 없으면 안내 · 로그인 아이디는 보이지 않음');
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     ok(await p.evaluate(() => document.getElementById('profModal').classList.contains('hidden')), 'Esc로 닫힘');
+    // 친구에게 대전 신청: 우클릭 → 대전 신청 → 설정 창 → 캐릭터 고르기 → 방이 만들어지고 친구에게 신청이 감
+    await p.evaluate(() => { infoTab = 'friends'; renderInfo(); }); await p.waitForTimeout(1200);
+    await p.click('.frow .nm', { button: 'right' }); await p.waitForTimeout(200); await p.click('#ctxMenu button:nth-child(2)'); await p.waitForTimeout(400);
+    ok(await p.evaluate(() => !document.getElementById('matchModal').classList.contains('hidden') && document.getElementById('mmTitle').textContent === '친구와 대전' && /라이벌/.test(document.getElementById('mmSub').textContent)), '대전 신청을 누르면 대전 설정 창(친구 이름 표시)');
+    await p.click('#mmGo'); await p.waitForTimeout(400); await p.click('#cmList .cmbtn:first-child'); await p.waitForTimeout(1500);
+    const inv = got.filter(m => m.t === 'soc' && m.what === 'invite').pop();
+    ok(inv && /^[A-Z0-9]{4}$/.test(inv.code) && inv.name === '나나', '친구에게 방 코드가 담긴 대전 신청이 감');
+    ws2.send(JSON.stringify({ t: 'soc', op: 'dec', pid: await p.evaluate(() => soc.me.pid) })); await sleep(500);
+    ok(await p.evaluate(() => /거절/.test(document.getElementById('socToast').textContent) && !net.wait), '친구가 거절하면 알림이 뜨고 기다리던 방이 접힘');
+    // 친구가 나에게 신청 → 수락 → 대전 시작
+    ws2.send(JSON.stringify({ t: 'create', style: 'puyo', board: 'wide', rule: 'tsu', size: 2 })); await sleep(500);
+    const room = got.filter(m => m.t === 'created').pop();
+    ws2.send(JSON.stringify({ t: 'soc', op: 'inv', pid: await p.evaluate(() => soc.me.pid), code: room.code, style: 'puyo', rule: 'tsu', board: 'wide' })); await sleep(700);
+    ok(await p.evaluate(() => !document.getElementById('invModal').classList.contains('hidden') && /라이벌/.test(document.getElementById('invText').textContent)), '친구의 대전 신청이 오면 수락/거절 창');
+    await p.click('#invOk'); await p.waitForTimeout(400); await p.click('#cmList .cmbtn:first-child'); await p.waitForTimeout(2500);
+    ok(got.some(m => m.t === 'start') && await p.evaluate(() => game.mode === 'online'), '수락하면 같은 방에 들어가 대전이 시작됨');
+    await p.evaluate(() => { nsend({ t: 'leave' }); game.net = false; openMenu('stats'); }); await p.waitForTimeout(500);
+    ws2.send(JSON.stringify({ t: 'leave' }));
+    // 연습 글로벌 순위: 내 기록(이 컴퓨터)이 올라가고 순위표에 (나)로 보임
+    await p.evaluate(() => { stats = loadStats(); stats.practice = { ...stats.practice, best: 7777 }; saveStats(); infoTab = 'practice'; renderInfo(); }); await p.waitForTimeout(3500);
+    ok(await p.evaluate(() => /7,777점/.test(document.getElementById('iBody').textContent) && /\(나\)/.test(document.getElementById('iBody').textContent) && /내 순위 1위/.test(document.getElementById('iBody').textContent)), '연습 순위 탭: 내 기록이 글로벌 순위(1위)에 올라 보임');
+    await p.click('[data-pm="ts"]'); await p.waitForTimeout(1500);
+    ok(await p.evaluate(() => /아직 기록이 없어요/.test(document.getElementById('iBody').textContent)), '모드를 바꾸면 그 모드 순위표(기록 없음)');
     // 순위표 줄 우클릭(친구 코드가 달린 줄을 흉내)
     await p.evaluate(() => { infoTab = 'board'; $('iBody').innerHTML = `<div class="lbrow" data-pid="ZZZZ-2222"><div>1</div><div>X</div><div>Y</div><div>Z</div><div class="nm"><b>가짜</b></div><div>1승</div></div>`; });
     await p.click('.lbrow', { button: 'right' }); await p.waitForTimeout(300);

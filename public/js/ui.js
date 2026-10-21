@@ -165,11 +165,16 @@ function act(a) {
 }
 // 대전 설정 창에서 '시작'을 눌렀을 때 실제로 하는 일(예전에 칸을 눌렀을 때 하던 일)
 function startMatch(k) {
-  if ((k === 'ranked' || k === 'quick' || k === 'create') && needLogin(() => startMatch(k))) return;   // 앱: 로그인부터
-  if ((k === 'ranked' || k === 'quick' || k === 'create') && askName(() => startMatch(k))) return;   // 처음 온라인: 닉네임부터
+  if ((k === 'ranked' || k === 'quick' || k === 'create' || k === 'invite') && needLogin(() => startMatch(k))) return;   // 앱: 로그인부터
+  if ((k === 'ranked' || k === 'quick' || k === 'create' || k === 'invite') && askName(() => startMatch(k))) return;   // 처음 온라인: 닉네임부터
   pickChar(() => runMatch(k));
 }
 function runMatch(k) {
+  if (k === 'invite') {                                      // 친구에게 대전 신청: 방을 만들고, 만들어지면(net.js 'created') 신청을 보냄
+    if (!matchTarget) return;
+    net.inviteTo = { pid: matchTarget.pid, name: matchTarget.name, style: stats.style || 'puyo', rule: stats.rule || 'tsu', board: stats.board || 'wide' };
+    game.resetOnline = true; connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: 2 })); return;
+  }
   if (k === 'local') { start('local'); return; }
   if (k === 'ranked') { if (!serverOk()) { status(APP ? '서버 주소를 먼저 정해 주세요(계정 창).' : '랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: APP ? undefined : rankToken, style: stats.style || 'puyo', name: stats.name })); return; }
   if (k === 'quick') { game.resetOnline = true; connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 })); return; }
@@ -205,9 +210,10 @@ const MATCH = {
   ranked: { title: '랭크전', sub: '실력이 비슷한 사람과 1:1로 겨뤄요(원작 6×12 · 통상 · 2선승). 뿌요뿌요와 테트리스 랭크는 따로 쌓여요.', rows: ['style'], go: '랭크전 시작', tile: 't-rank' },
   create: { title: '방 만들기', sub: '방을 만들면 4자리 코드가 나와요. 친구에게 알려 주세요.', rows: ['style', 'pl', 'rule', 'board'], go: '방 만들기', tile: 't-create' },
   join:   { title: '방 참가', sub: '친구가 알려 준 4자리 방 코드를 넣어 주세요.', rows: ['code'], go: '', tile: 't-join' },
+  invite: { title: '친구와 대전', sub: '', rows: ['style', 'rule', 'board'], go: '신청 보내기', tile: '' },
   local:  { title: '로컬 대전', sub: '한 컴퓨터에서 둘이 대전해요. 1P는 WASD·Q/E·R, 2P는 방향키·. /·, 를 써요.', rows: ['style', 'p2', 'pl', 'rule', 'board'], go: '시작', tile: 't-local' },
 };
-let matchKind = null;
+let matchKind = null, matchTarget = null;
 const mmSay = m => { $('mmMsg').textContent = m || ''; };
 function openMatch(k) {
   const M = MATCH[k]; if (!M) return; matchKind = k; stats = loadStats(); renderStyle();
@@ -219,7 +225,7 @@ function openMatch(k) {
   if (k === 'join') { $('code').value = ''; if (typeof pasteCode === 'function') pasteCode(true); $('code').focus(); }
   else ($('matchModal').querySelector('.mmrow:not(.hidden) .seg.on') || $('mmGo')).focus();
 }
-function closeMatch() { $('matchModal').classList.add('hidden'); const t = matchKind && $(MATCH[matchKind].tile); matchKind = null; if (t && game.state === 'menu') t.focus({ preventScroll: true }); }
+function closeMatch() { $('matchModal').classList.add('hidden'); const t = matchKind && MATCH[matchKind].tile && $(MATCH[matchKind].tile); matchKind = null; if (t && game.state === 'menu') t.focus({ preventScroll: true }); }
 $('mmCancel').addEventListener('click', closeMatch);
 $('mmGo').addEventListener('click', () => { const k = matchKind; closeMatch(); startMatch(k); });
 $('matchModal').addEventListener('click', e => { if (e.target === $('matchModal')) closeMatch(); });
