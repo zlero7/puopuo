@@ -45,7 +45,7 @@ const CHAR_CELL = { card: [600, 708], bust: [320, 320], icon: [256, 256], vs: [4
 const CHAR_LOAD = {};
 function loadCharImg(k) {
   if (!CHAR_IMG || CHAR_LOAD[k]) return; CHAR_LOAD[k] = true;
-  CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
+  CHAR_IMG[k].onload = () => onArtImage();
   CHAR_IMG[k].src = `img/chars_${k}.webp?v=3`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 }
 if (CHAR_IMG) ['icon', 'bust', 'face'].forEach(loadCharImg);

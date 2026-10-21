@@ -4,6 +4,9 @@
 /* ================= 시작 ================= */
 build('vs');
 window.gameReady = true;
+// 그림이 스크립트를 읽는 동안 이미 다 읽혔으면 그때는 준비 전이라 다시 그리기가 건너뛰어졌음 → 준비된 뒤 그림이 다 풀리면(decode) 한 번 더 그림(시작하자마자 그림이 안 보이다 다른 탭을 누르면 보이던 문제)
+if (CHAR_IMG) Object.values(CHAR_IMG).forEach(i => { if (i.src) i.decode().then(onArtImage, () => {}); });
+TIER_IMG.decode().then(onArtImage, () => {});
 if (APP && APP.uiReady) APP.uiReady().catch(() => {});   // 새 화면이 잘 떴다고 본체에 알림(안 알리면 이전 화면으로 되돌림)
 game.lowFx = stats.lowFx === true;
 // 게임 중엔 화면이 꺼지지 않게(지원하는 브라우저만)

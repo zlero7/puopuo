@@ -238,8 +238,13 @@ $('pName').addEventListener('change', () => { stats = loadStats(); stats.name = 
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 // 티어 엠블럼 그림(img/tiers.webp): 브론즈 1·2·3 → … → 다이아 3, 마스터, 언랭(배치 중) 순서로 한 줄(칸마다 128px). 불러오기 전은 아래 도형으로
 const TIER_IMG = new Image(), TIER_CELL = 128;
-TIER_IMG.onload = () => { if (!window.gameReady) return;   // 아직 스크립트를 다 읽기 전이면 시작할 때 그림
-  if (game.state === 'menu') drawArts(); if (typeof paintInfo === 'function' && !$('sc-stats').classList.contains('hidden')) paintInfo(); };
+TIER_IMG.onload = () => onArtImage();
+// 그림이 하나 읽히면 메뉴 그림을 다시 그림. 화면 준비(gameReady) 전에 읽힌 경우는 표시만 해 두고, 준비되면 main.js가 한 번 더 그림
+function onArtImage() {
+  if (!window.gameReady) { window.artPending = true; return; }
+  if (typeof dlgFace === 'function' && dlgOpen()) dlgFace();
+  if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); }
+}
 TIER_IMG.src = 'img/tiers.webp?v=2';   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 function drawTierEmblem(c, x, y, size, group, div) {
   const i = group === 5 ? 15 : group < 0 ? 16 : group >= 0 && group < 5 && div >= 1 && div <= 3 ? group * 3 + div - 1 : -1;
