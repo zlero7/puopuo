@@ -25,8 +25,16 @@
 앱 브랜치(`claude/desktop-app-exe`)에 푸시하면 CI가 알아서 배포합니다.
 1. 서버 테스트 · 도커 확인 · exe 빌드 · exe 스모크 테스트가 모두 통과해야 합니다.
 2. 앱 파일(`public/` `electron/` `build/` `tools/` `package.json`)이 바뀐 푸시만 배포합니다(문서·서버·테스트만 바뀌면 배포 안 함. 커밋 제목에 `[skip release]`를 넣으면 건너뜀. Actions 탭 Run workflow에서 release를 체크하면 앱 파일이 안 바뀌어도 배포).
-3. 버전은 `1.1.<실행번호>` 로 자동으로 올라가고, exe와 서명한 업데이트 파일(`ui-manifest.json` · `ui-manifest.sig` · `ui-bundle.json.gz`)이 릴리스에 붙습니다.
+3. 버전은 마지막 릴리스를 기준으로 **변경량에 따라** 자동으로 올라가고(아래 표), exe와 서명한 업데이트 파일(`ui-manifest.json` · `ui-manifest.sig` · `ui-bundle.json.gz`)이 릴리스에 붙습니다.
 4. 사용자 앱은 켤 때 시작 화면에서 새 버전을 받아 바로 적용합니다.
+
+| 변경 | 올리는 자리 | 기준(기본값) |
+|---|---|---|
+| 굉장히 많이 | 앞자리 `x.0.0` | 앱 파일 3000줄 이상 또는 파일 60개 이상 |
+| 적당히 | 가운데 `0.x.0` | 150줄 이상 또는 파일 6개 이상, 앱 본체 호환 번호(`shell-api.json`)가 바뀐 경우 |
+| 사소하게 | 끝자리 `0.0.x` | 그 밖의 경우 |
+
+줄 수는 마지막 릴리스 이후 `public/` `electron/` `build/` `tools/` `package.json` 의 추가+삭제 줄(그림·글꼴 같은 이진 파일 제외)이에요. 기준은 환경 변수(`BUMP_MAJOR_LINES` `BUMP_MAJOR_FILES` `BUMP_MINOR_LINES` `BUMP_MINOR_FILES`)로 바꿀 수 있어요. **커밋 제목**에 `[major]` `[minor]` `[patch]`를 넣으면 변경량과 상관없이 그 단계로 올리고, Actions 탭 Run workflow에서도 단계를 직접 고를 수 있어요(숫자가 올라가면 뒤 자리는 0으로 돌아가요: 1.1.39 → 1.2.0 → 2.0.0).
 
 직접 올리고 싶으면 예전처럼 태그를 푸시해도 됩니다: `git tag v1.2.0 && git push origin v1.2.0`.
 
