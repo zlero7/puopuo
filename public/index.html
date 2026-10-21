@@ -218,20 +218,22 @@
   .mmode small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rkhero canvas { cursor: pointer; transition: transform .15s; } .rkhero canvas:hover { transform: scale(1.06); }
   .rkhero .hintclick { font-size: 12px; opacity: 0.6; margin-top: 6px; }
-  .tiercard { position: relative; width: min(900px, 96vw); max-height: 92vh; overflow: auto; }
+  .tiercard { position: relative; width: min(1240px, 97vw); max-height: 94vh; overflow: auto; padding: 22px 24px 26px; }
+  .tiercard h3 { font-size: 30px; margin: 0 0 6px; }
   .tiercard .tclose { position: absolute; top: 10px; right: 12px; border: 0; background: transparent; font-size: 22px; cursor: pointer; color: inherit; }
-  .tiercard .tsub { margin: 0 0 10px; opacity: 0.7; font-size: 14px; }
-  #rkGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-  .tgrp { border-radius: 10px; padding: 8px 6px 10px; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #fff; text-align: center; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
-  .tgrp h4 { margin: 2px 0 6px; font-family: var(--head); font-size: 18px; text-shadow: 0 2px 0 rgba(0,0,0,.3); }
-  .tdiv { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.22); border-radius: 8px; padding: 4px 8px; margin-top: 5px; text-align: left; }
+  .tiercard .tsub { margin: 0 0 16px; opacity: 0.75; font-size: 17px; }
+  #rkGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .tgrp { border-radius: 14px; padding: 12px 10px 14px; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #fff; text-align: center; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+  .tgrp h4 { margin: 2px 0 10px; font-family: var(--head); font-size: 26px; text-shadow: 0 2px 0 rgba(0,0,0,.3); }
+  .tdiv { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.22); border-radius: 12px; padding: 8px 10px; margin-top: 8px; text-align: left; }
   .tdiv.me { outline: 3px solid #fff; background: rgba(255,255,255,.28); }
-  .tdiv canvas { width: 44px; height: 44px; flex: none; }
-  .tdiv b { display: block; font-size: 14px; white-space: nowrap; } .tdiv small { opacity: .85; font-size: 12px; white-space: nowrap; }
-  .tgrp.master .tdiv { justify-content: center; flex-direction: column; text-align: center; padding: 10px 6px; }
-  .tgrp.master .tdiv canvas { width: 84px; height: 84px; }
+  .tdiv canvas { width: 68px; height: 68px; flex: none; }
+  .tdiv b { display: block; font-size: 19px; white-space: nowrap; } .tdiv small { opacity: .9; font-size: 15px; white-space: nowrap; }
+  .tgrp.master .tdiv { justify-content: center; flex-direction: column; text-align: center; padding: 16px 8px; }
+  .tgrp.master .tdiv canvas { width: 140px; height: 140px; }
   .tgrp.un { --g1: #8a8aa0; --g2: #55556b; }
-  @media (max-width: 760px) { #rkGrid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 1100px) { #rkGrid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px) { #rkGrid { grid-template-columns: repeat(2, 1fr); } .tdiv canvas { width: 52px; height: 52px; } }
   .rkhero .note { font-size: 13px; opacity: 0.7; margin-top: 8px; }
   .badge small { font-size: 13px; color: var(--muted); }
   .lbrow small { display: block; font-size: 12px; opacity: 0.7; }
