@@ -260,7 +260,7 @@ class Field {
   mk(c, r, col, y) { return { c, r, col, y, vy: 0, sq: -1, amp: 0 }; }
   valid(x, y) { return x >= 0 && x < COLS && y >= 0 && y < ROWS && !this.grid[y][x]; }
   fits(p) { return this.valid(p.x, p.y) && this.valid(p.x + DX[p.o], p.y + DY[p.o]); }
-  fallIv() { if (game.puzzle) return 1e9; return (game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60)) / (effOn(this, 'speed') ? 3 : 1); }
+  fallIv() { if (game.puzzle) return 1e9; return (game.vs ? 480 : Math.max(120, 700 - (this.level - 1) * 60)) / (effOn(this, 'speed') ? 3 : 1) / (this.human ? speedMul() : 1); }
 
   spawn() {
     if (this.remote) { this.piece = null; this.phase = 'wait'; this.chain = 0; this.pump(); return; }

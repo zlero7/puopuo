@@ -130,6 +130,11 @@ function setSize(W, side = 0, sideR = side, top = 0) {
 const sizeFor = (vs, n) => vs ? [slotX(n - 1) + SW + 20, n === 2 ? SIDE_W : 0, n === 2 ? SIDE_W : 0, n > 2 ? TOP_H : 0] : [OX1 + SW + PANEL_W, SIDE_W, 0, 0];
 
 const mkField = (style, ox, human, name) => game.rule === 'fusion' ? new FField(ox, OY, human, name) : style === 'tetris' ? new TField(ox, OY, human, name) : new Field(ox, OY, human, name);
+// 낙하 속도 배율(설정): 연습·AI·로컬 대전의 내 판에만. 온라인·랭크전(공정·서버 검증)과 어드벤처·튜토리얼·퍼즐·리플레이는 언제나 1배
+const speedMul = () => {
+  if (game.mode === 'online' || game.mode === 'replay' || game.puzzle || game.adv) return 1;
+  const v = +(typeof stats === 'object' && stats && stats.speed); return Number.isFinite(v) && v > 0 ? Math.max(0.5, Math.min(2, v)) : 1;
+};
 const STYLE_KO = { puyo: '뿌요뿌요', tetris: '테트리스', fusion: '퓨전' };
 const SOLO_KO = { marathon: '마라톤', sprint: '스프린트', ultra: '울트라', endless: '끝없이' };
 const fmtClock = ms => { const s = ms / 1000, m = Math.floor(s / 60); return `${m}:${(s - m * 60).toFixed(2).padStart(5, '0')}`; };

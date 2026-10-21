@@ -264,6 +264,26 @@ function drawPair(c, cx, cy, s, a, b, bob) {
   drawPuyos(c, [{ cx: 0, cy: -CS / 2, rx: R, ry: R, col: b }, { cx: 0, cy: CS / 2, rx: R, ry: R, col: a }], []); c.restore();
 }
 
+// 홀드 칸: cx는 가운데 x, top은 칸 위쪽 y
+function drawHold(ctx, me, cx, top, isT) {
+  const hk = keyName(({ ...DEF_KEYS, ...(stats.keys || {}) }).hold[0] || '');
+  slab(ctx, cx - 70, top, 140, 100, TONES.purple, 6);
+  ctx.fillStyle = '#fff'; ctx.fillRect(cx - 54, top + 34, 108, 56);
+  ctx.fillStyle = '#1e174e'; ctx.fillRect(cx - 50, top + 38, 100, 48);
+  outlined(ctx, game.mode === 'local' ? '홀드' : `홀드 (${hk})`, cx, top + 18, 19, '#fff', TONES.purple.d, 5);
+  const hy = top + 62;
+  ctx.save(); ctx.globalAlpha = me.canHold === false ? 0.35 : 1;
+  if (me.kind === 'fusion' && me.holdPc) {    // 퓨전: 맡긴 조각(블록 또는 뿌요 쌍)
+    if (me.holdPc.t === 'm') drawMino(ctx, me.holdPc.k, cx, hy, 15, 1);
+    else { ctx.translate(cx, hy); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS); drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[0] }], []); }
+  } else if (isT && me.holdK) drawMino(ctx, me.holdK, cx, hy, 15, 1);
+  else if (!isT && me.holdP) {          // 홀드한 뿌요 쌍을 옆으로 눕혀 표시
+    ctx.translate(cx, hy); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS);
+    drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);
+  }
+  ctx.restore();
+}
+
 function render(t) {
   const W = LW, rs = game.rs || DPR, sx = sideX();
   ctx.setTransform(rs, 0, 0, rs, sx * rs, -VIEW_Y0 * rs); ctx.clearRect(-sx, VIEW_Y0, W, viewH());
@@ -300,23 +320,9 @@ function render(t) {
       if (n2) drawPair(ctx, PX, OY + 182, 0.78 * 40 / CS, n2[0], n2[1], 0);
     }
   }
-  {                                    // 홀드(뿌요·테트리스 공통)
-    const hk = keyName(({ ...DEF_KEYS, ...(stats.keys || {}) }).hold[0] || '');
-    slab(ctx, PX - 70, OY + 256, 140, 100, TONES.purple, 6);
-    ctx.fillStyle = '#fff'; ctx.fillRect(PX - 54, OY + 290, 108, 56);
-    ctx.fillStyle = '#1e174e'; ctx.fillRect(PX - 50, OY + 294, 100, 48);
-    outlined(ctx, game.mode === 'local' ? '홀드' : `홀드 (${hk})`, PX, OY + 274, 19, '#fff', TONES.purple.d, 5);
-    ctx.save(); ctx.globalAlpha = me.canHold === false ? 0.35 : 1;
-    if (me.kind === 'fusion' && me.holdPc) {    // 퓨전: 맡긴 조각(블록 또는 뿌요 쌍)
-      if (me.holdPc.t === 'm') drawMino(ctx, me.holdPc.k, PX, OY + 318, 15, 1);
-      else { ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS); drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[1] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdPc.ab[0] }], []); }
-    } else if (isT && me.holdK) drawMino(ctx, me.holdK, PX, OY + 318, 15, 1);
-    else if (!isT && me.holdP) {          // 홀드한 뿌요 쌍을 옆으로 눕혀 표시
-      ctx.translate(PX, OY + 318); ctx.scale(0.6 * 40 / CS, 0.6 * 40 / CS);
-      drawPuyos(ctx, [{ cx: -CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[0] }, { cx: CS / 2, cy: 0, rx: R, ry: R, col: me.holdP[1] }], []);
-    }
-    ctx.restore();
-  }
+  // 홀드(뿌요·테트리스 공통): 옆 초상 카드가 있는 화면(2인 대전·연습)은 내 초상 카드 바로 아래, 아니면(3~4인·세로 폰) 가운데 칸
+  if (sx && !cardTop()) drawHold(ctx, me, game.fields[0].ox - sx + 6 + (sx - 16) / 2, VIEW_Y0 + 154, isT);
+  else drawHold(ctx, me, PX, OY + 256, isT);
   if (game.vs && game.compact && game.fields[1]) {   // 세로 폰: 위쪽 띠에 [내 초상 · VS · 상대 초상]. 3~4인은 상대 자리에 지금 공격 대상
     const many = game.fields.length > 2, tg = many && shownTarget() || game.fields[1], ui = many && canPick();
     const top = VIEW_Y0 + 4, ch = -VIEW_Y0 + 26, mx = (OX1 + 150 + PX - 74) / 2;

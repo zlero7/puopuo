@@ -601,6 +601,7 @@
       </div>
       <div class="spanel hidden" data-p="game">
         <div class="setrow" style="grid-template-columns: 1fr auto"><label for="fpsCap">프레임 제한<small style="display:block;font-size:13px;color:var(--muted)">120·144Hz 모니터에서 60으로 묶으면 컴퓨터가 덜 힘들어요</small></label><select id="fpsCap"><option value="0">모니터 기준</option><option value="60">60 FPS</option><option value="30">30 FPS</option></select></div>
+        <div class="setrow"><label for="gSpeed">낙하 속도<small style="display:block;font-size:13px;color:var(--muted)">조각이 떨어지는 속도예요. 연습·AI·로컬 대전에만 적용되고, 온라인·랭크전·어드벤처는 언제나 1.0배예요</small></label><input type="range" id="gSpeed" min="0.5" max="2" step="0.1"><span id="gSpeedV"></span></div>
         <label class="setchk"><input type="checkbox" id="skipChar"><span>지난번 캐릭터로 바로 시작<small>게임을 시작할 때 캐릭터 고르기 창을 건너뛰어요. 캐릭터는 캐릭터 메뉴에서 바꿀 수 있어요</small></span></label>
         <label class="setchk"><input type="checkbox" id="lowFx"><span>그래픽 가볍게<small>느린 폰·컴퓨터에서 해상도와 효과를 줄여 부드럽게 해요. 꺼 두면 느릴 때 자동으로 켜져요</small></span></label>
         <label class="setchk"><input type="checkbox" id="vib"><span>터치 버튼 진동<small>폰에서 버튼을 누를 때 짧게 진동해요(안드로이드)</small></span></label>

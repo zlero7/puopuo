@@ -114,7 +114,7 @@ class FField {
   }
   encode() { return this.grid.map(r => r.map(fuEnc).join('')).join(''); }
   decode(s) { for (let r = 0; r < FW_H; r++) for (let c = 0; c < FW_W; c++) this.grid[r][c] = fuDec(s[r * FW_W + c] || '0'); }
-  fallIv() { return Math.max(90, 900 * Math.pow(0.88, Math.floor((game.el || 0) / 30000))); }
+  fallIv() { return Math.max(90, 900 * Math.pow(0.88, Math.floor((game.el || 0) / 30000))) / (this.human ? speedMul() : 1); }
   sync() { emit(this, { t: 'fg', g: this.encode() }); }
 
   spawn() {

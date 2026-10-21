@@ -18,10 +18,12 @@ function openSettings() {
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
-  $('settings').classList.remove('hidden'); setSetTab(setTab); if (typeof paintStAcct === 'function') paintStAcct(); $('bSetClose').focus();
+  showSpeed(); $('settings').classList.remove('hidden'); setSetTab(setTab); if (typeof paintStAcct === 'function') paintStAcct(); $('bSetClose').focus();
   if (game.state === 'play') openPause();
 }
 function closeSettings() { $('settings').classList.add('hidden'); keyWait = null; setHints(game.state === 'menu' ? 'menu' : 'game'); }
+function showSpeed() { const v = +(stats.speed || 1); $('gSpeed').value = v; $('gSpeedV').textContent = v.toFixed(1) + '배'; }
+$('gSpeed').addEventListener('input', () => { stats = loadStats(); stats.speed = Math.round(+$('gSpeed').value * 10) / 10; saveStats(); showSpeed(); });
 function showVol() { $('vBgmV').textContent = Math.round($('vBgm').value * 100) + '%'; $('vSfxV').textContent = Math.round($('vSfx').value * 100) + '%'; }
 // 테트리스 조작 감도(DAS·ARR·SDF)
 function showHand() {

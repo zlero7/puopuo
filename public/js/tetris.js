@@ -200,8 +200,9 @@ class TField {
   encode() { return this.grid.map(r => r.join('')).join(''); }
   decode(g) { for (let r = 0; r < TH; r++) for (let c = 0; c < TW; c++) this.grid[r][c] = +g[r * TW + c] || 0; }
   fallIv() {
-    if (effOn(this, 'speed')) return this.baseFallIv() / 3;               // 파티: 속도 업
-    return this.baseFallIv();
+    const m = this.human ? speedMul() : 1;                                 // 설정의 낙하 속도(연습·AI·로컬)
+    if (effOn(this, 'speed')) return this.baseFallIv() / 3 / m;            // 파티: 속도 업
+    return this.baseFallIv() / m;
   }
   baseFallIv() {
     if (!game.vs) return Math.max(20, Math.pow(0.8 - (this.level - 1) * 0.007, this.level - 1) * 1000);   // 가이드라인 낙하 속도

@@ -64,4 +64,16 @@ ok(run(`CLEAR_MS`) <= 120, `줄 지우는 연출이 짧음(${run('CLEAR_MS')}ms)
 // 6. 키 설정: 180도 회전 키가 기본으로 있고 설정 화면 목록에 있음
 ok(run(`DEF_KEYS['180'][0] === 'a' && ACTIONS.some(a => a[0] === '180')`), '180도 회전 기본 키 A, 키 설정 목록에 있음');
 
+// 7. 낙하 속도 설정: 연습·AI·로컬의 내 판에만, 온라인·어드벤처·AI 판에는 적용 안 됨
+const fi = () => run('F.fallIv()');
+run(`F.reset(); game.mode = 'solo'; game.vs = false; game.adv = null; game.puzzle = null; stats.speed = undefined; F.level = 1;`);
+const base = fi();
+run(`stats.speed = 2`); ok(Math.abs(fi() * 2 - base) < 1e-6, `2배로 하면 떨어지는 간격이 절반(${base.toFixed(0)} → ${fi().toFixed(0)}ms)`);
+run(`stats.speed = 0.5`); ok(Math.abs(fi() / 2 - base) < 1e-6, '0.5배로 하면 간격이 두 배');
+run(`stats.speed = 9`); ok(Math.abs(fi() * 2 - base) < 1e-6, '범위를 넘는 값은 0.5~2배로 맞춤');
+run(`stats.speed = 2; game.mode = 'online'`); ok(Math.abs(fi() - base) < 1e-6, '온라인(랭크전)은 설정과 상관없이 1배');
+run(`game.mode = 'solo'; game.adv = { c: 0, s: 0 }`); ok(Math.abs(fi() - base) < 1e-6, '어드벤처는 1배');
+run(`game.adv = null; F.human = false`); ok(Math.abs(fi() - base) < 1e-6, 'AI·상대 판은 영향 없음');
+run(`F.human = true; stats.speed = undefined; game.mode = 'solo'`);
+
 console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exit(fail ? 1 : 0);
