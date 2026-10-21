@@ -21,6 +21,7 @@ function needLogin(then) {
 /* ---------- 화면 업데이트 알림(앱) ---------- */
 // 새 화면이 받아져 있으면 "지금 적용"(다시 불러오기), 앱 본체 교체가 필요하면 설치 파일 받는 곳으로 안내
 function showUpdate(st) {
+  if (document.getElementById('splash')) return;     // 시작 화면이 떠 있는 동안은 시작 화면이 알아서 처리
   const bar = document.getElementById('updBar'); if (!bar || !st) return;
   const msg = document.getElementById('updMsg'), go = document.getElementById('updGo');
   if (st.pending) {
@@ -38,3 +39,28 @@ if (APP) {
   if (APP.onUpdate) APP.onUpdate(showUpdate);
   if (APP.updateState) APP.updateState().then(showUpdate).catch(() => {});
 }
+
+/* ---------- 시작 화면: 켜면 먼저 업데이트를 확인하고, 새 화면이 있으면 받아서 바로 적용한 뒤 메인으로 ---------- */
+(async function splash() {
+  const el = document.getElementById('splash'); if (!el) return;
+  if (!APP || !APP.updateBoot) { el.remove(); return; }
+  const msg = document.getElementById('spMsg'), t0 = Date.now();
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
+  const PH = { checking: '업데이트 확인 중…', downloading: '새 버전을 받는 중…', installing: '설치하는 중…' };
+  if (APP.onPhase) APP.onPhase(p => { if (PH[p]) msg.textContent = PH[p]; });
+  appReady.then(() => { document.getElementById('spVer').textContent = `버전 ${appCfg.version}`; });
+  msg.textContent = PH.checking;
+  let st = null; try { st = await APP.updateBoot(); } catch (e) {}
+  if (st && st.pending) {                          // 새 화면을 받아 뒀으면 바로 적용(화면이 다시 불러와지며 새 버전으로 시작)
+    msg.textContent = `새 버전 ${st.pending.version} 적용 중…`;
+    const r = await APP.applyUpdate().catch(() => null); if (r && r.ok) return;
+  }
+  msg.textContent = st && st.installer ? `새 버전 ${st.installer.version}은 앱을 새로 설치해야 해요` : '준비 완료!';
+  await new Promise(r => setTimeout(r, Math.max(0, 700 - (Date.now() - t0))));     // 너무 번쩍 지나가지 않게 잠깐 보여 줌
+  if (st && st.installer) {
+    const ask = document.getElementById('spAsk'); ask.classList.remove('hidden');
+    document.getElementById('spGo').onclick = () => APP.openReleases();
+    document.getElementById('spSkip').onclick = close; return;
+  }
+  close();
+})();

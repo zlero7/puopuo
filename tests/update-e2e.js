@@ -22,14 +22,12 @@ async function run(env, fn) {
 }
 (async () => {
   cur = mk('9.0.1', 'V901', prv);
-  await run({ PUYO_UPDATE_CHECK_MS: '' }, async pg => {
-    let p = pg(); ok(await p.evaluate(() => !document.body.dataset.uiv), '처음엔 내장 화면');
-    await sleep(9000); p = pg(); console.log(logRef()); 
-    const st = await p.evaluate(() => window.puyoApp.updateState()); console.log(JSON.stringify(st)); ok(st.pending && st.pending.version === '9.0.1', '새 화면 9.0.1을 받아 둠');
-    ok(await p.evaluate(() => !document.getElementById('updBar').classList.contains('hidden') && /9\.0\.1/.test(document.getElementById('updMsg').textContent)), '업데이트 알림이 뜸');
-    await p.evaluate(() => document.getElementById('updGo').click()); await sleep(3500); p = pg();
-    ok(await p.evaluate(() => document.body.dataset.uiv === 'V901'), '적용하면 새 화면으로 다시 불러옴');
+  await run({}, async pg => {
+    await sleep(6000); const p = pg();                 // 켜자마자 시작 화면이 확인 → 받기 → 적용(다시 불러옴)까지 알아서 함
+    ok(await p.evaluate(() => document.body.dataset.uiv === 'V901'), '켜면 시작 화면에서 새 화면 9.0.1을 받아 바로 적용');
     ok(await p.evaluate(() => window.puyoApp.info().then(i => i.version)) === '9.0.1', '화면 버전이 9.0.1');
+    await sleep(1500);
+    ok(await p.evaluate(() => !document.getElementById('splash')), '시작 화면이 닫히고 메인으로 들어감');
   });
   await run({}, async pg => { ok(await pg().evaluate(() => document.body.dataset.uiv === 'V901'), '다시 켜도 새 화면 유지(서명 재확인 통과)'); });
   // 변조: 저장된 파일을 고치면 걸러내고 내장 화면으로
@@ -41,7 +39,7 @@ async function run(env, fn) {
   await run({}, async pg => { await sleep(9000); const st = await pg().evaluate(() => window.puyoApp.updateState()); ok(!st.pending, '다른 키로 서명한 업데이트는 거부'); });
   // 망가진 새 화면은 자동 복귀
   cur = mk('9.0.3', 'BROKEN', prv, true);
-  await run({ PUYO_UPDATE_BOOT_MS: '4000' }, async pg => { await sleep(9000); await pg().evaluate(() => window.puyoApp.applyUpdate()); await sleep(9000);
+  await run({ PUYO_UPDATE_BOOT_MS: '4000' }, async pg => { await sleep(16000);
     ok(await pg().evaluate(() => !document.body.dataset.uiv || document.body.dataset.uiv !== 'BROKEN') && await pg().evaluate(() => typeof gameReady !== 'undefined' && window.gameReady === true), '화면이 안 뜨는 새 버전은 이전 화면으로 자동 복귀'); });
   srv.close(); console.log(fail ? `\n${fail}개 실패` : '\n모두 통과'); process.exit(fail ? 1 : 0);
 })();

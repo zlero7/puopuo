@@ -63,6 +63,7 @@ function setupIpc() {
   // 화면 업데이트: 화면이 제대로 떴다고 알리면 부팅 확인을 끝냄 · 받아 둔 새 화면을 지금 적용 · 설치 파일이 필요할 때 릴리스 페이지 열기(주소는 고정)
   handle('ui:ready', () => { clearTimeout(bootTimer); bootTimer = null; return { ok: true }; });
   handle('update:state', () => updater.state());
+  handle('update:boot', async () => { if (!SMOKE) await startBootCheck(); return updater.state(); });   // 시작 화면이 기다림: 켠 직후 확인 결과(최대 12초)
   handle('update:apply', () => { if (!updater.apply()) return { ok: false }; setTimeout(() => { if (win) { armBoot(); win.webContents.reload(); } }, 50); return { ok: true, version: updater.version() }; });
   handle('update:releases', () => { shell.openExternal('https://github.com/zlero7/puopuo/releases/latest'); return { ok: true }; });
 }
@@ -75,8 +76,15 @@ function armBoot() {
 }
 // 업데이트 확인: 켠 직후 한 번, 그 뒤 6시간마다. 받아 두면 화면에 알려서 '지금 적용'을 고르게 함(적용 전에는 쓰던 화면 그대로)
 async function checkUpdates() {
-  const r = await updater.check();
+  const r = await updater.check(p => win && win.webContents.send('update-phase', p));
   if (win && (r === 'ready' || r === 'installer')) win.webContents.send('update', updater.state());
+  return r;
+}
+// 켠 직후 한 번(시작 화면이 결과를 기다렸다가 새 화면이 있으면 바로 적용). 느리거나 안 되면 12초 뒤 그냥 들어가고, 뒤늦게 받으면 알림창으로 알림
+let bootCheck = null;
+function startBootCheck() {
+  if (!bootCheck) bootCheck = Promise.race([checkUpdates(), new Promise(r => setTimeout(r, 12000))]);
+  return bootCheck;
 }
 function buildMenu() {
   return Menu.buildFromTemplate([
@@ -138,7 +146,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(buildMenu());
   createWindow(); armBoot();
   if (SMOKE) smoke();
-  else { setTimeout(checkUpdates, 6000); setInterval(checkUpdates, 6 * 3600 * 1000).unref(); }
+  else { startBootCheck(); setInterval(checkUpdates, 6 * 3600 * 1000).unref(); }
 });
 app.on('web-contents-created', (_e, wc) => {           // 어떤 화면이든 밖으로 못 나가고 새 창·webview를 못 만듦
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));

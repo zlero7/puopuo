@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('puyoApp', {
   uiReady: () => call('ui:ready'),
   updateState: () => call('update:state'),
   applyUpdate: () => call('update:apply'),
+  updateBoot: () => call('update:boot'),
+  onPhase: cb => { if (typeof cb === 'function') ipcRenderer.on('update-phase', (_e, p) => cb(String(p))); },
   openReleases: () => call('update:releases'),
   onUpdate: cb => { if (typeof cb === 'function') ipcRenderer.on('update', (_e, st) => cb(st)); },
   onMenu: cb => { if (typeof cb === 'function') ipcRenderer.on('menu', (_e, what) => cb(String(what))); },

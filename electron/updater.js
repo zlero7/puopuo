@@ -58,16 +58,19 @@ function get(url, max) {
   });
 }
 // 새 업데이트가 있는지 확인하고, 있으면 받아서 저장. 결과: 'none' | 'ready' | 'installer' | 'error'
-async function check() {
+async function check(onPhase = () => {}) {
   if (!enabled || checking) return 'none';
   checking = true;
   try {
+    onPhase('checking');
     const mb = await get(BASE + 'ui-manifest.json', core.LIMITS.manifest), sig = (await get(BASE + 'ui-manifest.sig', 4096)).toString('utf8');
     const r = core.check(mb, sig, pem, { version: version(), shellApi: SHELL_API });
     if (r.reason === 'shell') { installer = { version: r.manifest.version }; return 'installer'; }
     if (!r.ok) { if (r.reason !== 'old') console.log('[업데이트] 새 매니페스트를 거부했어요:', r.reason); return 'none'; }
     if (pending && pending.version === r.manifest.version) return 'ready';
+    onPhase('downloading');
     const bundle = await get(BASE + r.manifest.bundle.name, r.manifest.bundle.size + 1);
+    onPhase('installing');
     core.stage(r.manifest, mb, sig, bundle, rootDir());
     pending = { version: r.manifest.version };
     console.log('[업데이트] 새 화면', r.manifest.version, '을 받았어요(적용 전).');
