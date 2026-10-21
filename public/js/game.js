@@ -5,8 +5,8 @@
 const game = { state: 'menu', vs: true, fields: [], orbs: [], overT: 0, lastMode: 'vs',
   inp: [{ left: false, right: false, down: false }, { left: false, right: false, down: false }] };
 game.held = game.inp[0];
-const ACTIONS = [['left', '왼쪽'], ['right', '오른쪽'], ['soft', '빠르게 내리기'], ['hard', '하드드롭'], ['cw', '시계 회전'], ['ccw', '반시계 회전'], ['hold', '홀드'], ['pause', '일시정지']];
-const DEF_KEYS = { left: ['ArrowLeft', ''], right: ['ArrowRight', ''], soft: ['ArrowDown', ''], hard: [' ', ''], cw: ['x', 'ArrowUp'], ccw: ['z', ''], hold: ['c', 'Shift'], pause: ['Escape', 'p'] };
+const ACTIONS = [['left', '왼쪽'], ['right', '오른쪽'], ['soft', '빠르게 내리기'], ['hard', '하드드롭'], ['cw', '시계 회전'], ['ccw', '반시계 회전'], ['180', '180도 회전(테트리스)'], ['hold', '홀드'], ['pause', '일시정지']];
+const DEF_KEYS = { left: ['ArrowLeft', ''], right: ['ArrowRight', ''], soft: ['ArrowDown', ''], hard: [' ', ''], cw: ['x', 'ArrowUp'], ccw: ['z', ''], '180': ['a', ''], hold: ['c', 'Shift'], pause: ['Escape', 'p'] };
 // 로컬 2인: 한 키보드를 나눠 씀
 const LOCAL_KEYS = [
   { a: 'left', d: 'right', s: 'soft', w: 'hard', e: 'cw', q: 'ccw', r: 'hold' },
@@ -26,13 +26,17 @@ function playerAction(pi, action, down, repeat) {
   if (action === 'pause') { openPause(); return; }
   if (game.state !== 'play') return;
   const f = game.fields.find(x => x.human && (x.pi || 0) === pi); if (!f) return;
+  if (f.kind === 'tetris' && f.phase !== 'drop' && (action === 'cw' || action === 'ccw' || action === '180' || action === 'hold')) {   // 조각이 나오기 전에 누른 회전·홀드는 모아 뒀다가 나오자마자 적용
+    const b = f.ibuf || (f.ibuf = {}); if (action === 'hold') b.hold = true; else b.rot = action === 'cw' ? 1 : action === 'ccw' ? -1 : 2; return;
+  }
+  if (action === '180') { if (f.kind === 'tetris') f.rotate(2); return; }
   if (action === 'hard') f.hardDrop();
   else if (action === 'cw') f.rotate(1);
   else if (action === 'ccw') f.rotate(-1);
   else if (action === 'hold' && f.hold) f.hold();
 }
 // 게임패드: 표준 배치(십자키 이동·↑하드드롭 / A 시계 · B 반시계 · X·LB 홀드 / Start 일시정지)
-const PAD_MAP = { 14: 'left', 15: 'right', 13: 'soft', 12: 'hard', 0: 'cw', 1: 'ccw', 2: 'hold', 4: 'hold', 3: 'hard', 9: 'pause' };
+const PAD_MAP = { 5: '180', 14: 'left', 15: 'right', 13: 'soft', 12: 'hard', 0: 'cw', 1: 'ccw', 2: 'hold', 4: 'hold', 3: 'hard', 9: 'pause' };
 const padPrev = [{}, {}];
 function pollPads() {
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];

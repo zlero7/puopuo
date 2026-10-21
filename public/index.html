@@ -610,6 +610,14 @@
         <label class="setchk"><input type="checkbox" id="rankBot"><span>랭크전 상대가 없으면 AI와 대전<small>20초 안에 사람을 못 찾으면 비슷한 실력의 AI가 대신 들어와요. 결과는 랭크에 그대로 반영돼요</small></span></label>
       </div>
       <div class="spanel hidden" data-p="keys">
+        <h4 class="shead">테트리스 조작 감도 <small>(TETR.IO와 같은 용어 · 테트리스에만 적용)</small></h4>
+        <div class="handbox">
+          <div class="setrow"><label for="hDas">DAS<small>누르고 있으면 자동으로 움직이기 시작하는 시간</small></label><input type="range" id="hDas" min="30" max="400" step="1"><span id="hDasV"></span></div>
+          <div class="setrow"><label for="hArr">ARR<small>자동으로 움직일 때 한 칸마다 걸리는 시간 (0 = 벽까지 한 번에)</small></label><input type="range" id="hArr" min="0" max="150" step="1"><span id="hArrV"></span></div>
+          <div class="setrow"><label for="hSdf">SDF<small>빠르게 내리기 속도 (배수, 맨 끝 = 즉시)</small></label><input type="range" id="hSdf" min="5" max="41" step="1"><span id="hSdfV"></span></div>
+          <div class="btns" style="justify-content:flex-start"><button class="ghostbtn" id="hTetrio">TETR.IO 기본값</button><button class="ghostbtn" id="hFast">빠른 설정 (DAS 100 · ARR 0 · SDF 즉시)</button></div>
+          <p class="padinfo">180도 회전(기본 A), 조각이 나오기 전에 눌러 둔 회전·홀드를 바로 적용(IRS·IHS), 조각 사이 대기 없음도 TETR.IO처럼 동작해요.</p>
+        </div>
         <h4 class="shead">키 설정 <small>(칸을 누르고 원하는 키를 누르세요 · Delete로 비우기)</small></h4>
         <div id="keyList" class="keylist"></div>
         <p class="padinfo" id="padInfo"></p>
@@ -1063,6 +1071,7 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .tdiv.me { background: rgba(0, 0, 0, 0.5); }
   /* 대전 설정 창(빠른 매칭·방 만들기·방 참가·랭크전·로컬 대전): 예전에 대전 화면 위쪽에 있던 선택을 여기로 */
   .mmcard { width: min(640px, 100%); }
+  .handbox { margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #eceef5; } .handbox .setrow small { display: block; font-size: 13px; color: var(--muted); }
   /* ---------- 대표 캐릭터 프로필 · 친구 · 전적 창 · 우클릭 메뉴 ---------- */
   .pv { aspect-ratio: 480 / 330; width: 100%; background: url(img/chars_vs.webp?v=4) calc(var(--n, 0) * 14.2857%) 0 / 800% auto no-repeat; border: 3px solid var(--d, #5e2399); border-radius: 12px; box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.25); }
   .pvwrap { position: relative; cursor: pointer; margin: 0 4px 4px; }

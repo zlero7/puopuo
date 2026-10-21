@@ -35,6 +35,18 @@ const K_I = { '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '1>0': [[0,0],[2,0],[-1
   '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]], '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
   '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]], '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
   '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]], '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]] };
+// 180도 회전 킥 표(TETR.IO 방식): 0>2, 2>0, 1>3, 3>1. I 조각은 따로
+const K_180 = { '0>2': [[0,0],[0,1],[1,1],[-1,1],[1,0],[-1,0]], '2>0': [[0,0],[0,-1],[-1,-1],[1,-1],[-1,0],[1,0]],
+  '1>3': [[0,0],[1,0],[1,2],[1,1],[0,2],[0,1]], '3>1': [[0,0],[-1,0],[-1,2],[-1,1],[0,2],[0,1]] };
+const K_I180 = { '0>2': [[0,0],[-1,0],[-2,0],[1,0],[2,0],[0,1]], '2>0': [[0,0],[1,0],[2,0],[-1,0],[-2,0],[0,-1]],
+  '1>3': [[0,0],[0,1],[0,2],[0,-1],[0,-2],[-1,0]], '3>1': [[0,0],[0,1],[0,2],[0,-1],[0,-2],[1,0]] };
+// 조작 설정(DAS·ARR·SDF): 설정 > 조작에서 바꿈. 없으면 TETR.IO 기본값(DAS 167ms · ARR 33ms · SDF 6배). SDF 41 이상은 '즉시'(끝까지 바로)
+const HAND_DEF = { das: 167, arr: 33, sdf: 6 };
+function handOf() {
+  const h = (typeof stats === 'object' && stats && stats.hand) || {}, n = (v, lo, hi, d) => Number.isFinite(+v) && v !== null && v !== '' ? Math.max(lo, Math.min(hi, +v)) : d;
+  return { das: n(h.das, 30, 400, HAND_DEF.das), arr: n(h.arr, 0, 150, HAND_DEF.arr), sdf: n(h.sdf, 5, 41, HAND_DEF.sdf) };
+}
+const CLEAR_MS = 100;                       // 줄 지우는 연출 시간(조각 이어서 나오기까지)
 const TVT_COMBO = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
 const TVP_COMBO = [0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5];
 const T2P = [0,4,5,6,8,10,13,16,20,24,28,33,38,43,49,55,61,68,75,83,92,102,113,125,138,152,167,183,200,218,237,
@@ -85,10 +97,10 @@ function tValidOn(g, p) {
 // SRS 회전(월킥 포함). 성공하면 { p, kick: 몇 번째 킥인지 }
 function rotateOn(g, cur, dir) {
   if (cur.k === 'O') return null;
-  const from = cur.r, to = (from + dir + 4) % 4, kicks = (cur.k === 'I' ? K_I : K_JLSTZ)[`${from}>${to}`];
+  const from = cur.r, to = (from + dir + 4) % 4, I = cur.k === 'I', kicks = (dir === 2 ? (I ? K_I180 : K_180) : (I ? K_I : K_JLSTZ))[`${from}>${to}`];
   for (let i = 0; i < kicks.length; i++) {
     const p = { ...cur, r: to, x: cur.x + kicks[i][0], y: cur.y - kicks[i][1] };
-    if (tValidOn(g, p)) return { p, kick: i };
+    if (tValidOn(g, p)) return { p, kick: dir === 2 ? Math.min(i, 3) : i };       // 180도는 5번째 킥(정식 T스핀 표시)으로 세지 않음
   }
   return null;
 }
@@ -106,9 +118,9 @@ const tSpawnOf = (g, k) => { const p = { k, x: k === 'O' ? 4 : 3, y: 0, r: 0 }; 
 
 // 놓을 수 있는 모든 자리 찾기: 이동(L·R)·회전(C·W)·한 칸 내리기(D)를 BFS로 돌려 땅에 닿는 상태를 모음.
 // 회전으로 끝난 상태는 따로 세서 T스핀처럼 '밀어 넣는' 자리까지 찾는다. 결과: [{ p, spin, path }]
-function tReach(g, start, startRot = 0) {
+function tReach(g, start, startRot = 0, allow180 = false) {
   const T = start.k === 'T';
-  const key = (x, y, r, rk) => (((y + 4) * 16 + x + 4) * 4 + r) * 6 + rk;
+  const key = (x, y, r, rk) => (((y + 4) * 16 + x + 4) * 4 + r) * 8 + rk;
   const nodes = [{ x: start.x, y: start.y, r: start.r, rk: T ? startRot : 0, prev: -1, mv: '' }];
   const seen = new Set([key(start.x, start.y, start.r, nodes[0].rk)]), out = new Map();
   for (let i = 0; i < nodes.length; i++) {
@@ -129,6 +141,7 @@ function tReach(g, start, startRot = 0) {
     }
     for (const d of [-1, 1]) { const q = { ...p, x: p.x + d }; if (tValidOn(g, q)) push(q, 0, d < 0 ? 'L' : 'R'); }
     for (const d of [1, -1]) { const q = rotateOn(g, p, d); if (q) push(q.p, T ? q.kick + 1 : 0, d > 0 ? 'C' : 'W'); }
+    if (allow180) { const q = rotateOn(g, p, 2); if (q) push(q.p, T ? q.kick + 1 : 0, 'F'); }
   }
   return [...out.values()];
 }
@@ -177,6 +190,7 @@ class TField {
     this.pops = 0; this.chains2 = 0; this.allClears = 0; this.sent = 0; this.doubles = 0; this.lines = 0; this.level = 1;
     this.phase = 'none'; this.particles = []; this.texts = []; this.trails = [];
     this.shake = 0; this.flash = 0; this.hit = 0; this.trayBump = 0; this.dead = false; this.won = false;
+    this.ibuf = null; this.dasOn = false;
     this.soft = false; this.lastDir = 0; this.das = 0; this.rep = 0; this.acc = 0; this.lockT = 0; this.resets = 0; this.lowest = 0;
     this.clearRows = []; this.clearT = 0; this.areT = 0; this.atkCarry = 0; this.holeCol = rnd(TW);
     this.queue = []; this.net = null; this.lastRot = false; this.lastKick = 0; this.aiT = 0; this.tgt = null; this.stuck = 0;
@@ -204,6 +218,11 @@ class TField {
     const item = nextItem(this); if (item) p.it = { i: rnd(4), k: item };      // 파티: 조각의 한 칸에 ★아이템
     if (this.valid({ ...p, y: 1 })) p.y = 1;
     this.cur = p; this.phase = 'drop'; this.acc = 0; this.lockT = 0; this.resets = 0; this.landed = false; this.lowest = p.y; this.lastRot = false; this.soft = false;
+    if (this.human && this.ibuf) {                      // 조각이 나오기 전에 눌러 둔 회전·홀드를 나오자마자 적용(IRS·IHS)
+      const b = this.ibuf; this.ibuf = null;
+      if (b.hold) this.hold();
+      if (this.phase === 'drop' && b.rot) this.rotate(b.rot);
+    }
     if (!this.human) this.planAI();
   }
   die() {
@@ -272,10 +291,24 @@ class TField {
       const inp = game.inp[this.pi || 0];
       this.soft = inp.down;
       const dir = ((inp.left ? -1 : 0) + (inp.right ? 1 : 0)) * (effOn(this, 'rev') ? -1 : 1);   // 파티: 조작 반전
-      if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; if (dir) this.moveX(dir); }
-      else if (dir) { this.das += dt; if (this.das > 167) { this.rep += dt; while (this.rep >= 33) { this.rep -= 33; if (!this.moveX(dir)) { this.rep = 0; break; } } } }
+      const H = handOf();
+      if (dir !== this.lastDir) { this.lastDir = dir; this.das = 0; this.rep = 0; this.dasOn = false; if (dir) this.moveX(dir); }
+      else if (dir) {
+        this.das += dt;
+        if (this.das >= H.das) {
+          if (!this.dasOn) { this.dasOn = true; this.rep = H.arr; }          // DAS가 다 차면 바로 한 칸 더(TETR.IO)
+          if (H.arr === 0) { while (this.moveX(dir)); }                      // ARR 0: 벽까지 한 번에
+          else { this.rep += dt; while (this.rep >= H.arr) { this.rep -= H.arr; if (!this.moveX(dir)) { this.rep = 0; break; } } }
+        }
+      }
     } else { this.aiAct(dt); if (this.phase !== 'drop') return; }
-    const iv = this.soft ? Math.max(15, this.fallIv() / 20) : this.fallIv();
+    const SD = this.human && this.soft ? handOf().sdf : 0;
+    if (SD >= 41) {                                                 // 소프트 드롭 즉시: 잠기지 않고 바닥까지 바로 내려감
+      let n = 0; while (this.valid({ ...this.cur, y: this.cur.y + 1 })) { this.cur.y++; n++; }
+      if (n) { this.lastRot = false; this.score += n; if (this.cur.y > this.lowest) { this.lowest = this.cur.y; this.resets = 0; this.lockT = 0; } }
+      this.acc = 0;
+    }
+    const iv = this.soft ? Math.max(2, this.fallIv() / (SD || 20)) : this.fallIv();
     this.acc += dt;
     while (this.acc >= iv) {
       this.acc -= iv;
@@ -394,7 +427,7 @@ class TField {
   }
   updateClear(dt) {
     this.clearT += dt;
-    if (this.clearT < 260) return;
+    if (this.clearT < CLEAR_MS) return;
     const rows = this.clearRows;
     for (const r of rows) {
       for (let c = 0; c < TW; c++) {
@@ -418,7 +451,7 @@ class TField {
     if (this.bbOn() && !this.forceQ.length) { this.bbFinish(); return; }   // 빅뱅: 조각을 다 썼으면 라운드 끝
     this.insertGarbage();
     if (this.dead) return;
-    this.phase = 'are'; this.areT = 60;
+    this.phase = 'are'; this.areT = 0;                 // 조각 사이 대기 없음(TETR.IO)
   }
   insertGarbage() {
     const n = Math.min(7, this.pending); if (n <= 0) return;
@@ -614,7 +647,7 @@ class TField {
     }
     for (const t of this.items || []) if (t.y >= TH - TVIS && this.grid[t.y][t.x]) drawStar(c, TGX + (t.x + 0.5) * TC, sY(t.y) + TC / 2, TC * 0.4, ITEMS[t.k].col);
     if (this.phase === 'clear') {
-      const k = this.clearT / 260;
+      const k = this.clearT / CLEAR_MS;
       for (const r of this.clearRows) {
         c.fillStyle = `rgba(255,255,255,${0.85 * (1 - k)})`; c.fillRect(TGX, sY(r), TW * TC, TC);
         c.fillStyle = `rgba(255,255,255,${0.9})`; c.fillRect(TGX + TW * TC * k / 2, sY(r) + TC * 0.35, TW * TC * (1 - k), TC * 0.3);

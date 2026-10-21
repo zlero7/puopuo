@@ -48,6 +48,7 @@ jobs:
       - run: npm run test:backup
       - run: npm run test:social
       - run: npm run test:version
+      - run: npm run test:feel
 
   # 서버 이미지가 빌드되고 실제로 켜지는지
   docker:

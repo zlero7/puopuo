@@ -9,7 +9,7 @@ function setSetTab(t) {
   setTab = t; keyWait = null;
   document.querySelectorAll('#settings .stabs button').forEach(b => b.classList.toggle('on', b.dataset.stab === t));
   document.querySelectorAll('#settings .spanel').forEach(p => p.classList.toggle('hidden', p.dataset.p !== t));
-  if (t === 'keys') renderKeys();
+  if (t === 'keys') { renderKeys(); showHand(); }
 }
 document.querySelectorAll('#settings .stabs button').forEach(b => b.addEventListener('click', () => setSetTab(b.dataset.stab)));
 function openSettings() {
@@ -23,6 +23,15 @@ function openSettings() {
 }
 function closeSettings() { $('settings').classList.add('hidden'); keyWait = null; setHints(game.state === 'menu' ? 'menu' : 'game'); }
 function showVol() { $('vBgmV').textContent = Math.round($('vBgm').value * 100) + '%'; $('vSfxV').textContent = Math.round($('vSfx').value * 100) + '%'; }
+// 테트리스 조작 감도(DAS·ARR·SDF)
+function showHand() {
+  const h = handOf(); $('hDas').value = h.das; $('hArr').value = h.arr; $('hSdf').value = h.sdf;
+  $('hDasV').textContent = h.das + 'ms'; $('hArrV').textContent = h.arr + 'ms'; $('hSdfV').textContent = h.sdf >= 41 ? '즉시' : h.sdf + '배';
+}
+function saveHand(v) { stats = loadStats(); stats.hand = { ...(stats.hand || {}), ...v }; saveStats(); showHand(); }
+['hDas', 'hArr', 'hSdf'].forEach(id => $(id).addEventListener('input', () => saveHand({ das: +$('hDas').value, arr: +$('hArr').value, sdf: +$('hSdf').value })));
+$('hTetrio').addEventListener('click', () => saveHand({ das: HAND_DEF.das, arr: HAND_DEF.arr, sdf: HAND_DEF.sdf }));
+$('hFast').addEventListener('click', () => saveHand({ das: 100, arr: 0, sdf: 41 }));
 function renderKeys() {
   const b = { ...DEF_KEYS, ...(stats.keys || {}) };
   $('keyList').innerHTML = ACTIONS.map(([a, lab]) => `<span>${lab}</span>` + [0, 1].map(i =>

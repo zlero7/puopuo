@@ -247,7 +247,7 @@ class Match {
     if (![ev.x, ev.y].every(Number.isInteger)) return '기록이 이상함';
     const p = { k: cur.k, x: ev.x | 0, y: ev.y | 0, r: (ev.r | 0) & 3 }, rot = !!ev.rot, kick = ev.kick | 0;
     const spin = this.K.tspinOf(f.grid, p, rot, kick);
-    const ok = this.K.tReach(f.grid, cur, 0).some(o => o.p.x === p.x && o.p.y === p.y && o.p.r === p.r && o.spin === spin);
+    const ok = this.K.tReach(f.grid, cur, 0, true).some(o => o.p.x === p.x && o.p.y === p.y && o.p.r === p.r && o.spin === spin);
     if (!ok) return '갈 수 없는 자리에 놓음';
     f.cur = p; f.lastRot = rot; f.lastKick = kick;
     f.lock(false);
