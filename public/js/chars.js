@@ -37,13 +37,13 @@ function charAi(base, ch, kind) {
 }
 
 /* ---------- 캐릭터 그림 ----------
-   img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 300×354 · chars_bust.webp: 얼굴·상반신 160×160 · chars_icon.webp: 마스코트(배경 투명) 128×128
-   chars_vs.webp: 대전 초상(배경 포함 상반신) 240×176 · 모두 CHARS 순서대로 가로 한 줄 */
+   img/chars_card.webp: 카드(일러스트 + 이름·소개 + 표정) 600×708 · chars_bust.webp: 얼굴·상반신 320×320 · chars_icon.webp: 마스코트(배경 투명) 256×256
+   chars_vs.webp: 대전 초상(배경 포함 상반신) 480×352 · 모두 CHARS 순서대로 가로 한 줄 */
 const CHAR_IMG = typeof Image === 'function' ? { card: new Image(), bust: new Image(), icon: new Image(), face: new Image(), vs: new Image() } : null;
-const CHAR_CELL = { card: [300, 354], bust: [160, 160], icon: [128, 128], vs: [240, 176] };
+const CHAR_CELL = { card: [600, 708], bust: [320, 320], icon: [256, 256], vs: [480, 352] };   // AI 업스케일(2배)한 그림 기준 칸 크기
 if (CHAR_IMG) for (const k in CHAR_IMG) {
   CHAR_IMG[k].onload = () => { if (!window.gameReady) return; if (typeof dlgFace === 'function' && dlgOpen()) dlgFace(); if (game.state === 'menu') { drawArts(); if (cur === 'chars') renderChars(); if (cur === 'adv') renderAdv(); if (cur === 'stats' && typeof paintInfo === 'function') paintInfo(); } };
-  CHAR_IMG[k].src = `img/chars_${k}.webp?v=2`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
+  CHAR_IMG[k].src = `img/chars_${k}.webp?v=3`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 }
 const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth;
 // 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
@@ -51,13 +51,13 @@ function charImg(c, k, id, x, y, w, h) {
   const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
   c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
 }
-// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(96×96, 카드 테두리 조각은 잘라 냄) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
+// 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(192×192, 카드 테두리 조각은 잘라 냄) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
 const FACE = { calm: 0, hype: 1, joy: 2, worry: 3 };
 function drawCharFace(c, id, x, y, size, expr = 0) {
   if (!charImgOk('face')) { drawChar(c, id, x, y, size, expr === 3 ? 'sad' : 'happy'); return; }
   const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), h = size / 2, r = size * 0.2;
   c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.fillStyle = '#fff'; c.fill(); c.clip();
-  c.imageSmoothingQuality = 'high'; c.drawImage(CHAR_IMG.face, expr * 96, i * 96, 96, 96, x - h, y - h, size, size); c.restore();
+  c.imageSmoothingQuality = 'high'; c.drawImage(CHAR_IMG.face, expr * 192, i * 192, 192, 192, x - h, y - h, size, size); c.restore();
   c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
   c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
 }
@@ -86,9 +86,9 @@ function drawVsPortrait(c, f, x, y, w, h, t) {
   c.save(); poly(x + 7, y + 7, w - 14, h - 14, k * 0.85); c.clip();
   const ix = x + 7, iy = y + 7, iw = w - 14, ih = h - 14;
   if (charImgOk('vs')) {
-    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sh = Math.min(176, 240 * ih / iw) / z, sw = sh * iw / ih;   // 비율 그대로 잘라서
+    const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sh = Math.min(352, 480 * ih / iw) / z, sw = sh * iw / ih;   // 비율 그대로 잘라서
     if (lost) c.filter = 'grayscale(1) brightness(0.8)';
-    c.drawImage(CHAR_IMG.vs, i * 240 + (240 - sw) / 2, (176 - sh) * 0.35, sw, sh, ix, iy, iw, ih);
+    c.drawImage(CHAR_IMG.vs, i * 480 + (480 - sw) / 2, (352 - sh) * 0.35, sw, sh, ix, iy, iw, ih);
     c.filter = 'none';
   } else { c.fillStyle = ch.c; c.fillRect(ix, iy, iw, ih); drawChar(c, ch.id, ix + iw / 2, iy + ih / 2, ih * 0.9); }
   if (hype) {                                   // 연쇄: 금빛 집중선
