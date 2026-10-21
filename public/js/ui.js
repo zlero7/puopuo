@@ -14,7 +14,7 @@ function setSetTab(t) {
 document.querySelectorAll('#settings .stabs button').forEach(b => b.addEventListener('click', () => setSetTab(b.dataset.stab)));
 function openSettings() {
   stats = loadStats(); stats.vol = { bgm: 0.5, sfx: 0.8, ...(stats.vol || {}) };
-  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('ghost').checked = stats.ghost !== false; $('lowFx').checked = stats.lowFx === true || (stats.lowFx !== false && !!game.lowFx); $('vib').checked = stats.vib !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; $('fpsCap').value = String(stats.fps || 0); showVol(); renderKeys();
+  $('vBgm').value = stats.vol.bgm; $('vSfx').value = stats.vol.sfx; $('oppRank').checked = !!stats.oppRank; $('skipChar').checked = !!stats.skipChar; $('ghost').checked = stats.ghost !== false; $('lowFx').checked = stats.lowFx === true || (stats.lowFx !== false && !!game.lowFx); $('vib').checked = stats.vib !== false; $('cbMode').checked = !!stats.cb; $('rankBot').checked = !!stats.rankBot; $('fpsCap').value = String(stats.fps || 0); showVol(); renderKeys();
   const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   $('padInfo').textContent = pads.length ? `게임패드 ${pads.length}개 연결됨 · 십자키 이동(↑ 하드드롭) · A 시계 · B 반시계 · X/LB 홀드 · Start 일시정지`
     : '게임패드: 연결 후 아무 버튼이나 누르면 인식돼요. 로컬 대전은 패드 2개로도 할 수 있어요.';
@@ -51,6 +51,7 @@ window.addEventListener('keydown', e => {          // 키 설정 입력(다른 �
   keys[keyWait[0]] = keys[keyWait[0]].slice(); keys[keyWait[0]][keyWait[1]] = k;
   stats.keys = keys; saveStats(); keyWait = null; renderKeys();
 }, true);
+$('skipChar').addEventListener('change', () => { stats = loadStats(); stats.skipChar = $('skipChar').checked; saveStats(); });
 $('oppRank').addEventListener('change', () => { stats = loadStats(); stats.oppRank = $('oppRank').checked; saveStats(); });
 $('ghost').addEventListener('change', () => { stats = loadStats(); stats.ghost = $('ghost').checked; saveStats(); });
 $('lowFx').addEventListener('change', () => { stats = loadStats(); stats.lowFx = $('lowFx').checked; saveStats(); game.lowFx = stats.lowFx; fit(); });   // 끄면 자동 감지만
@@ -178,6 +179,7 @@ function runMatch(k) {
 let charCb = null;
 function pickChar(cb) {
   stats = loadStats(); const mine = stats.char || 'lumi'; charCb = cb;
+  if (stats.skipChar && CHARS.some(c => c.id === mine)) { cb(); return; }   // 설정: 지난번 캐릭터로 바로 시작
   $('cmList').innerHTML = CHARS.map((ch, i) => `<button class="cmbtn${ch.id === mine ? ' on' : ''}" data-id="${ch.id}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}" style="--n:${i}"><i></i>${esc(ch.name)}</button>`).join('');
   $('cmDesc').textContent = ''; $('charModal').classList.remove('hidden');
   ($('cmList').querySelector('.on') || $('cmList').firstChild).focus();

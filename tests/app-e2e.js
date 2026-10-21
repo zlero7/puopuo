@@ -35,6 +35,7 @@ const SP = 4601, EP = 9334;
     ok(await pg.evaluate(() => !$('charModal').classList.contains('hidden') && document.querySelectorAll('#cmList .cmbtn').length === 8), '로그인이 끝나면 이어서 캐릭터 고르기 창이 뜸(8명)');
     await pg.click('#cmList .cmbtn[data-id="kuro"]'); await pg.waitForTimeout(300);
     ok(await pg.evaluate(() => $('charModal').classList.contains('hidden') && loadStats().char === 'kuro'), '캐릭터를 고르면 창이 닫히고 그 캐릭터로 저장됨');
+    ok(await pg.evaluate(() => { stats = loadStats(); stats.skipChar = true; saveStats(); let n = 0; pickChar(() => n++); const r = n === 1 && $('charModal').classList.contains('hidden'); stats.skipChar = false; saveStats(); return r; }), '"지난번 캐릭터로 바로 시작"을 켜면 고르기 창 없이 바로 시작');
     await pg.click('#bSettings'); await pg.click('#stabAcct'); await pg.waitForTimeout(200);
     ok((await pg.textContent('#stWho')).includes('테스터'), '설정 > 계정 탭에 닉네임이 보임'); await pg.keyboard.press('Escape');
     ok(await pg.evaluate(() => JSON.stringify(window.puyoApp).indexOf('token') < 0 && typeof require === 'undefined'), '화면에는 토큰도 Node도 없음');
