@@ -46,7 +46,7 @@ const CHAR_LOAD = {};
 function loadCharImg(k) {
   if (!CHAR_IMG || CHAR_LOAD[k]) return; CHAR_LOAD[k] = true;
   CHAR_IMG[k].onload = () => onArtImage();
-  CHAR_IMG[k].src = `img/chars_${k}.webp?v=3`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
+  CHAR_IMG[k].src = `img/chars_${k}.webp?v=4`;   // 그림을 바꾸면 v를 올려 캐시를 새로 받게
 }
 if (CHAR_IMG) ['icon', 'bust', 'face'].forEach(loadCharImg);
 const charImgOk = k => { if (!CHAR_IMG) return false; loadCharImg(k); return CHAR_IMG[k].complete && CHAR_IMG[k].naturalWidth; };
@@ -67,7 +67,7 @@ function drawCharFace(c, id, x, y, size, expr = 0) {
   c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
 }
 // 끝났을 때 대사 옆 큰 얼굴: 표정 그림(chars_face)은 원본이 아주 작아 크게 보면 뭉개지므로, 선명한 상반신 그림(chars_bust)에서 얼굴 부분만 오려 씀. 칸 안 얼굴 중심(x, y)과 오려 낼 크기 — CHARS 순서
-const HEAD_CROP = [[222, 165, 165], [194, 158, 170], [196, 170, 170], [232, 172, 170], [212, 148, 170], [206, 152, 170], [192, 152, 170], [244, 108, 200]];
+const HEAD_CROP = [[222, 165, 165], [194, 158, 170], [196, 170, 170], [232, 172, 170], [212, 148, 170], [206, 152, 170], [192, 152, 170], [170, 138, 150]];
 function drawCharHead(c, id, x, y, size, won) {
   if (!charImgOk('bust')) { drawCharFace(c, id, x, y, size, won ? FACE.joy : FACE.worry); return; }
   const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), [fx, fy, fs] = HEAD_CROP[i] || [160, 150, 200], h = size / 2, r = size * 0.2;

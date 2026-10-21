@@ -154,7 +154,7 @@
   .charcard .mine { position: absolute; z-index: 2; top: 6%; right: 7%; font-family: var(--head); font-size: 14px; background: #fff; color: var(--d); border-radius: 999px; padding: 2px 10px; display: none; }
   .charcard.sel .mine { display: block; }
   .charcard .cimg { position: absolute; z-index: 1; top: 5%; left: 50%; height: 90%; aspect-ratio: 600 / 708; transform: translateX(-50%); border-radius: 10px;
-    background: url(img/chars_card.webp?v=3) no-repeat; background-size: 800% 100%; background-position: calc(var(--n) * 100% / 7) 0; }   /* 카드 그림(이름·소개 포함): 한 줄 8칸 그림에서 --n번째 칸 */
+    background: url(img/chars_card.webp?v=4) no-repeat; background-size: 800% 100%; background-position: calc(var(--n) * 100% / 7) 0; }   /* 카드 그림(이름·소개 포함): 한 줄 8칸 그림에서 --n번째 칸 */
   .charcard.cardimg .tt { display: none; }
   #sc-ai { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 1fr; }
   #sc-vs { grid-template-columns: 1.15fr 1fr 0.9fr; grid-template-rows: 1fr 1fr auto; }
@@ -1021,7 +1021,7 @@
 #splash .sp-logo span:nth-child(3){color:#6ee28d;animation-delay:.24s}#splash .sp-logo span:nth-child(4){color:#7fb6ff;animation-delay:.36s}
 @keyframes spbounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-14px)}}
 #splash .sp-mas{display:flex;gap:6px}
-#splash .sp-mas i{width:clamp(34px,6vw,58px);aspect-ratio:1;background:url(img/chars_icon.webp?v=3) calc(var(--n)*14.2857%) 0/800% 100% no-repeat;animation:spjump 1.4s ease-in-out infinite;animation-delay:calc(var(--n)*.1s);filter:drop-shadow(0 4px 0 #0005)}
+#splash .sp-mas i{width:clamp(34px,6vw,58px);aspect-ratio:1;background:url(img/chars_icon.webp?v=4) calc(var(--n)*14.2857%) 0/800% 100% no-repeat;animation:spjump 1.4s ease-in-out infinite;animation-delay:calc(var(--n)*.1s);filter:drop-shadow(0 4px 0 #0005)}
 @keyframes spjump{0%,60%,100%{transform:translateY(0) scale(1,1)}25%{transform:translateY(-12px) scale(.94,1.06)}45%{transform:translateY(0) scale(1.08,.92)}}
 #splash .sp-barwrap{display:flex;align-items:center;gap:12px;width:min(78vw,460px)}
 #splash .sp-bar{flex:1;height:18px;border-radius:99px;background:#0006;border:3px solid #fff;box-shadow:0 4px 0 #0004;overflow:hidden}
@@ -1053,7 +1053,7 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .mmcard { width: min(640px, 100%); }
   .cmlist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
   .cmbtn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 8px; border: 3px solid #cfd1dc; border-radius: 12px; background: #fff; color: #2a2850; font: inherit; font-family: var(--head); font-size: 15px; cursor: pointer; transition: transform .15s, border-color .15s; }
-  .cmbtn i { width: 64px; height: 64px; background: url(img/chars_icon.webp?v=3) calc(var(--n) * 14.2857%) 0 / 800% 100% no-repeat; }
+  .cmbtn i { width: 64px; height: 64px; background: url(img/chars_icon.webp?v=4) calc(var(--n) * 14.2857%) 0 / 800% 100% no-repeat; }
   .cmbtn:hover, .cmbtn:focus { outline: 0; border-color: #1b1654; transform: scale(1.035); }
   .cmbtn.on { border-color: #1b1654; background: #ece8ff; }
   .cmbtn.on::after { content: "지난번 캐릭터"; font-size: 11px; color: #4a3fa0; }
