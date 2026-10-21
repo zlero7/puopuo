@@ -47,6 +47,29 @@ async function conn(id, name) {
     ok((await Bb.ask({ op: 'list' }, 'list')).friends[0].char === 'bolt', '대표 캐릭터를 바꾸면 친구 목록에 반영');
     A.send({ op: 'char', char: '<x>' }); await sleep(100);
     ok((await Bb.ask({ op: 'list' }, 'list')).friends[0].char === 'bolt', '이상한 캐릭터 값은 무시');
+    // 대전 신청
+    await Bb.ask({ op: 'add', pid: la.me.pid }, 'list'); await A.ask({ op: 'acc', pid: lb.me.pid }, 'list');
+    const n1 = Bb.msgs.length, iv = await A.ask({ op: 'inv', pid: lb.me.pid, code: 'ab12', style: 'puyo', rule: 'tsu', board: 'wide' }, 'inv');
+    await sleep(200);
+    const ping = Bb.msgs.slice(n1).find(m => m.t === 'soc' && m.what === 'invite');
+    ok(iv.op === 'inv' && ping && ping.code === 'AB12' && ping.name === '앨리스' && ping.pid === la.me.pid && ping.rule === 'tsu', '친구에게 대전 신청하면 방 코드가 담긴 알림이 감');
+    ok((await A.ask({ op: 'inv', pid: lb.me.pid, code: 'ab12' }, 'inv')).op === 'err', '신청을 연달아 보내면 막음');
+    await sleep(3100);
+    ok((await A.ask({ op: 'inv', pid: lb.me.pid, code: '<x>' }, 'inv')).op === 'err', '이상한 방 코드는 오류');
+    const n2 = A.msgs.length; Bb.send({ op: 'dec', pid: la.me.pid, why: 'busy' }); await sleep(250);
+    ok(A.msgs.slice(n2).some(m => m.t === 'soc' && m.what === 'declined' && m.why === 'busy' && m.name === '바비'), '거절하면 신청한 쪽에 알림');
+    // 연습 글로벌 순위
+    const p1 = await A.ask({ op: 'ps', mode: 'tm', v: 12345 }, 'ps'); ok(p1.rank === 1 && p1.improved && p1.best === 12345, '연습 기록 올리기(1위)');
+    await sleep(1600);
+    const p2 = await Bb.ask({ op: 'ps', mode: 'tm', v: 20000 }, 'ps'); ok(p2.rank === 1 && p2.total === 2, '더 높은 점수가 1위');
+    await sleep(1600);
+    const p3 = await A.ask({ op: 'ps', mode: 'tm', v: 100 }, 'ps'); ok(!p3.improved && p3.best === 12345 && p3.rank === 2, '낮은 기록은 최고 기록을 바꾸지 못함');
+    await sleep(1600);
+    ok((await A.ask({ op: 'ps', mode: 'tm', v: 99999999 }, 'ps')).op === 'err' && (await (async () => { await sleep(1600); return A.ask({ op: 'ps', mode: 'zz', v: 5 }, 'ps'); })()).op === 'err', '있을 수 없는 점수·모르는 모드는 거절');
+    await sleep(1600); await A.ask({ op: 'ps', mode: 'ts', v: 65000 }, 'ps'); await sleep(1600);
+    const p4 = await Bb.ask({ op: 'ps', mode: 'ts', v: 61000 }, 'ps'); ok(p4.rank === 1, '스프린트는 시간이 짧을수록 1위');
+    const lb1 = await A.ask({ op: 'pl', mode: 'tm' }, 'pl');
+    ok(lb1.total === 2 && lb1.rows[0].name === '바비' && lb1.rows[0].v === 20000 && lb1.me.place === 2 && lb1.rows[1].me === true && /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(lb1.rows[0].pid) && JSON.stringify(lb1).indexOf('bobby02') < 0, '연습 순위표(내 순위 표시 · 친구 코드 포함 · 로그인 아이디 없음)');
     // 삭제
     const r3 = await Bb.ask({ op: 'del', pid: la.me.pid }, 'list'); ok(r3.friends.length === 0, '친구 삭제');
     ok((await A.ask({ op: 'list' }, 'list')).friends.length === 0, '삭제하면 양쪽에서 사라짐');

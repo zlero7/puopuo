@@ -180,4 +180,4 @@ async function changePassword(a, oldPw, newPw) {
 function revokeAll(a) { a.tv++; save(); }
 
 const byUid = uid => db.accounts[uid] || null;
-module.exports = { byUid, byPid: p => byPid.get(normPid(p)) || null, ensurePid, normPid, saveSoon: () => save(), register, login, changePassword, revokeAll, sessionFor, fromSession, ticketFor, useTicket, ipLimit, lockLeft, pub, flush, normId, checkId, checkName, checkPassword, SESSION_MS };
+module.exports = { byUid, all: () => Object.values(db.accounts), byPid: p => byPid.get(normPid(p)) || null, ensurePid, normPid, saveSoon: () => save(), register, login, changePassword, revokeAll, sessionFor, fromSession, ticketFor, useTicket, ipLimit, lockLeft, pub, flush, normId, checkId, checkName, checkPassword, SESSION_MS };

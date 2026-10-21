@@ -3,6 +3,7 @@
 'use strict';
 const auth = require('./auth');
 const rank = require('./rank');
+const practice = require('./practice');
 
 const MAX_FRIENDS = 50, MAX_PENDING = 30;
 const CHARS = ['lumi', 'toto', 'pin', 'moka', 'byeol', 'kuro', 'somi', 'bolt'];
@@ -29,6 +30,8 @@ function relation(a, t) {
   return 'none';
 }
 const err = msg => ({ op: 'err', msg });
+const lastAt = new Map();                                     // 'uid:종류' → 마지막 시각(너무 자주 보내는 것 막기)
+setInterval(() => { const t = Date.now() - 60000; for (const [k, v] of lastAt) if (v < t) lastAt.delete(k); }, 60000).unref();
 
 // m: 클라이언트가 보낸 메시지, ctx: { isOnline(uid), notify(uid, msg) } → 돌려줄 메시지(없으면 null)
 function handle(a, m, ctx) {
@@ -39,11 +42,33 @@ function handle(a, m, ctx) {
     if (a.char !== m.char) { a.char = m.char; auth.saveSoon(); }
     return null;
   }
+  if (op === 'ps') {                                           // 연습 기록 올리기
+    const w = lastAt.get(a.uid + ':ps') || 0; if (Date.now() - w < 1500) return err('기록을 너무 자주 올리고 있어요.');
+    lastAt.set(a.uid + ':ps', Date.now());
+    const r = practice.submit(a, m.mode, +m.v); return r.err ? err(r.err) : { op: 'ps', mode: m.mode, ...r };
+  }
+  if (op === 'pl') {                                           // 연습 순위표
+    const r = practice.board(m.mode, a.uid, 30, uid => { const x = auth.byUid(uid); return x ? fmtPid(auth.ensurePid(x)) : ''; });
+    return r.err ? err(r.err) : { op: 'pl', ...r };
+  }
   const t = auth.byPid(m.pid);
   if (op === 'prof') {
     if (!t) return err('그런 플레이어를 찾을 수 없어요.');
     const st = rank.STYLES.includes(m.sty) ? m.sty : 'puyo';
     return { op: 'prof', style: st, rel: relation(a, t), user: { ...card(t, ctx.isOnline), since: t.created }, profile: rank.profile(t.uid, st), other: rank.profile(t.uid, st === 'puyo' ? 'tetris' : 'puyo') };
+  }
+  if (op === 'inv' || op === 'dec') {                          // 친구에게 대전 신청(방 코드를 실어 보냄) · 거절
+    if (!t) return err('그런 친구를 찾을 수 없어요.');
+    if (!arr(a, 'friends').includes(t.uid)) return err('친구에게만 대전을 신청할 수 있어요.');
+    if (op === 'dec') { ctx.notify(t.uid, { op: 'ping', what: 'declined', name: a.name, why: m.why === 'busy' ? 'busy' : '' }); return null; }
+    if (!ctx.isOnline(t.uid)) return err(`${t.name}님은 지금 접속 중이 아니에요.`);
+    const code = typeof m.code === 'string' ? m.code.toUpperCase() : '';
+    if (!/^[A-Z0-9]{4}$/.test(code)) return err('방 코드가 올바르지 않아요.');
+    const w = lastAt.get(a.uid + ':inv') || 0; if (Date.now() - w < 3000) return err('신청을 너무 자주 보내고 있어요. 잠시 뒤에 다시 해 주세요.');
+    lastAt.set(a.uid + ':inv', Date.now());
+    const pick = (v, list) => list.includes(v) ? v : '';
+    ctx.notify(t.uid, { op: 'ping', what: 'invite', name: a.name, pid: fmtPid(auth.ensurePid(a)), code, style: pick(m.style, rank.STYLES), rule: pick(m.rule, ['tsu', 'fever', 'bigbang', 'swap', 'party', 'fusion']), board: pick(m.board, ['wide', 'classic', 'tiny']) });
+    return { op: 'inv', name: t.name };
   }
   if (!['add', 'acc', 'del'].includes(op)) return err('알 수 없는 요청이에요.');
   if (!t) return err('그런 친구 코드가 없어요. 코드를 다시 확인해 주세요.');
