@@ -60,7 +60,7 @@ function handle(a, m, ctx) {
   if (op === 'inv' || op === 'dec') {                          // 친구에게 대전 신청(방 코드를 실어 보냄) · 거절
     if (!t) return err('그런 친구를 찾을 수 없어요.');
     if (!arr(a, 'friends').includes(t.uid)) return err('친구에게만 대전을 신청할 수 있어요.');
-    if (op === 'dec') { ctx.notify(t.uid, { op: 'ping', what: 'declined', name: a.name, why: m.why === 'busy' ? 'busy' : '' }); return null; }
+    if (op === 'dec') { ctx.notify(t.uid, { op: 'ping', what: 'declined', name: a.name, pid: fmtPid(auth.ensurePid(a)), why: m.why === 'busy' ? 'busy' : '' }); return null; }
     if (!ctx.isOnline(t.uid)) return err(`${t.name}님은 지금 접속 중이 아니에요.`);
     const code = typeof m.code === 'string' ? m.code.toUpperCase() : '';
     if (!/^[A-Z0-9]{4}$/.test(code)) return err('방 코드가 올바르지 않아요.');
