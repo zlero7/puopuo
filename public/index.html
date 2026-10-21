@@ -257,9 +257,16 @@
     --c: #3cc83c; --d: #1d8a2a;
     position: relative; border: 0; padding: 0; margin: 0; background: none; cursor: pointer; font: inherit; color: #fff;
     min-height: 0; min-width: 0; outline: none; text-align: left;
-    filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.16));
-    transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1), filter 0.18s;
+    isolation: isolate;
+    transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1);
   }
+  /* 그림자·흰 테두리는 칸 자체의 filter(drop-shadow)가 아니라 뒤에 깔리는 도형으로: filter가 있으면 브라우저가 칸 전체를 변형 전 크기로 그려 두고 늘려서,
+     마우스를 올려 커지고 기울어질 때 글자·그림이 흐려졌음. filter가 없으면 변형된 크기에서 다시 그려 선명함 */
+  .tile::before, .tile::after { content: ""; position: absolute; z-index: -1; clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%); pointer-events: none; }
+  .tile::before { inset: 0; transform: translateY(6px); background: rgba(0, 0, 0, 0.16); transition: transform 0.18s, background 0.18s, filter 0.18s; }
+  .tile::after { inset: -4px; background: #fff; opacity: 0; transition: opacity 0.12s; }
+  .tile[data-act]:focus::after, .tile.sel::after { opacity: 1; }
+  .tile[data-act]:focus::before, .tile.sel::before { transform: translateY(13px); background: rgba(0, 0, 0, 0.3); filter: blur(7px); }
   .tile .in, .tile .in::before { position: absolute; clip-path: polygon(3% 0, 100% 0, 97% 100%, 0 100%); }
   .tile .in { inset: 0; background: var(--d); }
   .tile .in::before {
@@ -272,7 +279,6 @@
   }
   .tile[data-act]:focus, .tile.sel {
     transform: scale(1.035) rotate(-1deg); z-index: 2;
-    filter: drop-shadow(4px 0 0 #fff) drop-shadow(-4px 0 0 #fff) drop-shadow(0 4px 0 #fff) drop-shadow(0 -4px 0 #fff) drop-shadow(0 12px 14px rgba(0,0,0,0.3));
   }
   .tile:active { transform: scale(0.99); }
   .t-green  { --c: #39c63c; --d: #1a8027; }
