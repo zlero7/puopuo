@@ -278,9 +278,9 @@
     background-size: 12px 12px, 100% 100%;
   }
   .tile[data-act]:focus, .tile.sel {
-    transform: scale(1.035) rotate(-1deg); z-index: 2;
+    transform: translateY(-4px); z-index: 2;   /* 확대·기울임은 글자·그림을 한 번 더 다시 계산(보간)해서 흐려지므로, 화면 픽셀에 딱 맞는 위로 4px 올림만 함(125·150·175·200% 배율에서도 정수 픽셀) */
   }
-  .tile:active { transform: scale(0.99); }
+  .tile:active { transform: translateY(1px); }
   .t-green  { --c: #39c63c; --d: #1a8027; }
   .t-yellow { --c: #ffc915; --d: #d08a00; }
   .t-purple { --c: #9a4fd8; --d: #5e2399; }
