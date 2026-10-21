@@ -1,6 +1,9 @@
 # 데스크톱 앱(exe) 빌드 · 서버 테스트
 # - 브랜치에 푸시하거나 Actions 탭에서 'Run workflow'를 누르면 결과물이 '아티팩트'로 올라옴(30일 보관)
 # - v로 시작하는 태그(예: v1.0.0)를 푸시하면 같은 파일이 GitHub 릴리스에도 붙음
+# - 자동 배포: 앱 브랜치에 푸시했을 때 앱 파일(public/ electron/ build/ tools/ package.json)이 바뀌었고 테스트·exe 스모크가 모두 통과하면
+#   버전(1.1.<실행번호>)을 자동으로 붙여 릴리스를 만들고 서명한 화면 업데이트 파일을 올림 → 사용자 앱이 켤 때 알아서 받음
+#   (배포를 건너뛰려면 커밋 메시지에 [skip release]. 앱 본체가 바뀌어 설치 파일이 꼭 필요하면 electron/shell-api.json의 숫자를 올릴 것)
 name: 앱(exe) 빌드
 
 on:
@@ -11,6 +14,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: app-release
+  cancel-in-progress: false
 
 jobs:
   # 서버: 계정·인증·랭크 규칙·안정성 테스트(브라우저가 필요한 테스트는 개발 환경에서 따로)
@@ -48,10 +55,13 @@ jobs:
 
   windows:
     name: Windows exe
+    needs: [server, docker]
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -64,6 +74,27 @@ jobs:
             $errs = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$errs) | Out-Null
             if ($errs) { $errs | ForEach-Object { Write-Host $_.Message }; throw "$f 문법 오류" } else { Write-Host "$f OK" }
           }
+      - name: 자동 배포할지·버전 정하기
+        id: rel
+        shell: bash
+        run: |
+          go=no
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/claude/desktop-app-exe" ]; then
+            if git log -1 --format=%B | grep -qi '\[skip release\]'; then go=no
+            else
+              before="${{ github.event.before }}"
+              if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then files=$(git ls-files)
+              else files=$(git diff --name-only "$before" "${{ github.sha }}"); fi
+              if echo "$files" | grep -Eq '^(public/|electron/|build/|tools/|package(-lock)?\.json$)'; then go=yes; fi
+            fi
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "version=1.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "자동 배포: $go (1.1.${{ github.run_number }})"
+      - name: 자동 배포 버전을 앱 버전으로
+        if: steps.rel.outputs.go == 'yes'
+        shell: bash
+        run: npm version "${{ steps.rel.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: 태그 버전을 앱 버전으로(v1.0.1 → 1.0.1)
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -77,8 +108,8 @@ jobs:
           $p = Start-Process -FilePath "dist\win-unpacked\PuyoPuyo.exe" -ArgumentList "--smoke" -PassThru -Wait
           if (Test-Path smoke.json) { Get-Content smoke.json } else { Write-Host "smoke.json이 없어요(앱이 뜨지 못함)" }
           if ($p.ExitCode -ne 0) { throw "스모크 테스트 실패(종료 코드 $($p.ExitCode))" }
-      - name: 화면 업데이트 묶음 만들기·서명(태그일 때만)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 화면 업데이트 묶음 만들기·서명(태그·자동 배포일 때)
+        if: startsWith(github.ref, 'refs/tags/v') || steps.rel.outputs.go == 'yes'
         shell: bash
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
@@ -93,6 +124,18 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          files: |
+            dist/*.exe
+            dist/ui/*
+      - name: 자동 배포 릴리스 만들기
+        if: steps.rel.outputs.go == 'yes'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.rel.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: v${{ steps.rel.outputs.version }}
+          body: ${{ github.event.head_commit.message }}
+          make_latest: true
           files: |
             dist/*.exe
             dist/ui/*

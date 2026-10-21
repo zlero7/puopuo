@@ -16,11 +16,14 @@
 3. `electron/update-public-key.pem` 을 커밋·푸시(공개키라 올려도 안전).
 4. 이 공개키가 들어간 exe를 **한 번만** 새로 설치(이후 화면 업데이트는 자동).
 
-## 새 버전 내는 법
-```
-git tag v1.0.1 && git push origin v1.0.1
-```
-CI 가 버전을 태그에서 가져와 exe를 만들고, `dist/ui/` 의 업데이트 파일(`ui-manifest.json` · `ui-manifest.sig` · `ui-bundle.json.gz`)을 서명해 릴리스에 함께 붙입니다. 앱은 `releases/latest/download/` 에서 이를 받습니다.
+## 새 버전 내는 법 (자동)
+앱 브랜치(`claude/desktop-app-exe`)에 푸시하면 CI가 알아서 배포합니다.
+1. 서버 테스트 · 도커 확인 · exe 빌드 · exe 스모크 테스트가 모두 통과해야 합니다.
+2. 앱 파일(`public/` `electron/` `build/` `tools/` `package.json`)이 바뀐 푸시만 배포합니다(문서·서버·테스트만 바뀌면 배포 안 함. 커밋 메시지에 `[skip release]`를 넣어도 건너뜀).
+3. 버전은 `1.1.<실행번호>` 로 자동으로 올라가고, exe와 서명한 업데이트 파일(`ui-manifest.json` · `ui-manifest.sig` · `ui-bundle.json.gz`)이 릴리스에 붙습니다.
+4. 사용자 앱은 켤 때 시작 화면에서 새 버전을 받아 바로 적용합니다.
+
+직접 올리고 싶으면 예전처럼 태그를 푸시해도 됩니다: `git tag v1.2.0 && git push origin v1.2.0`.
 
 ## 화면만 바뀐 게 아닐 때
 `electron/` 안(본체)을 바꿔서 새 설치 파일이 꼭 필요하면 `electron/shell-api.json` 의 `api` 숫자를 올립니다. 오래된 앱은 그 업데이트를 받지 않고 "앱을 새로 설치해야 해요 → 받으러 가기" 알림만 보여 줍니다.

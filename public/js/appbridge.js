@@ -44,19 +44,26 @@ if (APP) {
 (async function splash() {
   const el = document.getElementById('splash'); if (!el) return;
   if (!APP || !APP.updateBoot) { el.remove(); return; }
-  const msg = document.getElementById('spMsg'), t0 = Date.now();
-  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
-  const PH = { checking: '업데이트 확인 중…', downloading: '새 버전을 받는 중…', installing: '설치하는 중…' };
-  if (APP.onPhase) APP.onPhase(p => { if (PH[p]) msg.textContent = PH[p]; });
-  appReady.then(() => { document.getElementById('spVer').textContent = `버전 ${appCfg.version}`; });
-  msg.textContent = PH.checking;
+  const msg = document.getElementById('spMsg'), fill = document.getElementById('spFill'), pctEl = document.getElementById('spPct'), t0 = Date.now();
+  let pct = 0; const setPct = v => { pct = Math.max(pct, Math.min(100, v)); fill.style.width = pct + '%'; pctEl.textContent = Math.round(pct) + '%'; };
+  const TIPS = ['같은 색 뿌요를 4개 이상 모으면 터져요.', '연쇄가 이어질수록 상대에게 보내는 방해 뿌요가 크게 늘어요.', '랭크전은 서버가 승패를 다시 계산해서 조작할 수 없어요.',
+    '매칭을 기다리는 동안 연습을 해도 매칭은 끊기지 않아요.', '캐릭터마다 AI 성격이 달라요. 도전해 보세요!', '게임 중 Esc를 누르면 일시정지해요.', 'F11로 전체 화면을 켜고 끌 수 있어요.'];
+  document.getElementById('spTip').textContent = '💡 ' + TIPS[Math.floor(Math.random() * TIPS.length)];
+  const close = () => { setPct(100); el.classList.add('out'); setTimeout(() => el.remove(), 500); };
+  const PH = { checking: ['업데이트 확인 중…', 30], downloading: ['새 버전을 받는 중…', 62], installing: ['설치하는 중…', 88] };
+  if (APP.onPhase) APP.onPhase(p => { if (PH[p]) { msg.textContent = PH[p][0]; setPct(PH[p][1]); } });
+  appReady.then(() => { document.getElementById('spVer').textContent = `v${appCfg.version}`; });
+  msg.textContent = PH.checking[0]; setPct(12);
+  const creep = setInterval(() => { if (pct < 26) setPct(pct + 2); }, 250);    // 확인하는 동안 조금씩 차오름
   let st = null; try { st = await APP.updateBoot(); } catch (e) {}
+  clearInterval(creep);
   if (st && st.pending) {                          // 새 화면을 받아 뒀으면 바로 적용(화면이 다시 불러와지며 새 버전으로 시작)
-    msg.textContent = `새 버전 ${st.pending.version} 적용 중…`;
+    msg.textContent = `새 버전 ${st.pending.version} 적용 중…`; setPct(96);
     const r = await APP.applyUpdate().catch(() => null); if (r && r.ok) return;
   }
+  setPct(100);
   msg.textContent = st && st.installer ? `새 버전 ${st.installer.version}은 앱을 새로 설치해야 해요` : '준비 완료!';
-  await new Promise(r => setTimeout(r, Math.max(0, 700 - (Date.now() - t0))));     // 너무 번쩍 지나가지 않게 잠깐 보여 줌
+  await new Promise(r => setTimeout(r, Math.max(0, 1100 - (Date.now() - t0))));     // 너무 번쩍 지나가지 않게 잠깐 보여 줌
   if (st && st.installer) {
     const ask = document.getElementById('spAsk'); ask.classList.remove('hidden');
     document.getElementById('spGo').onclick = () => APP.openReleases();
