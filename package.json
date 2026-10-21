@@ -21,7 +21,8 @@
     "test:social": "node tests/social.js",
     "test:social-e2e": "node tests/social-e2e.js",
     "test:features": "node tests/app-features-e2e.js",
-    "test:version": "node tests/version.js"
+    "test:version": "node tests/version.js",
+    "test:site": "node tests/site.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

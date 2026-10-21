@@ -130,6 +130,12 @@ jobs:
           $p = Start-Process -FilePath "dist\win-unpacked\PuyoPuyo.exe" -ArgumentList "--smoke" -PassThru -Wait
           if (Test-Path smoke.json) { Get-Content smoke.json } else { Write-Host "smoke.json이 없어요(앱이 뜨지 못함)" }
           if ($p.ExitCode -ne 0) { throw "스모크 테스트 실패(종료 코드 $($p.ExitCode))" }
+      - name: 다운로드 사이트용 고정 이름 설치 파일과 체크섬
+        shell: bash
+        run: |
+          # 사이트가 항상 같은 주소로 최신 설치 파일을 가리키도록 버전 없는 이름을 하나 더 만들고, 받은 파일 확인용 SHA-256 목록을 만듦
+          cp dist/PuyoPuyo-Setup-*.exe dist/PuyoPuyo-Setup.exe
+          (cd dist && sha256sum PuyoPuyo-Setup*.exe PuyoPuyo-*-portable.exe > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: 화면 업데이트 묶음 만들기·서명(태그·자동 배포일 때)
         if: startsWith(github.ref, 'refs/tags/v') || steps.rel.outputs.go == 'yes'
         shell: bash
@@ -153,6 +159,7 @@ jobs:
         with:
           files: |
             dist/*.exe
+            dist/SHA256SUMS.txt
             dist/ui/*
       - name: 자동 배포 릴리스 만들기
         if: steps.rel.outputs.go == 'yes'
@@ -165,4 +172,5 @@ jobs:
           make_latest: true
           files: |
             dist/*.exe
+            dist/SHA256SUMS.txt
             dist/ui/*

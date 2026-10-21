@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>뿌요뿌요 다운로드</title>
+<meta name="description" content="뿌요뿌요·테트리스 대전, 친구 대전, 랭크전을 즐기는 Windows 앱. 최신 버전을 바로 내려받으세요.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="blobs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="wrap">
+    <h1 class="logo" aria-label="뿌요뿌요"><span>뿌</span><span>요</span><span>뿌</span><span>요</span></h1>
+    <p class="tag">뿌요뿌요 · 테트리스 대전 게임. 친구와 대전하고, 랭크전으로 겨뤄 보세요.</p>
+    <div class="mascots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+    <div class="dl">
+      <a id="dlBtn" class="btn" href="https://github.com/zlero7/puopuo/releases/latest" rel="noopener">
+        <span class="big">Windows용 다운로드</span><span class="sub" id="dlSub">최신 버전을 확인하는 중…</span>
+      </a>
+      <p class="meta" id="dlMeta">Windows 10 이상 · 64비트</p>
+      <p class="warn hidden" id="notWin">이 앱은 Windows용이에요. 컴퓨터에서 이 페이지를 열어 주세요. <button type="button" id="copyLink" class="link">주소 복사</button></p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" id="whatsnew">
+    <h2>이번 버전은 이렇게 바뀌었어요 <span class="badge hidden" id="kind"></span></h2>
+    <p class="muted" id="relHead">불러오는 중…</p>
+    <ul class="notes" id="notes"></ul>
+  </section>
+
+  <section class="card" id="how">
+    <h2>설치 방법</h2>
+    <ol class="steps">
+      <li><b>받기</b><span>위의 <em>다운로드</em> 버튼을 눌러 설치 파일을 받아요.</span></li>
+      <li><b>실행</b><span>받은 파일을 실행해요. Windows가 경고를 띄우면 <em>추가 정보 → 실행</em>을 눌러 주세요.</span></li>
+      <li><b>시작</b><span>앱을 켜고 계정을 만들어 로그인하면 끝이에요. 처음 한 번만 설치하면 이후 업데이트는 앱이 알아서 받아요.</span></li>
+    </ol>
+  </section>
+
+  <section class="card" id="faq">
+    <h2>자주 묻는 질문</h2>
+    <details><summary>Windows가 "알 수 없는 게시자"라고 경고해요</summary>
+      <p>아직 설치 파일에 유료 코드 서명을 붙이지 않아서 나오는 경고예요. 파일 자체가 위험하다는 뜻은 아니에요. <em>추가 정보 → 실행</em>을 누르면 설치돼요. 걱정되면 아래 "받은 파일 확인하기"로 파일이 변조되지 않았는지 확인할 수 있어요.</p></details>
+    <details><summary>업데이트는 어떻게 하나요?</summary>
+      <p>앱을 켤 때마다 새 화면을 자동으로 확인해서 받아요. 설치 파일을 다시 받을 일은 드물고, 앱 본체가 바뀐 큰 업데이트일 때만 안내가 떠요.</p></details>
+    <details><summary>계정은 어디서 만드나요?</summary>
+      <p>앱 안에서 온라인 기능(대전·랭크전·친구)을 처음 누를 때 가입 창이 떠요. 이 사이트에서는 가입하지 않아요.</p></details>
+    <details><summary>서버에 연결이 안 돼요</summary>
+      <p>서버 점검 중이거나 인터넷 연결 문제일 수 있어요. 잠시 뒤 다시 시도해 보세요. 연습·AI 대전은 서버 없이도 할 수 있어요.</p></details>
+    <details><summary>어떤 이전 버전으로 돌아가고 싶어요</summary>
+      <p>아래 "이전 버전" 목록에서 원하는 버전의 설치 파일을 받을 수 있어요. 앱이 자동으로 최신 화면을 다시 받을 수 있다는 점은 알아 두세요.</p></details>
+  </section>
+
+  <section class="card" id="verify">
+    <h2>받은 파일 확인하기</h2>
+    <p>설치 파일이 올린 그대로인지 확인하려면 PowerShell에서 아래 명령을 실행하고, 나온 값이 같은지 비교해 보세요.</p>
+    <pre><code>Get-FileHash .\PuyoPuyo-Setup.exe -Algorithm SHA256</code></pre>
+    <p class="hash"><span id="hashLabel">공식 값</span> <code id="hashVal">릴리스 페이지의 SHA256SUMS.txt에서 확인할 수 있어요</code></p>
+  </section>
+
+  <section class="card" id="older">
+    <h2>이전 버전</h2>
+    <ul class="olds" id="olds"><li class="muted">불러오는 중…</li></ul>
+    <p class="muted"><a href="https://github.com/zlero7/puopuo/releases" rel="noopener">모든 버전 보기 (GitHub)</a></p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>뿌요뿌요 · <a href="https://github.com/zlero7/puopuo" rel="noopener">소스 저장소</a></p>
+    <p class="muted">버전 번호: 앞자리는 큰 변경, 가운데는 적당한 변경, 끝자리는 사소한 수정이에요.</p>
+  </div>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
