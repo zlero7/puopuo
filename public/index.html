@@ -153,7 +153,8 @@
   .charcard .tt { left: 0; right: 0; bottom: 9%; text-align: center; font-size: clamp(22px, 4vh, 40px); }
   .charcard .mine { position: absolute; z-index: 2; top: 6%; right: 7%; font-family: var(--head); font-size: 14px; background: #fff; color: var(--d); border-radius: 999px; padding: 2px 10px; display: none; }
   .charcard.sel .mine { display: block; }
-  .charcard.cardimg canvas { left: 5%; top: 5%; width: 90%; height: 90%; transform: none; }   /* 카드 그림(이름·소개 포함)일 때: 그림을 크게, 글자는 숨김 */
+  .charcard .cimg { position: absolute; z-index: 1; top: 5%; left: 50%; height: 90%; aspect-ratio: 600 / 708; transform: translateX(-50%); border-radius: 10px;
+    background: url(img/chars_card.webp?v=3) no-repeat; background-size: 800% 100%; background-position: calc(var(--n) * 100% / 7) 0; }   /* 카드 그림(이름·소개 포함): 한 줄 8칸 그림에서 --n번째 칸 */
   .charcard.cardimg .tt { display: none; }
   #sc-ai { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 1fr; }
   #sc-vs { grid-template-columns: 1.15fr 1fr 0.9fr; grid-template-rows: auto 1fr 1fr auto; }

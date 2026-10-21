@@ -78,8 +78,10 @@ function setHints(kind) {
 function renderChars(focusId) {
   const sec = $('sc-chars'), mine = stats.char || 'lumi';
   if (!sec.children.length) {
-    sec.innerHTML = CHARS.map(ch => `<button class="tile charcard" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}">` +
-      `<span class="in"></span><canvas data-char="${ch.id}"></canvas><span class="mine">내 캐릭터</span><span class="tt">${esc(ch.name)}</span></button>`).join('');
+    // 카드 그림은 캔버스가 아니라 일반 이미지(CSS 배경)로: 칸에 마우스를 올리면 커지고 기울어지는데, 캔버스는 그때 이미 만든 비트맵을 늘려서 뭉개지고
+    // 이미지는 브라우저가 변형된 크기에 맞춰 원본에서 다시 그려서 선명함
+    sec.innerHTML = CHARS.map((ch, i) => `<button class="tile charcard cardimg" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}">` +
+      `<span class="in"></span><i class="cimg" style="--n:${i}"></i><span class="mine">내 캐릭터</span><span class="tt">${esc(ch.name)}</span></button>`).join('');
     sec.querySelectorAll('.tile').forEach(t => {
       t.addEventListener('click', () => act(t.dataset.act));
       t.addEventListener('mouseenter', () => t.focus({ preventScroll: true }));
@@ -87,12 +89,6 @@ function renderChars(focusId) {
     });
   }
   sec.querySelectorAll('.tile').forEach(t => t.classList.toggle('sel', t.id === 'ch-' + mine));
-  requestAnimationFrame(() => sec.querySelectorAll('canvas[data-char]').forEach(c => {
-    const g = fitCanvas(c); if (!g) return;
-    if (charImgOk('card')) { g.x.save(); g.x.beginPath(); rr(g.x, 0, 0, g.w, g.h, 10); g.x.clip(); drawCharCard(g.x, c.dataset.char, 0, 0, g.w, g.h); g.x.restore(); }   // 카드 그림에 이름·소개가 있음
-    else drawChar(g.x, c.dataset.char, g.w / 2, g.h / 2 + 4, Math.min(g.w, g.h) * 0.8, 'happy');
-    c.closest('.charcard').classList.toggle('cardimg', !!charImgOk('card'));
-  }));
 }
 function showScreen(id, focusId) {
   document.querySelectorAll('.screen').forEach(el => el.classList.toggle('hidden', el.id !== 'sc-' + id));
