@@ -66,6 +66,23 @@ function drawCharFace(c, id, x, y, size, expr = 0) {
   c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
   c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
 }
+// 끝났을 때 대사 옆 큰 얼굴: 표정 그림(chars_face)은 원본이 아주 작아 크게 보면 뭉개지므로, 선명한 상반신 그림(chars_bust)에서 얼굴 부분만 오려 씀. 칸 안 얼굴 중심(x, y)과 오려 낼 크기 — CHARS 순서
+const HEAD_CROP = [[222, 165, 165], [194, 158, 170], [196, 170, 170], [232, 172, 170], [212, 148, 170], [206, 152, 170], [192, 152, 170], [244, 108, 200]];
+function drawCharHead(c, id, x, y, size, won) {
+  if (!charImgOk('bust')) { drawCharFace(c, id, x, y, size, won ? FACE.joy : FACE.worry); return; }
+  const ch = charOf(id), i = Math.max(0, CHARS.findIndex(q => q.id === ch.id)), [fx, fy, fs] = HEAD_CROP[i] || [160, 150, 200], h = size / 2, r = size * 0.2;
+  c.save(); c.beginPath(); rr(c, x - h, y - h, size, size, r); c.fillStyle = '#fff'; c.fill(); c.clip();
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  if (!won) c.filter = 'saturate(0.45) brightness(0.92)';                       // 진 쪽은 풀 죽은 색
+  c.drawImage(CHAR_IMG.bust, i * 320 + fx - fs / 2, fy - fs / 2, fs, fs, x - h, y - h, size, size);
+  c.filter = 'none';
+  if (won) drawStar(c, x + h * 0.62, y - h * 0.62, size * 0.2, '#ffe066');         // 이긴 쪽 반짝
+  else { c.fillStyle = '#7ec8ff'; c.strokeStyle = '#2f78f0'; c.lineWidth = Math.max(1, size * 0.025);   // 진 쪽 땀방울
+    const dx = x + h * 0.6, dy = y - h * 0.5, q = size * 0.11; c.beginPath(); c.moveTo(dx, dy - q); c.quadraticCurveTo(dx + q, dy + q * 0.2, dx, dy + q); c.quadraticCurveTo(dx - q, dy + q * 0.2, dx, dy - q); c.fill(); c.stroke(); }
+  c.restore();
+  c.save(); c.lineWidth = Math.max(2, size * 0.06); c.strokeStyle = '#fff'; c.beginPath(); rr(c, x - h, y - h, size, size, r); c.stroke();
+  c.lineWidth = Math.max(1, size * 0.03); c.strokeStyle = ch.d; c.stroke(); c.restore();
+}
 // 지금 판 상황에 맞는 표정: 끝나면 이긴 쪽 아주 기쁨 · 진 쪽 걱정, 연쇄 중엔 신남, 방해가 많이 쌓였거나 위험하면 걱정
 function moodOf(f) {
   if (game.state === 'over') return f.won ? FACE.joy : f.dead ? FACE.worry : FACE.calm;

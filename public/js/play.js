@@ -404,7 +404,7 @@ function render(t) {
       const ch = charOf(f.char), txt = f.won ? ch.win : ch.lose;
       slab(ctx, f.ox + 16, OY + FH * 0.66, f.fw - 32, 40, { c: '#ffffff', d: ch.d }, 4);
       outlined(ctx, txt, f.ox + f.fw / 2 + 26, OY + FH * 0.66 + 20, Math.min(19, 260 / txt.length + 4), '#22212e', '#fff', 4);
-      drawCharFace(ctx, f.char, f.ox + 44, OY + FH * 0.66 + 18, 62, f.won ? FACE.joy : FACE.worry);   // 이긴 쪽 아주 기쁜 얼굴 · 진 쪽 걱정하는 얼굴
+      drawCharHead(ctx, f.char, f.ox + 44, OY + FH * 0.66 + 18, 62, !!f.won);   // 선명한 상반신 그림에서 오린 얼굴: 이긴 쪽은 반짝 · 진 쪽은 풀 죽은 색과 땀방울
     }
   });
   if (game.rule === 'bigbang') drawBigBang(ctx);
