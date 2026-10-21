@@ -63,6 +63,9 @@ const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}
     ok(got.some(m => m.t === 'start') && await p.evaluate(() => game.mode === 'online'), '수락하면 같은 방에 들어가 대전이 시작됨');
     await p.evaluate(() => { nsend({ t: 'leave' }); game.net = false; openMenu('stats'); }); await p.waitForTimeout(500);
     ws2.send(JSON.stringify({ t: 'leave' }));
+    // 랭크전 대기열 요청에 'AI와 대전' 설정이 실려 가는지(20초 뒤 AI 상대가 들어오려면 필요)
+    const rq = await p.evaluate(async () => { stats = loadStats(); stats.rankBot = true; saveStats(); window.__rq = null; const o = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { try { const m = JSON.parse(d); if (m.t === 'rq') window.__rq = m; } catch (e) {} return o.call(this, d); }; runMatch('ranked'); await new Promise(r => setTimeout(r, 800)); WebSocket.prototype.send = o; cancelWait(); stats.rankBot = false; saveStats(); return window.__rq; });
+    ok(rq && rq.bot === true && rq.char, '랭크전 요청에 "AI와 대전" 설정과 캐릭터가 실려 감');
     // 연습 글로벌 순위: 내 기록(이 컴퓨터)이 올라가고 순위표에 (나)로 보임
     await p.evaluate(() => { stats = loadStats(); stats.practice = { ...stats.practice, best: 7777 }; saveStats(); infoTab = 'practice'; renderInfo(); }); await p.waitForTimeout(3500);
     ok(await p.evaluate(() => /7,777점/.test(document.getElementById('iBody').textContent) && /\(나\)/.test(document.getElementById('iBody').textContent) && /내 순위 1위/.test(document.getElementById('iBody').textContent)), '연습 순위 탭: 내 기록이 글로벌 순위(1위)에 올라 보임');
