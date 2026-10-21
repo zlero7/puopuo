@@ -106,6 +106,7 @@ function infoRank(seq) {
   setInfo(bar, '<div class="empty">불러오는 중…</div>');
   apiGet('/rank/me', { style: rkStyle }).then(m => {
     if (seq !== infoSeq) return;
+    game.rkInfo = m;
     const s = m.season, master = !m.placing && m.group === 5;
     const sub = m.placing ? `배치 ${m.placed}/${m.need} · ${m.pw}승 ${m.pl}패` : master ? `${m.rp} RP` : `${m.rp} / 100 RP`;
     const note = m.placing ? (m.first ? '첫 배치 5판 · 해가 바뀐 첫 배치도 5판이에요(MMR 초기화).' : '같은 해 새 시즌은 5판 배치 · 아주 잘하거나 못하지 않으면 지난 티어를 그대로 이어가요.')
@@ -113,7 +114,7 @@ function infoRank(seq) {
     const hero = `<div class="rkhero">${emCv(m.group, m.placing ? 0 : m.div)}<div><div class="t">${esc(m.placing ? '배치 중' : m.text)}</div>` +
       `<div class="s">${STYLE_KO[rkStyle]} · ${esc(s.name)} (${s.months}) · ${s.daysLeft}일 남음</div><div class="s">${sub}</div>` +
       (m.placing ? `<div class="rpbar"><i style="width:${Math.round(m.placed / m.need * 100)}%"></i></div>` : master ? '' : `<div class="rpbar"><i style="width:${m.rp}%"></i></div>`) +
-      `<div class="s note">${note}</div></div></div>`;
+      `<div class="s note">${note}</div><div class="hintclick">▶ 엠블럼을 누르면 모든 티어를 볼 수 있어요</div></div></div>`;
     const badge = (t, v) => `<div class="badge">${t}<b>${v}</b></div>`;
     const season = `<h4>이번 시즌</h4><div class="badges">${badge('시즌 전적', `${m.sw}승 ${m.sl}패`)}${badge('시즌 최고', esc(m.placing ? '-' : m.peak))}${badge('통산', `${m.w}승 ${m.l}패`)}</div>`;
     const past = (m.hist || []).length ? `<h4>지난 시즌</h4><div class="badges">${m.hist.map(h => badge(esc(h.name), esc(h.finalRank ? `마스터 #${h.finalRank}` : h.final) + `<small> · 최고 ${esc(h.peak)}</small>`)).join('')}</div>` : '';
@@ -176,3 +177,25 @@ $('rpFile').addEventListener('change', () => {
     if (rp) startReplay(rp); else alert('리플레이 파일이 아니거나 손상된 파일이에요.');
   });
 });
+
+/* ---------- 모든 랭크 티어 보기(랭크 엠블럼을 누르면) ---------- */
+function openTierList() {
+  const me = game.rkInfo || game.myRank || {};
+  const cur = me.placing || me.group == null ? null : [me.group, me.group === 5 ? 0 : me.div];
+  const mk = (g, d, name, sub) => `<div class="tdiv${cur && cur[0] === g && cur[1] === d ? ' me' : ''}">${emCv(g, d)}<span><b>${name}</b><small>${sub}</small></span></div>`;
+  let html = RK_GROUPS.map((nm, g) => `<div class="tgrp" style="--g1:${TIER_COL[g][0]};--g2:${TIER_COL[g][1]}"><h4>${nm}</h4>` +
+    [3, 2, 1].map(d => { const lo = (g * 3 + d - 1) * RK_DIV; return mk(g, d, `${nm} ${d}`, `${lo}~${lo + RK_DIV - 1}`); }).join('') + '</div>').join('');
+  html += `<div class="tgrp master" style="--g1:${TIER_COL[5][0]};--g2:${TIER_COL[5][1]}"><h4>마스터</h4>${mk(5, 0, '마스터', `${RK_MASTER} RP 이상`)}</div>`;
+  $('rkGrid').innerHTML = html;
+  $('rkSub').textContent = '배치 5판을 마치면 실력에 맞는 티어에서 시작해요. 각 세부 티어는 100 RP(아래 숫자가 필요한 RP 범위)이고, 다이아 3을 넘으면 마스터예요.' + (cur ? '' : ' (지금은 배치 중이에요)');
+  $('rkTiers').classList.remove('hidden');
+  requestAnimationFrame(() => $('rkGrid').querySelectorAll('canvas[data-em]').forEach(c => {
+    const g = fitCanvas(c); if (!g) return; const [gr, dv] = c.dataset.em.split(',').map(Number); drawTierEmblem(g.x, g.w / 2, g.h / 2, Math.min(g.w, g.h) * 0.92, gr, dv);
+  }));
+  $('rkClose').focus();
+}
+const closeTierList = () => $('rkTiers').classList.add('hidden');
+$('rkClose').addEventListener('click', closeTierList);
+$('rkTiers').addEventListener('click', e => { if (e.target === $('rkTiers')) closeTierList(); });
+$('rkTiers').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeTierList(); });
+$('iBody').addEventListener('click', e => { if (e.target.closest('.rkhero canvas')) openTierList(); });
