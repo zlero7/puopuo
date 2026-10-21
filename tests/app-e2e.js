@@ -26,11 +26,15 @@ const SP = 4601, EP = 9334;
     ok(await pg.evaluate(() => !$('matchModal').classList.contains('hidden') && $('mmTitle').textContent === '빠른 매칭'), '빠른 매칭을 누르면 대전 설정 창이 먼저 뜸');
     await pg.click('#mmGo'); await pg.waitForTimeout(500);
     ok(await pg.evaluate(() => !$('acct').classList.contains('hidden')), '로그인 전에 온라인 대전을 누르면 로그인 창이 뜸');
+    ok(await pg.evaluate(() => $('charModal').classList.contains('hidden')), '로그인이 끝나기 전엔 캐릭터 고르기 창이 뜨지 않음');
     await pg.screenshot({ path: path.join(D, 'e2e_login.png') });
     // 가입
     await pg.click('#acTabReg'); await pg.fill('#acId', 'tester01'); await pg.fill('#acNick', '테스터'); await pg.fill('#acPw', 'Zx9!kqwe12'); await pg.fill('#acPw2', 'Zx9!kqwe12');
     await pg.click('#acGo'); await pg.waitForTimeout(1500);
     ok(await pg.evaluate(() => appCfg.account && appCfg.account.id === 'tester01' && $('acct').classList.contains('hidden')), '가입하면 로그인되고 창이 닫힘');
+    ok(await pg.evaluate(() => !$('charModal').classList.contains('hidden') && document.querySelectorAll('#cmList .cmbtn').length === 8), '로그인이 끝나면 이어서 캐릭터 고르기 창이 뜸(8명)');
+    await pg.click('#cmList .cmbtn[data-id="kuro"]'); await pg.waitForTimeout(300);
+    ok(await pg.evaluate(() => $('charModal').classList.contains('hidden') && loadStats().char === 'kuro'), '캐릭터를 고르면 창이 닫히고 그 캐릭터로 저장됨');
     await pg.click('#bSettings'); await pg.click('#stabAcct'); await pg.waitForTimeout(200);
     ok((await pg.textContent('#stWho')).includes('테스터'), '설정 > 계정 탭에 닉네임이 보임'); await pg.keyboard.press('Escape');
     ok(await pg.evaluate(() => JSON.stringify(window.puyoApp).indexOf('token') < 0 && typeof require === 'undefined'), '화면에는 토큰도 Node도 없음');

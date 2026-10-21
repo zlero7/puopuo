@@ -147,10 +147,10 @@ function act(a) {
   }
   if (k === 'go') showScreen(v);
   else if (k === 'solo') showScreen((stats.style || 'puyo') === 'tetris' ? 'solo' : 'psolo');
-  else if (k === 'psolo') { game.soloMode = v; start('solo'); }
+  else if (k === 'psolo') pickChar(() => { game.soloMode = v; start('solo'); });
   else if (k === 'tut') puzzleGo('tut', 0);   // 튜토리얼은 처음부터
   else if (k === 'puz') { const i = PUZZLES.findIndex((_, j) => !pzDone('puz', j)); puzzleGo('puz', i < 0 ? 0 : i); }
-  else if (k === 'tsolo') { game.soloMode = v; start('solo'); }
+  else if (k === 'tsolo') pickChar(() => { game.soloMode = v; start('solo'); });
   else if (MATCH[k]) openMatch(k);                          // 빠른 매칭·랭크전·방 만들기·방 참가·로컬 대전은 설정 창을 먼저 띄움
   else if (k === 'advc') { advChap = +v; renderAdv(); $('adv-0') && $('adv-0').focus(); }
   else if (k === 'adv') advPlay(+v);
@@ -160,17 +160,43 @@ function act(a) {
   else if (k === 'board') { stats = loadStats(); stats.board = v; saveStats(); renderStyle(); nsend({ t: 'board', board: v }); }
   else if (k === 'ft') { stats = loadStats(); stats.firstTo = +v; saveStats(); renderStyle(); }
   else if (k === 'itab') { infoTab = v; renderInfo(); }
-  else if (k === 'diff') { game.diff = +v; start('vs'); }
+  else if (k === 'diff') pickChar(() => { game.diff = +v; start('vs'); });
 }
 // 대전 설정 창에서 '시작'을 눌렀을 때 실제로 하는 일(예전에 칸을 눌렀을 때 하던 일)
 function startMatch(k) {
   if ((k === 'ranked' || k === 'quick' || k === 'create') && needLogin(() => startMatch(k))) return;   // 앱: 로그인부터
   if ((k === 'ranked' || k === 'quick' || k === 'create') && askName(() => startMatch(k))) return;   // 처음 온라인: 닉네임부터
+  pickChar(() => runMatch(k));
+}
+function runMatch(k) {
   if (k === 'local') { start('local'); return; }
   if (k === 'ranked') { if (!serverOk()) { status(APP ? '서버 주소를 먼저 정해 주세요(계정 창).' : '랭크전은 서버에 접속한 주소(http://…)로 열어야 해요.'); return; } game.resetOnline = true; connect(() => nsend({ t: 'rq', token: APP ? undefined : rankToken, style: stats.style || 'puyo', name: stats.name })); return; }
   if (k === 'quick') { game.resetOnline = true; connect(() => nsend({ t: 'quick', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 })); return; }
   if (k === 'create') { game.resetOnline = true; connect(() => nsend({ t: 'create', style: stats.style || 'puyo', board: stats.board || 'wide', rule: stats.rule || 'tsu', size: stats.players || 2 })); }
 }
+/* ---------- 캐릭터 고르기 창: 게임을 시작할 때마다 먼저 띄움 ---------- */
+let charCb = null;
+function pickChar(cb) {
+  stats = loadStats(); const mine = stats.char || 'lumi'; charCb = cb;
+  $('cmList').innerHTML = CHARS.map((ch, i) => `<button class="cmbtn${ch.id === mine ? ' on' : ''}" data-id="${ch.id}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}" style="--n:${i}"><i></i>${esc(ch.name)}</button>`).join('');
+  $('cmDesc').textContent = ''; $('charModal').classList.remove('hidden');
+  ($('cmList').querySelector('.on') || $('cmList').firstChild).focus();
+}
+function closeChar() { $('charModal').classList.add('hidden'); charCb = null; }
+$('cmCancel').addEventListener('click', closeChar);
+$('charModal').addEventListener('click', e => {
+  if (e.target === $('charModal')) { closeChar(); return; }
+  const b = e.target.closest('.cmbtn'); if (!b) return;
+  const cb = charCb; stats = loadStats(); stats.char = b.dataset.id; saveStats(); renderChars(); closeChar(); if (cb) cb();
+});
+$('charModal').addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Escape') { closeChar(); return; }
+  const bs = [...$('cmList').children], i = bs.indexOf(document.activeElement), d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -4, ArrowDown: 4 }[e.key];
+  if (d && i >= 0) { e.preventDefault(); const t = bs[i + d]; if (t) t.focus(); }
+});
+$('charModal').addEventListener('focusin', e => { const b = e.target.closest('.cmbtn'); if (b) $('cmDesc').textContent = b.dataset.desc; });
+$('charModal').addEventListener('mouseover', e => { const b = e.target.closest('.cmbtn'); if (b) $('cmDesc').textContent = b.dataset.desc; });
 /* ---------- 대전 설정 창: 예전에 대전 화면 위쪽에 있던 선택(스타일·인원·규칙·판·로컬 2P)을 여기로 ---------- */
 const MATCH = {
   quick:  { title: '빠른 매칭', sub: '먼저 기다리고 있던 사람과 바로 대전해요. 아래 설정이 같은 사람끼리 만나요.', rows: ['style', 'pl', 'rule', 'board'], go: '매칭 시작', tile: 't-quick' },

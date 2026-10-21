@@ -190,8 +190,7 @@ $('bJoin').addEventListener('click', () => {
   if (needLogin(() => $('bJoin').click())) return;
   if (askName(() => $('bJoin').click())) return;
   if (typeof closeMatch === 'function') closeMatch();
-  game.resetOnline = true;
-  connect(() => nsend({ t: 'join', code, style: stats.style || 'puyo' }));
+  pickChar(() => { game.resetOnline = true; connect(() => nsend({ t: 'join', code, style: stats.style || 'puyo' })); });
 });
 $('code').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') $('bJoin').click(); });
 $('srv').addEventListener('keydown', e => e.stopPropagation());

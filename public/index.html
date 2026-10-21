@@ -644,6 +644,15 @@
   <div id="newsBox" class="modal hidden" role="dialog" aria-label="업데이트 내용">
     <div class="card setcard" style="max-width: 460px"><h3 id="newsTitle">업데이트 내용</h3><p id="newsText" class="newstext"></p><div class="btns"><button class="mini" id="newsOk" style="--d:#1747b0">확인</button></div></div>
   </div>
+  <div id="charModal" class="modal hidden" role="dialog" aria-label="캐릭터 고르기">
+    <div class="card setcard mmcard">
+      <h3>캐릭터를 골라 주세요</h3>
+      <p class="mmsub" id="cmSub">고른 캐릭터로 게임을 시작해요.</p>
+      <div id="cmList" class="cmlist"></div>
+      <p class="mmdesc" id="cmDesc"></p>
+      <div class="btns"><button class="mini" id="cmCancel" style="--d:#6b6890">취소</button></div>
+    </div>
+  </div>
   <div id="matchModal" class="modal hidden" role="dialog" aria-label="대전 설정">
     <div class="card setcard mmcard">
       <h3 id="mmTitle">대전</h3>
@@ -1041,6 +1050,12 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .tdiv.me { background: rgba(0, 0, 0, 0.5); }
   /* 대전 설정 창(빠른 매칭·방 만들기·방 참가·랭크전·로컬 대전): 예전에 대전 화면 위쪽에 있던 선택을 여기로 */
   .mmcard { width: min(640px, 100%); }
+  .cmlist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
+  .cmbtn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 8px; border: 3px solid #cfd1dc; border-radius: 12px; background: #fff; color: #2a2850; font: inherit; font-family: var(--head); font-size: 15px; cursor: pointer; transition: transform .15s, border-color .15s; }
+  .cmbtn i { width: 64px; height: 64px; background: url(img/chars_icon.webp?v=3) calc(var(--n) * 14.2857%) 0 / 800% 100% no-repeat; }
+  .cmbtn:hover, .cmbtn:focus { outline: 0; border-color: #1b1654; transform: scale(1.035); }
+  .cmbtn.on { border-color: #1b1654; background: #ece8ff; }
+  .cmbtn.on::after { content: "지난번 캐릭터"; font-size: 11px; color: #4a3fa0; }
   .mmsub { margin: 0 0 8px; color: var(--muted); font-size: 15px; }
   .mmrow { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
   .mmrow.hidden { display: none; }
