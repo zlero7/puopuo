@@ -43,7 +43,7 @@ const userData = () => path.join(xdg, fs.readdirSync(xdg).find(n => fs.existsSyn
     // ---- 그림 지연 로딩 ----
     ok(await p.evaluate(() => !CHAR_LOAD.card || document.getElementById('sc-chars') ? true : true) && await p.evaluate(() => typeof CHAR_LOAD === 'object' && !CHAR_LOAD.card), '캐릭터 카드 그림은 필요해지기 전엔 불러오지 않음');
     await p.evaluate(() => { try { dlgClose(); } catch (e) {} openMenu('chars'); }); await p.waitForTimeout(1500);
-    ok(await p.evaluate(() => !!CHAR_LOAD.card && charImgOk('card')), '캐릭터 화면을 열면 카드 그림을 불러옴');
+    ok(await p.evaluate(() => document.querySelectorAll('#sc-chars .cimg').length === 8 && /chars_card/.test(getComputedStyle(document.querySelector('#sc-chars .cimg')).backgroundImage)), '캐릭터 화면을 열면 카드 8장이 이미지로 나옴(호버해도 선명하도록 캔버스가 아님)');
     // ---- 방 코드 복사/붙여넣기 ----
     ok(await p.evaluate(() => window.puyoApp.copyCode('ab12').then(r => r.ok)), '방 코드 복사');
     ok(await p.evaluate(() => window.puyoApp.pasteCode().then(r => r.code)) === 'AB12', '복사해 둔 방 코드를 붙여넣기로 읽음');
