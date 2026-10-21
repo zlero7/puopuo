@@ -33,6 +33,14 @@ function connect(then) {
   };
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (_) { return; } onNet(m); };
 }
+// 매칭을 기다리는 동안 하던 연습·AI·어드벤처 같은 게임은 기록 없이 접음(상대가 잡혔을 때)
+function abortOffline() {
+  if (game.mode === 'online' || game.state === 'menu') return;
+  if (!$('dlg').classList.contains('hidden')) { DLG.done = null; dlgClose(); }
+  game.puzzle = null; game.adv = null; game.advGo = false; game.keepSeries = false; game.replay = null;
+  overlay.classList.add('hidden'); game.state = 'menu';
+  flashGameWait('상대를 찾았어요! 대전으로 이동해요');
+}
 function onNet(m) {
   switch (m.t) {
     case 'authok': { net.authed = true; status('서버에 연결되었습니다.'); const f = net.pending; net.pending = null; if (f) f(); break; }
@@ -70,7 +78,7 @@ function onNet(m) {
       break;
     }
     case 'error': status(m.msg); setWait(null); break;
-    case 'start': $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
+    case 'start': abortOffline(); $('roomBox').classList.add('hidden'); $('bCancel').classList.add('hidden'); status(''); setWait(null);
       if (!m.styles) { status('서버가 예전 버전이라 서로의 스타일을 알 수 없어요. 서버를 끄고 새 server.js로 다시 켜 주세요.'); nsend({ t: 'leave' }); break; }
       {
         // 자리 번호(seat) 순서: 나 → 나머지는 자리 순. 판 번호와 자리 번호를 서로 바꿀 수 있게 기억
@@ -141,12 +149,22 @@ function setWait(kind, sub) {
   else net.wait.sub = sub;
   drawWait();
 }
+let gwT = 0, gwFlash = false;
+function flashGameWait(msg) {                       // 게임 화면 위쪽 알림을 잠깐 보여 줌
+  const g = $('gameWait'); if (!g) return;
+  gwFlash = true; g.textContent = msg; g.classList.remove('hidden'); clearTimeout(gwT); gwT = setTimeout(() => { gwFlash = false; g.classList.add('hidden'); drawWait(); }, 2500);
+}
 function drawWait() {
-  const b = $('mmBadge'), w = net.wait;
+  const b = $('mmBadge'), w = net.wait, g = $('gameWait');
+  const s = w ? Math.floor((Date.now() - w.since) / 1000) : 0, tm = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const what = !w ? '' : w.kind === '랭크전' ? '랭크전 매칭' : w.kind === '빠른 매칭' ? '빠른 매칭' : `${w.kind} 대기`;
+  if (APP) document.title = w ? `뿌요뿌요 · ${what} ${tm}` : '뿌요뿌요';       // 다른 창에 있어도 작업 표시줄에서 매칭 상태가 보임
+  if (g && !gwFlash) {                     // 연습 같은 게임 중에는 위쪽에 작게 '매칭 중'을 보여 줌
+    if (w && game.state !== 'menu' && game.mode !== 'online') { g.innerHTML = `<span class="dot"></span>${esc(what)} 중 <b>${tm}</b><small>잡히면 이 게임을 접고 이동해요</small>`; g.classList.remove('hidden'); }
+    else g.classList.add('hidden');
+  }
   if (!w || game.state !== 'menu') { b.classList.add('hidden'); return; }
-  const s = Math.floor((Date.now() - w.since) / 1000);
-  const what = w.kind === '랭크전' ? '랭크전 매칭' : w.kind === '빠른 매칭' ? '빠른 매칭' : `${w.kind} 대기`;
-  b.innerHTML = `<span class="dot"></span><b>${esc(what)}<i> 중</i></b><small>${esc(w.sub || '')}</small><span class="tm">${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</span>`;
+  b.innerHTML = `<span class="dot"></span><b>${esc(what)}<i> 중</i></b><small>${esc(w.sub || '')}</small><span class="tm">${tm}</span>`;
   b.classList.remove('hidden');
 }
 setInterval(() => { if (net.wait) drawWait(); }, 1000);

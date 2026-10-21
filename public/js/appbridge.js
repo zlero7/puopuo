@@ -34,6 +34,7 @@ function showUpdate(st) {
   bar.classList.remove('hidden');
 }
 if (APP) {
+  document.body.classList.add('app');            // 앱 전용 화면 손질(웹에 있던 폰용 항목 숨김 등)
   if (APP.onUpdate) APP.onUpdate(showUpdate);
   if (APP.updateState) APP.updateState().then(showUpdate).catch(() => {});
 }
