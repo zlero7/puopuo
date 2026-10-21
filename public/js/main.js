@@ -7,6 +7,13 @@ window.gameReady = true;
 // 그림이 스크립트를 읽는 동안 이미 다 읽혔으면 그때는 준비 전이라 다시 그리기가 건너뛰어졌음 → 준비된 뒤 그림이 다 풀리면(decode) 한 번 더 그림(시작하자마자 그림이 안 보이다 다른 탭을 누르면 보이던 문제)
 if (CHAR_IMG) Object.values(CHAR_IMG).forEach(i => { if (i.src) i.decode().then(onArtImage, () => {}); });
 TIER_IMG.decode().then(onArtImage, () => {});
+// 시작 직후 화면 크기가 아직 정해지기 전에 한 번 그리면 그림 칸이 비어 있을 수 있음 → 크기가 바뀔 때, 창이 다 읽힌 뒤, 시작 화면이 걷힌 뒤에도 다시 그림
+{
+  let rt = 0; const again = () => { clearTimeout(rt); rt = setTimeout(onArtImage, 60); };
+  if (window.ResizeObserver) { const menu = document.getElementById('menu'); if (menu) new ResizeObserver(again).observe(menu); }
+  window.addEventListener('load', again); window.addEventListener('resize', again); window.addEventListener('puyo-splash-out', again);
+  [150, 600, 1500, 3500].forEach(ms => setTimeout(onArtImage, ms));
+}
 if (APP && APP.uiReady) APP.uiReady().catch(() => {});   // 새 화면이 잘 떴다고 본체에 알림(안 알리면 이전 화면으로 되돌림)
 game.lowFx = stats.lowFx === true;
 // 게임 중엔 화면이 꺼지지 않게(지원하는 브라우저만)
