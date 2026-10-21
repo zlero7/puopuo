@@ -238,8 +238,9 @@ const SCENES = {
 function fitCanvas(c) {
   const w = c.clientWidth, h = c.clientHeight;
   if (!w || !h) return null;
-  c.width = w * DPR; c.height = h * DPR;
-  const x = c.getContext('2d'); x.setTransform(DPR, 0, 0, DPR, 0, 0); x.clearRect(0, 0, w, h);
+  const S = Math.max(DPR, 2);                          // 보통 화면(배율 1)에서도 2배로 그려 둠: 칸에 마우스를 올리면 살짝 커지고 기울어지는데, 그림(비트맵)이 그때 다시 늘어나 흐려지지 않게
+  c.width = Math.round(w * S); c.height = Math.round(h * S);
+  const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.clearRect(0, 0, w, h);
   return { x, w, h };
 }
 function miniField(x, rows, x0, y0, w, h) {
