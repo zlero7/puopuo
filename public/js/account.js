@@ -2,7 +2,7 @@
 // 비밀번호는 입력하자마자 앱 본체로 넘기고(window.puyoApp), 이 화면에는 세션·토큰이 남지 않음
 'use strict';
 (function () {
-  if (!APP) { $('bAcct').classList.add('hidden'); return; }
+  if (!APP) return;
   $('srv').parentElement.classList.add('hidden');            // 앱은 서버 주소를 화면에서 바로 고치지 못함(계정 창에서 본체 확인을 거쳐서만)
   const el = id => $(id);
   let tab = 'login', after = null;
@@ -11,7 +11,6 @@
 
   function paint() {
     const me = appCfg.account;
-    el('bAcct').textContent = me ? me.name : '로그인';
     el('acIn').classList.toggle('hidden', !!me); el('acOut').classList.toggle('hidden', !me);
     el('acTabLogin').classList.toggle('on', tab === 'login'); el('acTabReg').classList.toggle('on', tab === 'reg');
     el('acRegOnly').classList.toggle('hidden', tab !== 'reg');
@@ -50,7 +49,6 @@
     try { const r = tab === 'reg' ? await APP.register(id, el('acNick').value.trim(), pw) : await APP.login(id, pw); if (r.ok) { el('acPw').value = el('acPw2').value = ''; signedIn(r); } else say(fmtErr(r)); }
     finally { el('acGo').disabled = false; }
   }
-  el('bAcct').addEventListener('click', () => open());
   el('acClose').addEventListener('click', close);
   el('acTabLogin').addEventListener('click', () => { tab = 'login'; say(''); paint(); });
   el('acTabReg').addEventListener('click', () => { tab = 'reg'; say(''); paint(); });

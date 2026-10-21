@@ -49,6 +49,7 @@ const charImgOk = k => CHAR_IMG && CHAR_IMG[k].complete && CHAR_IMG[k].naturalWi
 // 그림 한 칸을 (x, y, w, h) 안에 비율 그대로(가운데)
 function charImg(c, k, id, x, y, w, h) {
   const i = Math.max(0, CHARS.findIndex(ch => ch.id === id)), [cw, chh] = CHAR_CELL[k], s = Math.min(w / cw, h / chh);
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';          // 큰 그림을 줄여 그릴 때 계단·깨짐이 없게
   c.drawImage(CHAR_IMG[k], i * cw, 0, cw, chh, x + (w - cw * s) / 2, y + (h - chh * s) / 2, cw * s, chh * s);
 }
 // 표정(img/chars_face.webp): 캐릭터마다 한 줄에 4칸(192×192, 카드 테두리 조각은 잘라 냄) — 0 기본 · 1 신남 · 2 아주 기쁨(승리) · 3 걱정(위험·패배)
@@ -88,6 +89,7 @@ function drawVsPortrait(c, f, x, y, w, h, t) {
   if (charImgOk('vs')) {
     const z = hype ? 1.06 + Math.sin(t / 90) * 0.02 : 1, sh = Math.min(352, 480 * ih / iw) / z, sw = sh * iw / ih;   // 비율 그대로 잘라서
     if (lost) c.filter = 'grayscale(1) brightness(0.8)';
+    c.imageSmoothingQuality = 'high';
     c.drawImage(CHAR_IMG.vs, i * 480 + (480 - sw) / 2, (352 - sh) * 0.35, sw, sh, ix, iy, iw, ih);
     c.filter = 'none';
   } else { c.fillStyle = ch.c; c.fillRect(ix, iy, iw, ih); drawChar(c, ch.id, ix + iw / 2, iy + ih / 2, ih * 0.9); }

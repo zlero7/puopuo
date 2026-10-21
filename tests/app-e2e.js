@@ -9,7 +9,7 @@ const SP = 4601, EP = 9334;
   const srv = spawn(process.execPath, ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: SP, HOST: '127.0.0.1', AUTH_DIR: dir, RANK_FILE: path.join(dir, 'ranks.json'), RANK_OPEN: '1', AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e-secret' }, stdio: 'pipe' });
   let slog = ''; srv.stdout.on('data', d => slog += d); srv.stderr.on('data', d => slog += d);
   await sleep(900);
-  const app = spawn('xvfb-run', ['-a', '-s', '-screen 0 1400x900x24', 'node_modules/electron/dist/electron', '.', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${EP}`], { cwd: ROOT, detached: true, env: { ...process.env, PUYO_SERVER: `http://127.0.0.1:${SP}`, XDG_CONFIG_HOME: xdg }, stdio: 'pipe' });
+  const app = spawn('xvfb-run', ['-a', '-s', '-screen 0 1400x900x24', 'node_modules/electron/dist/electron', '.', '--no-sandbox', '--disable-gpu', `--remote-debugging-port=${EP}`], { cwd: ROOT, detached: true, env: { ...process.env, PUYO_UPDATE_BASE: 'http://127.0.0.1:9/', PUYO_SERVER: `http://127.0.0.1:${SP}`, XDG_CONFIG_HOME: xdg }, stdio: 'pipe' });
   let alog = ''; app.stdout.on('data', d => alog += d); app.stderr.on('data', d => alog += d);
   await sleep(7000);
   try {
@@ -18,7 +18,7 @@ const SP = 4601, EP = 9334;
     await pg.evaluate(() => { try { dlgClose(); } catch (e) {} });
     await pg.waitForTimeout(800);
     ok(await pg.evaluate(() => location.origin === 'puyo://app' && APP && appCfg.server.startsWith('http://127.0.0.1')), '앱이 puyo://app 화면으로 뜨고 서버 주소를 받음');
-    ok((await pg.textContent('#bAcct')).trim() === '로그인', '위쪽에 로그인 버튼이 보임');
+    ok(await pg.evaluate(() => !document.getElementById('bAcct')), '위쪽 계정 버튼은 없고, 계정은 설정 > 계정 탭에서 다룸');
     ok(await pg.evaluate(() => $('srv').parentElement.classList.contains('hidden')), '앱은 서버 주소 입력 칸을 화면에서 숨김');
     // 온라인 대전을 누르면 로그인 창이 먼저 뜸
     await pg.evaluate(() => showScreen('vs')); await pg.waitForTimeout(300);
@@ -29,7 +29,8 @@ const SP = 4601, EP = 9334;
     await pg.click('#acTabReg'); await pg.fill('#acId', 'tester01'); await pg.fill('#acNick', '테스터'); await pg.fill('#acPw', 'Zx9!kqwe12'); await pg.fill('#acPw2', 'Zx9!kqwe12');
     await pg.click('#acGo'); await pg.waitForTimeout(1500);
     ok(await pg.evaluate(() => appCfg.account && appCfg.account.id === 'tester01' && $('acct').classList.contains('hidden')), '가입하면 로그인되고 창이 닫힘');
-    ok((await pg.textContent('#bAcct')).trim() === '테스터', '위쪽 버튼에 닉네임이 보임');
+    await pg.click('#bSettings'); await pg.click('#stabAcct'); await pg.waitForTimeout(200);
+    ok((await pg.textContent('#stWho')).includes('테스터'), '설정 > 계정 탭에 닉네임이 보임'); await pg.keyboard.press('Escape');
     ok(await pg.evaluate(() => JSON.stringify(window.puyoApp).indexOf('token') < 0 && typeof require === 'undefined'), '화면에는 토큰도 Node도 없음');
     // 상대(다른 계정)가 같은 빠른 매칭에 들어옴
     const reg = await (await fetch(`http://127.0.0.1:${SP}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'rival002', name: '라이벌', pw: 'Qm7#rtyu45' }) })).json();
@@ -49,7 +50,7 @@ const SP = 4601, EP = 9334;
     const me = await pg.evaluate(() => apiGet('/rank/me', { style: 'puyo' }).then(m => m.text, e => 'ERR ' + e.message));
     ok(typeof me === 'string' && !me.startsWith('ERR'), '랭크 조회가 본체를 거쳐 됨: ' + me);
     // 로그아웃
-    await pg.evaluate(() => { game.net = false; openMenu('main'); }); await pg.click('#bAcct'); await pg.click('#acLogout'); await pg.waitForTimeout(500);
+    await pg.evaluate(() => { game.net = false; openMenu('main'); }); await pg.click('#bSettings'); await pg.click('#stabAcct'); await pg.click('#stLogout'); await pg.waitForTimeout(500);
     ok(await pg.evaluate(() => !appCfg.account && !net.ws), '로그아웃하면 서버 연결도 끊김');
     ok(cons.filter(c => /Content Security|Refused to/i.test(c)).length === 0, 'CSP 위반 없음' + (cons.length ? ' ' + cons.slice(0, 2).join(' | ') : ''));
     await b.close();
