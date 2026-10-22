@@ -1,4 +1,4 @@
-# 내 Windows PC에 서버를 한 번에 설치하기 (관리자 PowerShell에서 한 번만 실행)
+﻿# 내 Windows PC에 서버를 한 번에 설치하기 (관리자 PowerShell에서 한 번만 실행)
 #   cd 저장소폴더
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\setup.ps1 -TunnelToken "<Cloudflare 터널 토큰>"
 # 하는 일: Node.js 설치 확인 → 서버 의존성 설치 → 로그인할 때마다 서버 자동 시작(작업 스케줄러) → (토큰을 줬다면) cloudflared를 서비스로 설치
