@@ -28,6 +28,13 @@
     paint(); el('acct').classList.remove('hidden');
     setTimeout(() => (appCfg.server ? (appCfg.account ? el('acClose') : el('acId')) : el('acSrvIn')).focus(), 50);
   }
+  // 로그인·로그아웃 직후 로그인 상태에 따라 달라지는 화면(기록·랭크·캐릭터·내 정보/친구 탭·설정의 계정 탭)을 한꺼번에 다시 그림
+  function refreshAuthUI() {
+    try { paint(); if (typeof paintStAcct === 'function' && !$('settings').classList.contains('hidden')) paintStAcct(); } catch (e) {}
+    try { showRankRec(); } catch (e) {}
+    try { renderRecords(); if (typeof renderChars === 'function') renderChars(); } catch (e) {}
+    try { if (game.state === 'menu' && cur === 'stats') renderInfo(); } catch (e) {}
+  }
   // 로그아웃: 아직 못 올린 기록을 서버에 올리고, 이 컴퓨터에 남은 이 계정의 기록·닉네임·대표 캐릭터를 지움(서버에 있으니 다시 로그인하면 돌아옴). 키·소리 같은 이 컴퓨터 설정은 그대로
   const RECORD_KEYS = ['games', 'playMs', 'ai', 'online', 'practice', 'bestChain', 'pops', 'chains', 'allClear', 'sent', 'doubles', 'tLines', 'tTetris', 'tSpins', 'tPC', 'bestRen', 'tRec', 'history', 'adv', 'puz', 'tutSeen', 'psent', 'nameAsked', 'name'];
   async function localLogout(kicked) {
@@ -37,7 +44,7 @@
     stats = loadStats(); const d = defStats(); for (const k of RECORD_KEYS) stats[k] = d[k]; delete stats.char; delete stats.acct; saveStats();
     if (typeof socReset === 'function') socReset();
     el('pName').value = stats.name; el('pName').readOnly = false; el('pName').title = ''; $('recRank').textContent = '로그인 필요';
-    try { renderRecords(); if (game.state === 'menu' && cur === 'stats') renderStats(); if (typeof renderChars === 'function') renderChars(); } catch (e) {}
+    refreshAuthUI();
   }
   window.openAcct = open;
   // 같은 계정으로 다른 곳에서 로그인하면(서버가 이 연결을 끊음) 이 컴퓨터는 로그아웃하고 로그인 창을 띄움
@@ -51,7 +58,8 @@
     stats = loadStats(); stats.name = r.name; stats.nameAsked = true; saveStats();       // 닉네임은 계정 것
     el('pName').value = r.name; el('pName').readOnly = false; el('pName').title = '닉네임을 바꿀 수 있어요';
     paint(); showRankRec();
-    if (typeof socSyncBoot === 'function') socSyncBoot();            // 이 계정의 기록을 서버에서 받아 합침(다른 컴퓨터에서 쌓은 기록)
+    refreshAuthUI();
+    if (typeof socSyncBoot === 'function') Promise.resolve(socSyncBoot()).catch(() => {}).then(refreshAuthUI);   // 이 계정의 기록을 서버에서 받아 합친 뒤(다른 컴퓨터에서 쌓은 기록) 다시 그림
     const f = after; close(); if (f) f();
   }
   async function submit() {
