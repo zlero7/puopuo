@@ -92,7 +92,7 @@ function renderChars(focusId) {
   if (!sec.children.length) {
     // 카드 그림은 캔버스가 아니라 일반 이미지(CSS 배경)로: 칸에 마우스를 올리면 커지고 기울어지는데, 캔버스는 그때 이미 만든 비트맵을 늘려서 뭉개지고
     // 이미지는 브라우저가 변형된 크기에 맞춰 원본에서 다시 그려서 선명함
-    sec.innerHTML = CHARS.map((ch, i) => `<button class="tile charcard cardimg" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}">` +
+    sec.innerHTML = CHARS.map((ch, i) => `<button class="tile charcard cardimg" id="ch-${ch.id}" data-act="char:${ch.id}" style="--c:${ch.col};--d:${ch.d}" data-desc="${esc(charInfo(ch))}">` +
       `<span class="in"></span><i class="cimg" style="--n:${i}"></i><span class="mine">내 캐릭터</span><span class="tt">${esc(ch.name)}</span></button>`).join('');
     sec.querySelectorAll('.tile').forEach(t => {
       t.addEventListener('click', () => act(t.dataset.act));
@@ -196,7 +196,7 @@ let charCb = null;
 function pickChar(cb) {
   stats = loadStats(); const mine = stats.char || 'lumi'; charCb = cb;
   if (stats.skipChar && CHARS.some(c => c.id === mine)) { cb(); return; }   // 설정: 지난번 캐릭터로 바로 시작
-  $('cmList').innerHTML = CHARS.map((ch, i) => `<button class="cmbtn${ch.id === mine ? ' on' : ''}" data-id="${ch.id}" data-desc="${esc(ch.name)} — ${esc(ch.desc)}" style="--n:${i}"><i></i>${esc(ch.name)}</button>`).join('');
+  $('cmList').innerHTML = CHARS.map((ch, i) => `<button class="cmbtn${ch.id === mine ? ' on' : ''}" data-id="${ch.id}" data-desc="${esc(charInfo(ch))}" style="--n:${i}"><i></i>${esc(ch.name)}</button>`).join('');
   $('cmDesc').textContent = ''; $('charModal').classList.remove('hidden');
   ($('cmList').querySelector('.on') || $('cmList').firstChild).focus();
 }
