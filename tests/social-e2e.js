@@ -99,6 +99,9 @@ const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}
     await p.evaluate(() => { infoTab = 'friends'; renderInfo(); }); await p.waitForTimeout(1200);
     p.once('dialog', d => d.accept()); await p.click('.frow [data-sc="del"]'); await p.waitForTimeout(800);
     ok(await p.evaluate(() => document.querySelectorAll('.frow').length === 0), '친구 삭제');
+    // 같은 계정으로 다른 컴퓨터가 로그인하면 이 앱은 로그아웃되고 로그인 창이 뜸
+    await p.evaluate(() => socReady()); await post('/auth/login', { id: 'me0001', pw: 'Zx9!kqwe12' }); await p.waitForTimeout(1500);
+    ok(await p.evaluate(() => !appCfg.account && !document.getElementById('acct').classList.contains('hidden') && /다른 곳에서 같은 계정으로 로그인/.test(document.getElementById('acMsg').textContent)), '다른 곳에서 같은 계정으로 로그인하면 이 앱은 로그아웃되고 안내가 뜸');
     await b.close();
   } catch (e) { console.error('오류', e); fail++; }
   try { process.kill(-app.pid, 'SIGTERM'); } catch (e) {} await sleep(1000); try { srv.kill('SIGTERM'); } catch (e) {} if (ws2) ws2.close();

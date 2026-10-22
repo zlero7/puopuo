@@ -309,5 +309,5 @@ function socSyncDirty() {
     const cur2 = JSON.stringify(syncPick()); if (cur2 === syncLast) return;
     const r = await socAsk({ op: 'sp', data: syncPick() }, 'sp'); if (r.op === 'err') return;
     syncLast = JSON.stringify(r.data); if (syncApply(r.data)) syncLast = JSON.stringify(syncPick());       // 다른 컴퓨터에서 올린 것이 있으면 받아 합침
-  }, 5000);
+  }, 2500);
 }

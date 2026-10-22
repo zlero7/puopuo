@@ -29,6 +29,12 @@
     setTimeout(() => (appCfg.server ? (appCfg.account ? el('acClose') : el('acId')) : el('acSrvIn')).focus(), 50);
   }
   window.openAcct = open;
+  // 같은 계정으로 다른 곳에서 로그인하면(서버가 이 연결을 끊음) 이 컴퓨터는 로그아웃하고 로그인 창을 띄움
+  window.acctKicked = async () => {
+    if (!appCfg.account) return; appCfg.account = null; try { await APP.logout(); } catch (e) {}
+    el('pName').readOnly = false; el('pName').title = ''; if (typeof showRankRec === 'function') showRankRec();
+    open('login'); say('다른 곳에서 같은 계정으로 로그인해서 이 컴퓨터는 로그아웃됐어요.', true);
+  };
   const close = () => { el('acct').classList.add('hidden'); after = null; };
   function signedIn(r) {
     appCfg.account = { id: r.id, name: r.name };

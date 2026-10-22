@@ -71,7 +71,8 @@ async function authedWs(port, session, name) {
     for (let i = 0; i < 5; i++) await login(P, 'bobby02', 'nope-nope-1');
     const lk = await login(P, 'bobby02', 'Qm7#rtyu45');
     ok(lk.s === 429 && lk.j.err === 'locked' && lk.j.retry > 0, '연속 5번 틀리면 올바른 비밀번호도 잠깐 막음');
-    ok((await login(P, 'alice01', 'Zx9!kqwe12')).s === 200, '다른 계정은 영향 없음');
+    const l1b = await login(P, 'alice01', 'Zx9!kqwe12'); ok(l1b.s === 200, '다른 계정은 영향 없음');
+    ok((await post(P, '/auth/ticket', {}, bear(l1.j.session.token))).s === 401 && (await post(P, '/auth/ticket', {}, bear(l1b.j.session.token))).s === 200, '같은 계정으로 새로 로그인하면 이전 로그인(다른 컴퓨터)은 무효 · 새 로그인만 유효');
 
     // ---- 요청 형식 ----
     ok((await post(P, '/auth/login', null, { 'Content-Type': 'text/plain' }, 'x')).s === 415, 'JSON이 아니면 거부(415)');
@@ -80,7 +81,7 @@ async function authedWs(port, session, name) {
     ok((await fetch(B(P) + '/auth/login')).status === 405, 'GET은 거부(405)');
 
     // ---- 세션 · 접속표 ----
-    const S = l1.j.session.token;
+    const S = l1b.j.session.token;
     ok((await post(P, '/auth/ticket', {}, bear(S))).s === 200, '세션으로 접속표를 받음');
     const forged = S.slice(0, -3) + (S.endsWith('aaa') ? 'bbb' : 'aaa');
     ok((await post(P, '/auth/ticket', {}, bear(forged))).s === 401, '서명이 틀린 세션은 거부');
@@ -115,13 +116,19 @@ async function authedWs(port, session, name) {
     ok(hi && hi.d.name === '앨리스', '상대에게 보이는 이름은 계정 닉네임으로 고정(위조 불가)');
 
     // ---- 한 계정은 한 곳에서만 ----
-    const c1b = await authedWs(P, l1.j.session.token);
+    const c1b = await authedWs(P, l1b.j.session.token);
     ok(c1b.ok && (await sleep(300), c1.closed === 4409), '같은 계정으로 다시 접속하면 먼저 연결은 끊김');
+
+    // 접속 중인 상태에서 다른 곳(다른 컴퓨터)이 로그인하면 지금 연결이 끊기고 알림이 옴
+    const sx = (await login(P, 'carol03', 'Lp5$mnbv78')).j.session.token, cx = await authedWs(P, sx);
+    const sy = (await login(P, 'carol03', 'Lp5$mnbv78')).j.session.token; await sleep(400);
+    ok(cx.closed === 4409 && cx.msgs.some(m => m.t === 'error' && m.code === 'dup'), '다른 곳에서 로그인하면 접속 중이던 연결이 끊기고 이유를 알려 줌');
+    ok((await post(P, '/auth/ticket', {}, bear(sx))).s === 401 && (await post(P, '/auth/ticket', {}, bear(sy))).s === 200, '끊긴 쪽은 다시 접속할 수 없고(로그인 필요) 새로 로그인한 쪽만 접속 가능');
 
     // ---- 랭크 조회 ----
     ok((await fetch(B(P) + '/rank/me?style=puyo')).status === 401, '/rank/me는 로그인 없이는 거부');
     ok((await fetch(B(P) + '/rank/me?style=puyo&token=abcdefghijklmnopqrst')).status === 401, '주소에 실은 토큰은 더 이상 통하지 않음');
-    const me = await fetch(B(P) + '/rank/me?style=puyo', { headers: bear(l1.j.session.token) });
+    const me = await fetch(B(P) + '/rank/me?style=puyo', { headers: bear(l1b.j.session.token) });
     ok(me.status === 200 && (await me.json()).text, '/rank/me는 로그인한 사람의 기록을 줌');
     ok((await fetch(B(P) + '/rank/top?style=puyo')).status === 200, '/rank/top(순위표)은 누구나');
 

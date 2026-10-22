@@ -167,7 +167,7 @@ async function login({ id, pw }) {
   const a = typeof pw === 'string' && pw.length <= 128 ? byId.get(id) : null;
   const ok = await checkPw(typeof pw === 'string' ? pw.slice(0, 128) : '', a ? a.pw : await dummy());
   if (!a || !ok) { failed(id); return { err: 'bad_login' }; }
-  fails.delete(id); a.last = now(); save();
+  fails.delete(id); a.last = now(); a.tv++; save();           // 새로 로그인하면 이전 로그인(다른 컴퓨터)은 끊김: 한 계정은 한 곳에서만
   return { ok: true, acct: a };
 }
 async function changePassword(a, oldPw, newPw) {

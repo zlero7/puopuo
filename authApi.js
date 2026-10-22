@@ -3,6 +3,7 @@
 const auth = require('./auth');
 
 const MAX_BODY = 2048;
+const hooks = { onLogin: null };         // server.js가 채움
 const MSG = {
   id_bad: '아이디는 영문 소문자·숫자·밑줄 4~16자로 정해 주세요.',
   name_bad: '닉네임은 1~10자이고, 비속어나 특수문자를 쓸 수 없어요.',
@@ -65,6 +66,7 @@ async function handle(req, res, url, ip) {
   if (url === '/auth/login') {
     const r = await auth.login({ id: b.id, pw: b.pw });
     if (!r.ok) { if (r.err === 'locked') fail(res, 429, 'locked', { retry: r.retry }); else { console.log(`[계정] 로그인 실패 ${auth.normId(b.id).slice(0, 16)} (${ip})`); fail(res, 401, r.err); } return; }
+    if (hooks.onLogin) hooks.onLogin(r.acct.uid);                 // 이미 접속 중인 연결(다른 컴퓨터)을 끊음
     reply(res, 200, okAcct(r.acct, { session: auth.sessionFor(r.acct) })); return;
   }
   if (url === '/auth/password') {
@@ -76,4 +78,4 @@ async function handle(req, res, url, ip) {
   }
   fail(res, 404, 'bad_req');
 }
-module.exports = { handle, authed, bearer };
+module.exports = { handle, authed, bearer, hooks };

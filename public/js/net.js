@@ -36,7 +36,8 @@ function connect(then) {
     });
   };
   ws.onerror = () => status('서버에 연결할 수 없습니다. 서버가 켜져 있는지, 주소가 맞는지 확인하세요.');
-  ws.onclose = () => {
+  ws.onclose = ev => {
+    if (ev && ev.code === 4409 && typeof acctKicked === 'function') { net.ws = null; setWait(null); acctKicked(); return; }   // 다른 곳에서 로그인함 → 이 컴퓨터는 로그아웃
     const wasWaiting = net.ws === ws && !!net.queued && !!net.wait && game.mode !== 'online';
     if (net.ws === ws) { net.ws = null; if (!wasWaiting) setWait(null); }
     $('roomBox').classList.add('hidden'); if (!wasWaiting) $('bCancel').classList.add('hidden');
