@@ -14,6 +14,7 @@ function backupNow({ files, dir, keep = 14, now = new Date() }) {
   const name = stampOf(now), dest = path.join(dir, name), tmp = dest + '.tmp', done = [];
   fs.mkdirSync(tmp, { recursive: true, mode: 0o700 });
   for (const f of files) {
+    try { if (fs.statSync(f).isDirectory()) { fs.cpSync(f, path.join(tmp, path.basename(f)), { recursive: true }); done.push(path.basename(f) + '/'); continue; } } catch (e) {}
     try { if (fs.statSync(f).isFile()) { fs.copyFileSync(f, path.join(tmp, path.basename(f))); try { fs.chmodSync(path.join(tmp, path.basename(f)), 0o600); } catch (e) {} done.push(path.basename(f)); } } catch (e) {}
   }
   if (!done.length) { fs.rmSync(tmp, { recursive: true, force: true }); return []; }

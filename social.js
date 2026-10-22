@@ -4,6 +4,19 @@
 const auth = require('./auth');
 const rank = require('./rank');
 const practice = require('./practice');
+const StatSync = require('./public/js/statsync');
+const fs = require('fs'), path = require('path');
+
+// 기록 동기화: 계정마다 파일 하나(data/sync/<uid>.json). 합치는 규칙은 화면과 같은 파일(statsync.js)을 씀
+const SYNC_DIR = path.join(process.env.AUTH_DIR || path.join(__dirname, 'data'), 'sync');
+const syncFile = uid => path.join(SYNC_DIR, `${String(uid).replace(/[^a-f0-9]/gi, '')}.json`);
+function syncLoad(uid) { try { return StatSync.clean(JSON.parse(fs.readFileSync(syncFile(uid), 'utf8'))); } catch (e) { return null; } }
+function syncSave(uid, data) {
+  fs.mkdirSync(SYNC_DIR, { recursive: true, mode: 0o700 });
+  const f = syncFile(uid), fd = fs.openSync(f + '.tmp', 'w', 0o600);
+  try { fs.writeSync(fd, JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fs.renameSync(f + '.tmp', f);
+}
 
 const MAX_FRIENDS = 50, MAX_PENDING = 30;
 const CHARS = ['lumi', 'toto', 'pin', 'moka', 'byeol', 'kuro', 'somi', 'bolt'];
@@ -41,6 +54,15 @@ function handle(a, m, ctx) {
     if (!CHARS.includes(m.char)) return err('캐릭터를 알 수 없어요.');
     if (a.char !== m.char) { a.char = m.char; auth.saveSoon(); }
     return null;
+  }
+  if (op === 'sg') return { op: 'sg', data: syncLoad(a.uid) };                  // 내 기록 받기
+  if (op === 'sp') {                                                              // 내 기록 올리기: 저장된 것과 합쳐서 돌려줌
+    const w = lastAt.get(a.uid + ':sp') || 0; if (Date.now() - w < 2000) return err('기록을 너무 자주 올리고 있어요.');
+    lastAt.set(a.uid + ':sp', Date.now());
+    const inc = StatSync.clean(m.data); if (!inc) return err('기록 모양이 올바르지 않아요.');
+    const merged = StatSync.merge(syncLoad(a.uid), inc);
+    try { syncSave(a.uid, merged); } catch (e) { console.error('기록 저장 실패:', e.message); return err('기록을 저장하지 못했어요.'); }
+    return { op: 'sp', data: merged };
   }
   if (op === 'ps') {                                           // 연습 기록 올리기
     const w = lastAt.get(a.uid + ':ps') || 0; if (Date.now() - w < 1500) return err('기록을 너무 자주 올리고 있어요.');

@@ -76,6 +76,21 @@ const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}
     await p.click('.lbrow', { button: 'right' }); await p.waitForTimeout(300);
     ok(await p.evaluate(() => [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,친구 추가'), '순위표 줄을 우클릭하면 "전적 보기 · 친구 추가" 메뉴');
     await p.keyboard.press('Escape');
+    // 이미 친구인 사람은 순위표 우클릭에서 '친구 추가'가 아니라 '대전 신청'이 뜸(친구 목록을 아직 안 받았어도)
+    await p.evaluate(pid => { soc.loaded = false; soc.friends = []; infoTab = 'board'; $('iBody').innerHTML = `<div class="lbrow" data-pid="${pid}"><div>1</div><div>X</div><div>Y</div><div>Z</div><div class="nm"><b>친구</b></div><div>1승</div></div>`; }, rivalPid);
+    await p.click('.lbrow', { button: 'right' }); await p.waitForTimeout(1200);
+    ok(await p.evaluate(() => [...document.querySelectorAll('#ctxMenu button')].map(b => b.textContent).join() === '전적 보기,대전 신청'), '이미 친구인 사람에게는 "친구 추가"가 뜨지 않음');
+    await p.keyboard.press('Escape');
+    // 기록 동기화: 이 컴퓨터 기록이 서버에 올라가고, 기록이 없는 새 컴퓨터(저장소 비움)에서 로그인하면 되돌아옴
+    await p.evaluate(() => { stats = loadStats(); stats.games = 12; stats.bestChain = 8; stats.practice = { ...stats.practice, best: 4321 }; stats.history = [{ d: 111, m: '연습 · 뿌요뿌요', r: 'p', sc: 4321, ch: 3, k: 'p', cat: 'solo', mc: 'lumi', oc: [], on: '' }]; saveStats(); syncOk = true; });
+    await p.evaluate(async () => { await socSyncBoot(); await socAsk({ op: 'sp', data: StatSync.pick(stats) }, 'sp'); }); await p.waitForTimeout(500);
+    await p.evaluate(() => { localStorage.removeItem(STATS_KEY); stats = loadStats(); syncOk = false; });
+    ok(await p.evaluate(() => stats.games === 0 && stats.practice.best === 0), '새 컴퓨터처럼 로컬 기록을 비움');
+    await p.evaluate(async () => { await socSyncBoot(); }); await p.waitForTimeout(800);
+    ok(await p.evaluate(() => { const s = loadStats(); return s.games === 12 && s.bestChain === 8 && s.practice.best === 4321 && s.history.length === 1 && s.history[0].sc === 4321; }), '같은 계정으로 로그인하면 서버에서 기록을 받아 와 되살아남');
+    await p.evaluate(() => { stats = loadStats(); stats.acct = 'other_acct'; stats.games = 999; localStorage.setItem(STATS_KEY, JSON.stringify(stats)); });
+    await p.evaluate(async () => { await socSyncBoot(); }); await p.waitForTimeout(800);
+    ok(await p.evaluate(() => { const s = loadStats(); return s.games === 12 && s.acct === 'me0001'; }), '다른 계정 기록이 남아 있던 컴퓨터면 섞지 않고 이 계정 기록으로 바꿈');
     // 대표 캐릭터 동기화
     await p.evaluate(() => { act('char:kuro'); }); await p.waitForTimeout(600);
     ws2.send(JSON.stringify({ t: 'soc', op: 'list' })); await sleep(500);

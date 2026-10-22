@@ -477,7 +477,7 @@ server.listen(PORT, HOST, () => {
   const lan = lanAddresses();
   if (REQUIRE_AUTH && process.env.BACKUP !== '0') {       // 계정·랭크·비밀키를 하루에 한 번 data/backups 에 복사(BACKUP=0이면 끔, BACKUP_DIR·BACKUP_KEEP으로 바꿈)
     const dataDir = process.env.AUTH_DIR || path.join(__dirname, 'data');
-    const files = [process.env.ACCOUNTS_FILE || path.join(dataDir, 'accounts.json'), process.env.RANK_FILE || path.join(__dirname, 'data', 'ranks.json'), process.env.AUTH_SECRET_FILE || path.join(dataDir, 'auth-secret.key')];
+    const files = [process.env.ACCOUNTS_FILE || path.join(dataDir, 'accounts.json'), process.env.RANK_FILE || path.join(__dirname, 'data', 'ranks.json'), process.env.AUTH_SECRET_FILE || path.join(dataDir, 'auth-secret.key'), path.join(dataDir, 'sync')];   // sync: 계정별 기록 동기화 폴더
     require('./backup').start({ files, dir: process.env.BACKUP_DIR || path.join(dataDir, 'backups') });
   }
   console.log('');

@@ -70,6 +70,17 @@ async function conn(id, name) {
     const p4 = await Bb.ask({ op: 'ps', mode: 'ts', v: 61000 }, 'ps'); ok(p4.rank === 1, '스프린트는 시간이 짧을수록 1위');
     const lb1 = await A.ask({ op: 'pl', mode: 'tm' }, 'pl');
     ok(lb1.total === 2 && lb1.rows[0].name === '바비' && lb1.rows[0].v === 20000 && lb1.me.place === 2 && lb1.rows[1].me === true && /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(lb1.rows[0].pid) && JSON.stringify(lb1).indexOf('bobby02') < 0, '연습 순위표(내 순위 표시 · 친구 코드 포함 · 로그인 아이디 없음)');
+    // 기록 동기화
+    const sg0 = await A.ask({ op: 'sg' }, 'sg'); ok(sg0.op === 'sg' && sg0.data === null, '처음에는 서버에 기록이 없음');
+    const sp1 = await A.ask({ op: 'sp', data: { games: 5, practice: { best: 900 }, history: [{ d: 10, m: '연습', sc: 9 }] } }, 'sp');
+    ok(sp1.op === 'sp' && sp1.data.games === 5 && sp1.data.history.length === 1, '기록 올리기');
+    await sleep(2100);
+    const sp2 = await A.ask({ op: 'sp', data: { games: 3, bestChain: 4, history: [{ d: 20, m: '연습', sc: 1 }] } }, 'sp');
+    ok(sp2.data.games === 5 && sp2.data.bestChain === 4 && sp2.data.history.length === 2, '다른 컴퓨터에서 올린 기록과 합쳐짐(덮어쓰지 않음)');
+    ok((await A.ask({ op: 'sp', data: { games: 99 } }, 'sp')).op === 'err', '너무 잦게 올리면 막음');
+    const sgB = await Bb.ask({ op: 'sg' }, 'sg'); ok(sgB.data === null, '다른 계정의 기록은 보이지 않음');
+    const sg1 = await A.ask({ op: 'sg' }, 'sg'); ok(sg1.data.games === 5 && sg1.data.practice.best === 900, '새 컴퓨터가 받아 가는 기록');
+    await sleep(2100); ok((await A.ask({ op: 'sp', data: 'x' }, 'sp')).op === 'err', '이상한 모양은 거절');
     // 삭제
     const r3 = await Bb.ask({ op: 'del', pid: la.me.pid }, 'list'); ok(r3.friends.length === 0, '친구 삭제');
     ok((await A.ask({ op: 'list' }, 'list')).friends.length === 0, '삭제하면 양쪽에서 사라짐');

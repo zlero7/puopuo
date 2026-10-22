@@ -23,7 +23,8 @@
     "test:features": "node tests/app-features-e2e.js",
     "test:version": "node tests/version.js",
     "test:site": "node tests/site.js",
-    "test:feel": "node tests/tetris-feel.js"
+    "test:feel": "node tests/tetris-feel.js",
+    "test:statsync": "node tests/statsync.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

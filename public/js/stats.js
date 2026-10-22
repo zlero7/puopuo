@@ -18,7 +18,7 @@ function cleanName(name) {
   const k = s.toLowerCase().replace(/[\s\d_.\-~!@#$%^&*()+=|/\\'"`,?:;\[\]{}]/g, '');
   return !s || BAD_WORDS.some(w => k.includes(w)) ? '플레이어' : s;
 }
-function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {} }
+function saveStats() { try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {} if (typeof socSyncDirty === 'function') socSyncDirty(); }
 let stats = loadStats();
 function recordGame() {
   if (game.recorded) return; game.recorded = true;

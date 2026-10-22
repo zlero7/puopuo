@@ -173,14 +173,15 @@ document.addEventListener('mousedown', e => { if (!e.target.closest('#ctxMenu'))
 window.addEventListener('blur', ctxClose); window.addEventListener('resize', ctxClose);
 $('iBody').addEventListener('scroll', ctxClose, true);
 // 순위표 줄 · 친구 줄 · 전적 창의 이름을 우클릭
-document.addEventListener('contextmenu', e => {
+document.addEventListener('contextmenu', async e => {
   const r = e.target.closest('.lbrow[data-pid], .frow[data-pid], .prow[data-pid]'); if (!r) return;
-  e.preventDefault();
+  e.preventDefault(); const mx = e.clientX, my = e.clientY;
+  if (!soc.loaded && socOn()) await socAsk({ op: 'list' }, 'list');      // 친구 목록을 아직 안 받았으면 먼저 받아서, 이미 친구인 사람에게 '친구 추가'가 뜨지 않게
   const pid = r.dataset.pid, items = [{ t: '전적 보기', f: () => openProfile(pid) }];
   if (r.classList.contains('frow') || (isFriend(pid) && !r.classList.contains('me'))) items.push({ t: '대전 신청', f: () => socInvite(pid) });
   if (r.classList.contains('frow')) items.push({ t: '친구 삭제', warn: true, f: () => { if (confirm('이 친구를 삭제할까요?')) socAction('del', pid); } });
   else if (!r.classList.contains('me') && !isFriend(pid)) items.push({ t: '친구 추가', f: async () => { if (needLogin(() => {})) return; const x = await socAction('add', pid); socToast(x.op === 'err' ? x.msg : '친구 요청을 보냈어요'); } });
-  ctxOpen(e.clientX, e.clientY, items);
+  ctxOpen(mx, my, items);
 });
 
 /* ---------- 클릭 ---------- */
@@ -274,3 +275,39 @@ function infoPractice(seq) {
   })();
 }
 $('infoCard').addEventListener('click', e => { const b = e.target.closest('button[data-pm]'); if (b) { pmode = b.dataset.pm; renderInfo(); } });
+
+/* ---------- 기록 동기화(다른 컴퓨터와 같은 계정의 기록 맞추기) ---------- */
+// 로그인돼 있으면 켤 때·로그인할 때 서버의 기록을 받아 이 컴퓨터 기록과 합치고(큰 값·합집합), 기록이 바뀌면 몇 초 뒤 서버에 올림
+let syncT = 0, syncLast = '', syncBusy = false, syncOk = false;
+const syncPick = () => StatSync.pick(stats);
+function syncApply(m) {
+  stats = loadStats(); const before = JSON.stringify(StatSync.pick(stats));
+  if (JSON.stringify(m) === before) return false;
+  StatSync.apply(stats, m); localStorage.setItem(STATS_KEY, JSON.stringify(stats));      // 저장은 하되 다시 올리지는 않음
+  if (game.state === 'menu') { try { renderRecords(); if (cur === 'stats') renderStats(); } catch (e) {} }
+  return true;
+}
+async function socSyncBoot() {
+  if (!socOn() || syncBusy) return; syncBusy = true;
+  try {
+    const r = await socAsk({ op: 'sg' }, 'sg'); if (r.op === 'err') return;
+    stats = loadStats(); const acct = appCfg.account.id;
+    if (stats.acct && stats.acct !== acct) {                  // 이 컴퓨터의 기록은 다른 계정 것: 섞지 않고 이 계정 기록으로 바꿈
+      const keep = { ...stats }; stats = StatSync.apply({ ...defStats(), acct, name: keep.name, keys: keep.keys, vol: keep.vol, hand: keep.hand, speed: keep.speed, fps: keep.fps, style: keep.style }, StatSync.clean(r.data) || StatSync.clean({}));
+      saveStats(); if (game.state === 'menu') { try { renderRecords(); if (cur === 'stats') renderStats(); } catch (e) {} }
+    } else {
+      stats.acct = acct; const merged = StatSync.merge(StatSync.pick(stats), r.data);
+      syncApply(merged); stats = loadStats(); stats.acct = acct; localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+      if (!r.data || !StatSync.same(merged, r.data)) await socAsk({ op: 'sp', data: merged }, 'sp');       // 서버에 없는 기록이 있으면 올림
+    }
+    syncLast = JSON.stringify(syncPick()); syncOk = true;
+  } finally { syncBusy = false; }
+}
+function socSyncDirty() {
+  if (!syncOk || !socOn()) return;
+  clearTimeout(syncT); syncT = setTimeout(async () => {
+    const cur2 = JSON.stringify(syncPick()); if (cur2 === syncLast) return;
+    const r = await socAsk({ op: 'sp', data: syncPick() }, 'sp'); if (r.op === 'err') return;
+    syncLast = JSON.stringify(r.data); if (syncApply(r.data)) syncLast = JSON.stringify(syncPick());       // 다른 컴퓨터에서 올린 것이 있으면 받아 합침
+  }, 5000);
+}

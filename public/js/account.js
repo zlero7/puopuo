@@ -35,6 +35,7 @@
     stats = loadStats(); stats.name = r.name; stats.nameAsked = true; saveStats();       // 닉네임은 계정 것
     el('pName').value = r.name; el('pName').readOnly = true; el('pName').title = '닉네임은 계정에서 정해져요';
     paint(); showRankRec();
+    if (typeof socSyncBoot === 'function') socSyncBoot();            // 이 계정의 기록을 서버에서 받아 합침(다른 컴퓨터에서 쌓은 기록)
     const f = after; close(); if (f) f();
   }
   async function submit() {

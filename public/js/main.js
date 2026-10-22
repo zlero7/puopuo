@@ -14,7 +14,8 @@ TIER_IMG.decode().then(onArtImage, () => {});
   window.addEventListener('load', again); window.addEventListener('resize', again); window.addEventListener('puyo-splash-out', again);
   [150, 600, 1500, 3500].forEach(ms => setTimeout(onArtImage, ms));
 }
-if (APP && APP.uiReady) APP.uiReady().catch(() => {});   // 새 화면이 잘 떴다고 본체에 알림(안 알리면 이전 화면으로 되돌림)
+if (APP && APP.uiReady) APP.uiReady().catch(() => {});
+if (typeof socSyncBoot === 'function') setTimeout(socSyncBoot, 1500);   // 켤 때 로그인돼 있으면 이 계정의 기록을 서버와 맞춤   // 새 화면이 잘 떴다고 본체에 알림(안 알리면 이전 화면으로 되돌림)
 game.lowFx = stats.lowFx === true;
 // 게임 중엔 화면이 꺼지지 않게(지원하는 브라우저만)
 let wakeLock = null;
