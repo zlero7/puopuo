@@ -17,7 +17,10 @@ function needLoginMsg(bar, msg) { setInfo(bar, `<div class="empty">${msg || '로
 function renderStats() {
   stats = loadStats();
   $('pName').value = stats.name;
-  { const ch = charOf(stats.char || 'lumi'); $('pPv').style.cssText = `--n:${Math.max(0, CHARS.findIndex(c => c.id === ch.id))};--d:${ch.d}`; $('pCharName').textContent = ch.name; }   // 내 대표 캐릭터(캐릭터 메뉴에서 고른 것)
+  const loggedOut = !!APP && !appCfg.account;                      // 앱에서 로그아웃 상태: 대표 캐릭터·이름 자리에 로그인 안내
+  $('pPortrait').classList.toggle('out', loggedOut);
+  if (loggedOut) { $('pPv').style.cssText = ''; $('pCharName').textContent = '로그인하면 내 캐릭터가 보여요'; }
+  else { const ch = charOf(stats.char || 'lumi'); $('pPv').style.cssText = `--n:${Math.max(0, CHARS.findIndex(c => c.id === ch.id))};--d:${ch.d}`; $('pCharName').textContent = ch.name; }   // 내 대표 캐릭터(캐릭터 메뉴에서 고른 것)
   $('pGames').textContent = stats.games;
   const w = wins(), l = losses();
   $('pWins').textContent = w;
@@ -200,4 +203,4 @@ $('rkClose').addEventListener('click', closeTierList);
 $('rkTiers').addEventListener('click', e => { if (e.target === $('rkTiers')) closeTierList(); });
 $('rkTiers').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeTierList(); });
 $('iBody').addEventListener('click', e => { if (e.target.closest('.rkhero canvas')) openTierList(); });
-$('pPortrait').addEventListener('click', () => showScreen('chars'));
+$('pPortrait').addEventListener('click', () => { if (APP && !appCfg.account) openAcct('login'); else showScreen('chars'); });

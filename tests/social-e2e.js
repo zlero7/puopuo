@@ -99,6 +99,21 @@ const post = async (p, body, h = {}) => (await fetch(`http://127.0.0.1:${SP}${p}
     await p.evaluate(() => { infoTab = 'friends'; renderInfo(); }); await p.waitForTimeout(1200);
     p.once('dialog', d => d.accept()); await p.click('.frow [data-sc="del"]'); await p.waitForTimeout(800);
     ok(await p.evaluate(() => document.querySelectorAll('.frow').length === 0), '친구 삭제');
+    // 닉네임 바꾸기(로그인 중): 서버가 규칙을 검사하고 바뀐 이름이 서버·화면에 반영됨
+    ok(await p.evaluate(() => !document.getElementById('pName').readOnly), '로그인했을 때 닉네임 칸을 고칠 수 있음');
+    await p.evaluate(() => { openMenu('stats'); }); await p.fill('#pName', '새이름'); await p.press('#pName', 'Enter'); await p.waitForTimeout(1200);
+    ok(await p.evaluate(async () => appCfg.account.name === '새이름' && loadStats().name === '새이름' && (await socAsk({ op: 'list' }, 'list')).me.name === '새이름'), '닉네임을 바꾸면 서버와 화면에 반영됨');
+    await p.waitForTimeout(10200);
+    await p.fill('#pName', '시발'); await p.press('#pName', 'Enter'); await p.waitForTimeout(1200);
+    ok(await p.evaluate(() => document.getElementById('pName').value === '새이름' && /비속어/.test(document.getElementById('socToast').textContent)), '규칙에 안 맞는 닉네임은 거절되고 원래 이름으로 돌아감');
+    // 로그아웃하면 이 컴퓨터의 기록·이름·대표 캐릭터는 지워지고(키 설정은 그대로), 다시 로그인하면 서버에서 돌아옴
+    await p.evaluate(() => { stats = loadStats(); stats.keys = { left: ['j', ''] }; stats.char = 'kuro'; saveStats(); });
+    await p.evaluate(() => document.getElementById('stLogout').click()); await p.waitForTimeout(4500);
+    ok(await p.evaluate(() => { const s = loadStats(); return !appCfg.account && s.games === 0 && s.practice.best === 0 && s.name === '플레이어' && !s.char && document.getElementById('pName').value === '플레이어' && s.keys.left[0] === 'j'; }), '로그아웃하면 기록·이름·대표 캐릭터를 지우고 키 설정은 그대로');
+    await p.evaluate(() => { openMenu('stats'); }); await p.waitForTimeout(300);
+    ok(await p.evaluate(() => document.getElementById('pPortrait').classList.contains('out') && /로그인하면/.test(document.getElementById('pCharName').textContent)), '내 정보에서 대표 캐릭터 자리에 로그인 안내가 뜸');
+    await p.evaluate(async () => { const r = await window.puyoApp.login('me0001', 'Zx9!kqwe12'); appCfg.account = { id: r.id, name: r.name }; await socSyncBoot(); }); await p.waitForTimeout(1500);
+    ok(await p.evaluate(() => { const s = loadStats(); return s.games === 12 && s.practice.best === 4321; }), '다시 로그인하면 서버에서 기록이 돌아옴');
     // 같은 계정으로 다른 컴퓨터가 로그인하면 이 앱은 로그아웃되고 로그인 창이 뜸
     await p.evaluate(() => socReady()); await post('/auth/login', { id: 'me0001', pw: 'Zx9!kqwe12' }); await p.waitForTimeout(1500);
     ok(await p.evaluate(() => !appCfg.account && !document.getElementById('acct').classList.contains('hidden') && /다른 곳에서 같은 계정으로 로그인/.test(document.getElementById('acMsg').textContent)), '다른 곳에서 같은 계정으로 로그인하면 이 앱은 로그아웃되고 안내가 뜸');

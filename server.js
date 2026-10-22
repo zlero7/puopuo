@@ -395,7 +395,7 @@ function onMessage(ws, m) {
     case 'soc': {          // 친구 · 프로필(로그인한 사람만)
       if (!REQUIRE_AUTH || !ws.acct) return;
       const a = auth.byUid(ws.acct.uid); if (!a) return;
-      const r = social.handle(a, m, { isOnline: uid => online.has(uid), notify: (uid, msg) => { const o = online.get(uid); if (o) send(o, { t: 'soc', ...msg }); } });
+      const r = social.handle(a, m, { renamed: (uid, n) => { const o = online.get(uid); if (o && o.acct) o.acct.name = n; }, isOnline: uid => online.has(uid), notify: (uid, msg) => { const o = online.get(uid); if (o) send(o, { t: 'soc', ...msg }); } });
       if (r) send(ws, { t: 'soc', ...r });
       break;
     }

@@ -311,3 +311,21 @@ function socSyncDirty() {
     syncLast = JSON.stringify(r.data); if (syncApply(r.data)) syncLast = JSON.stringify(syncPick());       // 다른 컴퓨터에서 올린 것이 있으면 받아 합침
   }, 2500);
 }
+
+// 로그아웃 직전: 아직 못 올린 기록이 있으면 올림(최대 몇 초만 기다림)
+async function socSyncFlush() {
+  if (!syncOk || !socOn()) return;
+  clearTimeout(syncT); if (JSON.stringify(syncPick()) === syncLast) return;
+  const once = () => Promise.race([socAsk({ op: 'sp', data: syncPick() }, 'sp'), new Promise(r => setTimeout(() => r({ op: 'err' }), 4000))]);
+  let r = await once(); if (r.op === 'err') { await new Promise(x => setTimeout(x, 2200)); r = await once(); }   // 방금 올렸다면 서버의 2초 간격 제한에 걸릴 수 있어 한 번 더
+  if (r.op !== 'err') syncLast = JSON.stringify(r.data);
+}
+// 로그아웃하면 친구 목록·동기화 상태도 비움
+function socReset() { soc.me = null; soc.friends = []; soc.inc = []; soc.out = []; soc.loaded = false; syncOk = false; syncLast = ''; syncBusy = false; clearTimeout(syncT); pSynced = false; }
+// 닉네임 바꾸기(로그인했을 때): 서버가 규칙을 검사하고, 순위표·친구에게 보이는 이름도 함께 바뀜
+async function socRename(name) {
+  const r = await socAsk({ op: 'name', name }, 'name');
+  if (r.op === 'err') { socToast(r.msg); return null; }
+  appCfg.account = { ...appCfg.account, name: r.name }; stats = loadStats(); stats.name = r.name; saveStats(); socToast('닉네임을 바꿨어요');
+  return r.name;
+}

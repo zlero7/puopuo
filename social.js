@@ -55,6 +55,14 @@ function handle(a, m, ctx) {
     if (a.char !== m.char) { a.char = m.char; auth.saveSoon(); }
     return null;
   }
+  if (op === 'name') {                                                            // 닉네임 바꾸기
+    const w = lastAt.get(a.uid + ':name') || 0; if (Date.now() - w < 10000) return err('닉네임을 너무 자주 바꾸고 있어요. 잠시 뒤에 다시 해 주세요.');
+    const n = typeof m.name === 'string' ? m.name.trim() : '';
+    if (auth.checkName(n)) return err('닉네임은 1~10자이고, 비속어나 특수문자를 쓸 수 없어요.');
+    lastAt.set(a.uid + ':name', Date.now());
+    if (n !== a.name) { a.name = n; auth.saveSoon(); rank.renameUid(a.uid, n); if (ctx.renamed) ctx.renamed(a.uid, n); }
+    return { op: 'name', name: a.name };
+  }
   if (op === 'sg') return { op: 'sg', data: syncLoad(a.uid) };                  // 내 기록 받기
   if (op === 'sp') {                                                              // 내 기록 올리기: 저장된 것과 합쳐서 돌려줌
     const w = lastAt.get(a.uid + ':sp') || 0; if (Date.now() - w < 2000) return err('기록을 너무 자주 올리고 있어요.');

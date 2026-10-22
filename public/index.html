@@ -1078,6 +1078,8 @@ body.app label.setchk:has(#vib),body.app #lanInfo{display:none !important}
   .pv { aspect-ratio: 480 / 330; width: 100%; background: url(img/chars_vs.webp?v=4) calc(var(--n, 0) * 14.2857%) 0 / 800% auto no-repeat; border: 3px solid var(--d, #5e2399); border-radius: 12px; box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.25); }
   .pvwrap { position: relative; cursor: pointer; margin: 0 4px 4px; }
   .pvwrap #pCharName { position: absolute; left: 10px; bottom: 8px; background: rgba(16, 8, 36, 0.78); color: #fff; font-family: var(--head); font-size: 15px; padding: 2px 10px; border-radius: 6px; }
+  .pvwrap.out .pv { background: #cfc9e6 repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0 14px, transparent 14px 28px); border-color: #8d86b3; }
+  .pvwrap.out #pCharName { left: 0; right: 0; bottom: 50%; transform: translateY(50%); width: max-content; margin: 0 auto; }
   .pvwrap:hover .pv, .pvwrap:focus-visible .pv { box-shadow: 0 0 0 3px #ffe066, 0 4px 0 3px rgba(0, 0, 0, 0.25); }
   .profcard { width: min(760px, 100%); overflow: auto; }
   .phead { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }

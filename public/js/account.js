@@ -28,18 +28,28 @@
     paint(); el('acct').classList.remove('hidden');
     setTimeout(() => (appCfg.server ? (appCfg.account ? el('acClose') : el('acId')) : el('acSrvIn')).focus(), 50);
   }
+  // 로그아웃: 아직 못 올린 기록을 서버에 올리고, 이 컴퓨터에 남은 이 계정의 기록·닉네임·대표 캐릭터를 지움(서버에 있으니 다시 로그인하면 돌아옴). 키·소리 같은 이 컴퓨터 설정은 그대로
+  const RECORD_KEYS = ['games', 'playMs', 'ai', 'online', 'practice', 'bestChain', 'pops', 'chains', 'allClear', 'sent', 'doubles', 'tLines', 'tTetris', 'tSpins', 'tPC', 'bestRen', 'tRec', 'history', 'adv', 'puz', 'tutSeen', 'psent', 'nameAsked', 'name'];
+  async function localLogout(kicked) {
+    if (!kicked && typeof socSyncFlush === 'function') { try { await socSyncFlush(); } catch (e) {} }
+    try { await APP.logout(); } catch (e) {}
+    appCfg.account = null; if (net.ws) { try { net.ws.close(); } catch (e) {} net.ws = null; }
+    stats = loadStats(); const d = defStats(); for (const k of RECORD_KEYS) stats[k] = d[k]; delete stats.char; delete stats.acct; saveStats();
+    if (typeof socReset === 'function') socReset();
+    el('pName').value = stats.name; el('pName').readOnly = false; el('pName').title = ''; $('recRank').textContent = '로그인 필요';
+    try { renderRecords(); if (game.state === 'menu' && cur === 'stats') renderStats(); if (typeof renderChars === 'function') renderChars(); } catch (e) {}
+  }
   window.openAcct = open;
   // 같은 계정으로 다른 곳에서 로그인하면(서버가 이 연결을 끊음) 이 컴퓨터는 로그아웃하고 로그인 창을 띄움
   window.acctKicked = async () => {
-    if (!appCfg.account) return; appCfg.account = null; try { await APP.logout(); } catch (e) {}
-    el('pName').readOnly = false; el('pName').title = ''; if (typeof showRankRec === 'function') showRankRec();
+    if (!appCfg.account) return; await localLogout(true);
     open('login'); say('다른 곳에서 같은 계정으로 로그인해서 이 컴퓨터는 로그아웃됐어요.', true);
   };
   const close = () => { el('acct').classList.add('hidden'); after = null; };
   function signedIn(r) {
     appCfg.account = { id: r.id, name: r.name };
     stats = loadStats(); stats.name = r.name; stats.nameAsked = true; saveStats();       // 닉네임은 계정 것
-    el('pName').value = r.name; el('pName').readOnly = true; el('pName').title = '닉네임은 계정에서 정해져요';
+    el('pName').value = r.name; el('pName').readOnly = false; el('pName').title = '닉네임을 바꿀 수 있어요';
     paint(); showRankRec();
     if (typeof socSyncBoot === 'function') socSyncBoot();            // 이 계정의 기록을 서버에서 받아 합침(다른 컴퓨터에서 쌓은 기록)
     const f = after; close(); if (f) f();
@@ -63,12 +73,13 @@
   el('acct').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') close(); else if (e.key === 'Enter' && !el('acIn').classList.contains('hidden') && e.target.tagName === 'INPUT' && e.target.id !== 'acSrvIn') submit(); });
   el('acct').addEventListener('click', e => { if (e.target === el('acct')) close(); });
   el('acLogout').addEventListener('click', async () => {
-    await APP.logout(); appCfg.account = null; if (net.ws) net.ws.close(); el('pName').readOnly = false; el('pName').title = '';
-    $('recRank').textContent = '로그인 필요'; paint(); say('로그아웃했어요.', false);
+    await localLogout();
+    paint(); say('로그아웃했어요.', false);
   });
   el('acLogoutAll').addEventListener('click', async () => {
     if (!confirm('이 계정으로 로그인한 모든 기기에서 로그아웃할까요?')) return;
-    const r = await APP.logoutAll(); appCfg.account = null; if (net.ws) net.ws.close(); paint(); say(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
+    try { await socSyncFlush(); } catch (e) {}
+    const r = await APP.logoutAll(); await localLogout(true); paint(); say(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
   });
   el('acSrvGo').addEventListener('click', async () => {
     const r = await APP.setServer(el('acSrvIn').value);       // 본체가 확인 창을 따로 띄움. 성공하면 화면이 새로고침됨
@@ -87,12 +98,13 @@
   el('stLog').addEventListener('click', () => APP.openUpdateLog());
   el('stLogin').addEventListener('click', () => { closeSettings(); open('login'); });
   el('stLogout').addEventListener('click', async () => {
-    await APP.logout(); appCfg.account = null; if (net.ws) net.ws.close(); el('pName').readOnly = false; el('pName').title = '';
-    $('recRank').textContent = '로그인 필요'; paint(); paintStAcct(); stSay('로그아웃했어요.', false);
+    await localLogout();
+    paint(); paintStAcct(); stSay('로그아웃했어요.', false);
   });
   el('stLogoutAll').addEventListener('click', async () => {
     if (!confirm('이 계정으로 로그인한 모든 기기에서 로그아웃할까요?')) return;
-    const r = await APP.logoutAll(); appCfg.account = null; if (net.ws) net.ws.close(); paint(); paintStAcct(); stSay(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
+    try { await socSyncFlush(); } catch (e) {}
+    const r = await APP.logoutAll(); await localLogout(true); paint(); paintStAcct(); stSay(r.ok ? '모든 기기에서 로그아웃했어요.' : fmtErr(r), r.ok === false);
   });
   el('stPwGo').addEventListener('click', async () => {
     if (!el('stOld').value || !el('stNew').value) { stSay('지금 비밀번호와 새 비밀번호를 적어 주세요.'); return; }
@@ -106,7 +118,7 @@
   ['stOld', 'stNew', 'stNew2'].forEach(i => el(i).addEventListener('keydown', e => { if (e.key === 'Enter') el('stPwGo').click(); }));
   APP.onMenu(w => { if (w === 'account') open(); });
   appReady.then(() => {
-    if (appCfg.account) { stats = loadStats(); stats.name = appCfg.account.name; saveStats(); el('pName').readOnly = true; }
+    if (appCfg.account) { stats = loadStats(); stats.name = appCfg.account.name; saveStats(); el('pName').readOnly = false; el('pName').title = '닉네임을 바꿀 수 있어요'; }
     paint(); if (!appCfg.server) say('서버 주소가 아직 정해지지 않았어요. 온라인 대전을 하려면 주소를 정해 주세요.', false);
   });
 })();

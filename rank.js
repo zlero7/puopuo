@@ -250,6 +250,12 @@ function profile(uid, style) {
     sw: p.sw, sl: p.sl, w: p.w, l: p.l, season: v.season.name, hist: (p.hist || []).slice(0, 4),
     matches: p.matches.slice(0, MATCH_PUB).map(m => ({ at: m.at, win: m.win, score: m.score, placing: !!m.placing, d: m.placing && m.event !== 'placed' ? null : m.d, event: m.event, after: m.placing && m.event !== 'placed' ? '' : m.after, group: m.placing && m.event !== 'placed' ? -1 : m.group, div: m.div, opp: m.opp && { name: m.opp.name, char: m.opp.char, text: m.opp.text, group: m.opp.group, div: m.opp.div } })) };
 }
+// 닉네임을 바꿨을 때 순위표·기록에 보이는 이름도 바꿈(저장된 두 스타일 기록)
+function renameUid(uid, name) {
+  const n = cleanName(name); let any = false;
+  for (const st of STYLES) { const p = db.players[`${uid}:${st}`]; if (p) { p.name = n; any = true; } }
+  if (any) { board = null; save(); }
+}
 // 순위표 줄: 등수 · 티어 · RP · 캐릭터 · 이름 · 칭호(지난 시즌 최고 기록) · 이긴 시리즈 수
 function boardRows(list) {
   return list.slice().sort((a, b) => b.total - a.total).map((p, i) => {
@@ -284,4 +290,4 @@ const mmr = p => p.r;
 const placing = p => !doneThisSeason(p);
 const labelOf = v => v.text;
 
-module.exports = { profile, cleanName, touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };
+module.exports = { renameUid, profile, cleanName, touch, bot, botLevel, validToken, STYLES, get, report, top, me, view, labelOf, tierOf, glicko, mmr, placing, seasonInfo, seasonOf, flush, MASTER, BOARD_MIN };

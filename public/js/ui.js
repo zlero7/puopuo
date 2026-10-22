@@ -278,7 +278,14 @@ document.querySelectorAll('.tile[data-act]').forEach(t => {
   t.addEventListener('mouseenter', () => { if (document.activeElement.tagName !== 'INPUT') t.focus({ preventScroll: true }); });
   t.addEventListener('focus', () => { const d = t.querySelector('.td'); $('mDesc').textContent = d && getComputedStyle(d).display === 'none' ? t.dataset.desc : ''; });
 });
-$('pName').addEventListener('change', () => { stats = loadStats(); stats.name = cleanName($('pName').value); $('pName').value = stats.name; saveStats(); });
+$('pName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });   // Enter로 확정(칸을 벗어나면 저장됨)
+$('pName').addEventListener('change', async () => {
+  if (APP && appCfg.account) {                                   // 로그인 중: 서버에서 바꿈(규칙에 안 맞거나 실패하면 원래 이름으로)
+    const n = $('pName').value.trim(); if (n === appCfg.account.name) return;
+    const r = await socRename(n); $('pName').value = r || appCfg.account.name; return;
+  }
+  stats = loadStats(); stats.name = cleanName($('pName').value); $('pName').value = stats.name; saveStats();
+});
 // 랭크 티어 엠블럼: 브론즈·실버·골드·플래티넘·다이아·마스터(-1은 배치 중). div: 세부 티어 1~3(별 개수)
 const TIER_COL = [['#c9834a', '#7a4618'], ['#c3ccd6', '#6d7a88'], ['#ffd23d', '#b07a00'], ['#4fe0c4', '#14806c'], ['#7cb8ff', '#2556b8'], ['#d58cff', '#6b2aa8']];
 // 티어 엠블럼 그림(img/tiers.webp): 브론즈 1·2·3 → … → 다이아 3, 마스터, 언랭(배치 중) 순서로 한 줄(칸마다 128px). 불러오기 전은 아래 도형으로
