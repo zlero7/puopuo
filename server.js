@@ -126,7 +126,7 @@ const wss = new WebSocketServer({
   },
 });
 const online = new Map();       // 계정 uid → 지금 접속 중인 연결(한 계정은 한 곳에서만)
-if (authApi.hooks) authApi.hooks.onLogin = uid => {      // 다른 컴퓨터에서 로그인하면 지금 접속 중인 연결을 끊고 알림(한 계정은 한 곳에서만)
+if (authApi && authApi.hooks) authApi.hooks.onLogin = uid => {      // 다른 컴퓨터에서 로그인하면 지금 접속 중인 연결을 끊고 알림(한 계정은 한 곳에서만)
   const old = online.get(uid);
   if (old) { send(old, { t: 'error', code: 'dup', msg: '다른 곳에서 로그인해서 접속이 종료됐어요.' }); old.close(4409, 'dup'); }
 };
