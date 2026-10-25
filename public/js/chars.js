@@ -7,32 +7,37 @@
    - CPU로 나올 때는 성격(ai)에 따라 플레이 방식이 달라짐: play는 그 성격을 사람에게 보여 주는 한 줄 설명 */
 const CHARS = [
   { id: 'lumi', name: '루미', col: '#ff5a70', d: '#b01830', ears: 'bow', voice: 660, ai: {},
-    play: '특별한 버릇 없이 고르게 둬요',
+    playP: '균형 잡힌 기본 플레이', playT: '균형 잡힌 기본 플레이',
     desc: '밝고 씩씩한 연습생. 무엇이든 균형 있게 해.', lines: ['간다!', '하나 더!', '좋았어!', '최고 연쇄!'], win: '오늘도 내가 이겼다!', lose: '다음엔 안 질 거야!' },
   { id: 'toto', name: '토토', col: '#5aa8ff', d: '#1747b0', ears: 'shell', voice: 330, ai: { pot: 1.5, delay: 1.3, greedy: 0 },
-    play: '천천히 생각하며 크게 쌓아 한 번에 터뜨려요',
+    puyo: { fire: 5 },
+    playP: '5연쇄 이상이 될 때까지 참았다가 크게 터뜨려요', playT: '천천히 크게 쌓아서 한 번에 공격해요',
     desc: '느긋한 거북이. 천천히 크게 쌓아서 한 번에 터뜨려.', lines: ['느긋하게…', '쌓였다…', '이제다!', '대연쇄다!'], win: '천천히 가도 이긴다네.', lose: '서두를 걸 그랬나…' },
   { id: 'pin', name: '핀', col: '#58e27c', d: '#1a8027', ears: 'frog', voice: 880, ai: { greedy: 1, pot: 0.2, delay: 0.8 },
-    play: '작은 연쇄를 쉬지 않고 빠르게 날려요',
+    playP: '작은 연쇄를 쉬지 않고 빠르게 날려요', playT: '손이 빠른 편이에요',
     desc: '성질 급한 개구리. 작은 연쇄를 쉬지 않고 날려.', lines: ['개굴!', '빨리빨리!', '또 간다!', '개굴개굴!'], win: '역시 속도가 최고지!', lose: '개굴… 너무 빨랐나.' },
   { id: 'moka', name: '모카', col: '#c9905a', d: '#7a4c00', ears: 'bear', voice: 260, ai: { atk: 0.9, miss: 0.5 },
-    play: '실수가 적고 공격을 잘 받아쳐요',
+    puyo: { counter: 1, flat: 1.25 },
+    playP: '쌓이는 방해를 바로 연쇄로 지우며 받아쳐요', playT: '실수가 적고 안정적으로 쌓아요',
     desc: '듬직한 곰. 실수가 적고 받아치기를 잘해.', lines: ['흠.', '받아라.', '으랏차!', '곰의 힘이다!'], win: '든든하게 이겼군.', lose: '흐음… 졌다.' },
   { id: 'byeol', name: '별이', col: '#ffdc3a', d: '#d08a00', ears: 'star', voice: 990, ai: { tspin: 1.4 },
-    play: '테트리스에서 T스핀을 자주 노려요',
+    puyo: { snipe: true },
+    playP: '상대 판이 높아지면 연쇄로 마무리를 노려요', playT: 'T스핀을 자주 노려요',
     desc: '반짝이는 별 요정. 테트리스로는 T스핀을 노려.', lines: ['반짝!', '반짝반짝!', '별빛 연쇄!', '슈팅스타!'], win: '오늘 밤도 반짝반짝!', lose: '별이 졌어…' },
   { id: 'kuro', name: '쿠로', col: '#c47dff', d: '#5e2399', ears: 'cat', voice: 520, ai: { look: true, tspin: 1.1, delay: 0.85 },
-    play: '다음 조각까지 내다보며 계산해서 둬요',
+    puyo: { prec: 0.35, conn: 1.6 },
+    playP: '실수 없이 정확하게 같은 색을 이어 붙여요', playT: '다음 조각까지 내다보며 계산해요',
     desc: '도도한 고양이. 다음 수까지 내다보는 계산파.', lines: ['냥.', '계산대로야.', '냐앙!', '완벽해.'], win: '당연한 결과다냥.', lose: '…계산이 틀렸다냥.' },
   { id: 'somi', name: '솜이', col: '#ffa3d1', d: '#c2408a', ears: 'wool', voice: 740, ai: { noise: 1.6 },
-    play: '수가 들쭉날쭉해서 예측하기 어려워요',
+    puyo: { mood: true },
+    playP: '기분 따라 속공형과 대기형을 오가요', playT: '수가 들쭉날쭉해서 예측하기 어려워요',
     desc: '폭신한 양. 기분 따라 플레이가 바뀌어서 종잡을 수 없어.', lines: ['메에~', '폭신폭신!', '메에에!', '구름 연쇄~'], win: '메에~ 이겼다!', lose: '메에… 졸려.' },
   { id: 'bolt', name: '볼트', col: '#ff9a3d', d: '#c75a00', ears: 'antenna', voice: 420, ai: { delay: 0.6, miss: 1.8 },
-    play: '손이 엄청 빠르지만 실수도 잦아요',
+    playP: '엄청 빠르지만 실수도 잦아요', playT: '엄청 빠르지만 실수도 잦아요',
     desc: '번쩍이는 로봇. 손은 엄청 빠르지만 가끔 오작동해.', lines: ['삐빅!', '가속!', '출력 최대!', '오버드라이브!'], win: '승리 확인. 삐빅.', lose: '오류… 재부팅 중…' },
 ];
 // 캐릭터 설명 한 줄: AI로 나올 때의 성격(소개는 카드에 이미 있음)
-const charInfo = ch => `${ch.name} · AI로 나오면 ${ch.play}.`;
+const charInfo = ch => `${ch.name} · AI로 나오면 — 뿌요뿌요: ${ch.playP} / 테트리스: ${ch.playT}`;
 const charOf = id => CHARS.find(c => c.id === id) || CHARS[0];
 // CPU 성격 반영: 기본 난이도 값에 곱하기/덮어쓰기
 function charAi(base, ch, kind) {
@@ -40,6 +45,7 @@ function charAi(base, ch, kind) {
   if (m.delay) a.delay = Math.round(a.delay * m.delay);
   if (m.miss != null && a.miss != null) a.miss = Math.min(0.5, a.miss * m.miss);
   if (m.noise && a.noise != null) a.noise *= m.noise;
+  if (kind === 'puyo' && ch.puyo) { const q = ch.puyo; for (const k of ['fire', 'counter', 'snipe', 'flat', 'conn', 'mood']) if (q[k] != null) a[k] = q[k]; if (q.prec && a.noise != null) a.noise *= q.prec; }   // 뿌요뿌요만의 성격
   if (kind === 'puyo') { if (m.pot != null) a.pot = (a.pot || 0) * m.pot + (m.pot > 1 ? 0.2 : 0); if (m.greedy != null) a.greedy = m.greedy; }
   if (kind === 'tetris') { if (m.tspin) a.tspin = Math.min(1.5, (a.tspin || 0.3) * m.tspin + 0.2); if (m.look) a.look = true; }
   if (m.atk) a.atk = Math.min(0.95, a.atk + (m.atk - 0.6) * 0.3);

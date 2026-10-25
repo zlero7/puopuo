@@ -24,7 +24,8 @@
     "test:version": "node tests/version.js",
     "test:site": "node tests/site.js",
     "test:feel": "node tests/tetris-feel.js",
-    "test:statsync": "node tests/statsync.js"
+    "test:statsync": "node tests/statsync.js",
+    "test:puyochars": "node tests/puyo-chars.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

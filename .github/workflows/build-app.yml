@@ -50,6 +50,7 @@ jobs:
       - run: npm run test:version
       - run: npm run test:feel
       - run: npm run test:statsync
+      - run: npm run test:puyochars
 
   # 서버 이미지가 빌드되고 실제로 켜지는지
   docker:

@@ -744,6 +744,11 @@ class Field {
   planAI() {
     const g = this.colorGrid(), p = this.piece, hs = heightsOf(g), maxH = Math.max(...hs);
     const danger = maxH >= VIS - 3 || this.pending >= 12;
+    // 캐릭터 성격(chars.js의 puyo): fire 이 연쇄 수 이상일 때만 크게 터뜨림 · counter 쌓인 방해를 작은 연쇄로 받아침 · snipe 상대 판이 높으면 마무리 · flat 판을 낮고 평평하게 · conn 같은 색 잇기 · mood 기분에 따라 속공/대기를 오감
+    const A = this.ai, big = A.fire || 4;
+    let greedy = A.greedy, potW = A.pot;
+    if (A.mood) { this.moodN = (this.moodN || 0) + 1; if (this.moodN % 6 === 1) this.moodFast = Math.random() < 0.5; greedy = this.moodFast ? 1 : 0; potW = (A.pot || 0.6) * (this.moodFast ? 0.2 : 1.8); }
+    const oppHigh = !!(A.snipe && this.opp && this.opp.kind === 'puyo' && this.opp.colorGrid && Math.max(...heightsOf(this.opp.colorGrid())) >= VIS - 4);
     let best = null, bestS = -Infinity; const cands = [];
     for (let x = 0; x < COLS; x++) for (let o = 0; o < 4; o++) {
       const sx = x + DX[o]; if (sx < 0 || sx >= COLS) continue;
@@ -759,17 +764,19 @@ class Field {
       const res = simResolve(s); let sc = 0; const atk = Math.floor(res.score / 70);
       if (this.fv.on || this.bbOn()) sc += res.chain * 3000;     // 피버·빅뱅: 씨앗판은 터뜨리는 게 우선
       else if (res.chain > 0) {
-        if (res.chain >= 4) sc += 2000 + res.chain * 400;
-        else if (res.chain === 3) sc += 900;
+        if (res.chain >= big) sc += 2000 + res.chain * 400;
+        else if (res.chain === 3 && big === 4) sc += 900;
         else if (danger || (this.pending > 0 && atk >= this.pending)) sc += 600 * res.chain + atk * 10;
-        else if (this.ai.greedy) sc += 300 * res.chain;
+        else if (A.counter && this.pending > 0) sc += A.counter * 350 * res.chain;     // 받아치기: 쌓인 방해를 줄이려고 작은 연쇄라도 터뜨림
+        else if (oppHigh) sc += 500 * res.chain;                                       // 마무리: 상대가 위험할 때 연쇄를 날림
+        else if (greedy) sc += 300 * res.chain;
         else sc -= 120 - res.chain * 10;
       }
       const h = heightsOf(s);
-      for (let c = 0; c < COLS; c++) sc -= h[c] * h[c] * 0.9;
+      for (let c = 0; c < COLS; c++) sc -= h[c] * h[c] * 0.9 * (A.flat || 1);
       if (h[SP] >= VIS - 1) sc -= 4000; else if (h[SP] >= VIS - 3) sc -= 250;
-      sc += connectScore(s);
-      if (!danger && this.ai.pot > 0 && !this.fv.on && !this.bbOn()) { const pot = potential(s); sc += this.ai.pot * 150 * pot * pot; }
+      sc += connectScore(s) * (A.conn || 1);
+      if (!danger && potW > 0 && !this.fv.on && !this.bbOn()) { const pot = potential(s); sc += potW * 150 * pot * pot; }
       sc += Math.random() * this.ai.noise;
       cands.push({ x, o });
       if (sc > bestS) { bestS = sc; best = { x, o }; }
