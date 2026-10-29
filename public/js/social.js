@@ -46,7 +46,7 @@ function socOnMsg(m) {
 }
 // 대표 캐릭터를 서버에 알림(친구·순위표에 보이는 캐릭터). 연결돼 있을 때만(일부러 연결하지 않음)
 function socChar() {
-  if (socOn() && net.ws && net.ws.readyState === 1 && net.authed) net.ws.send(JSON.stringify({ t: 'soc', op: 'char', char: stats.char || 'lumi' }));
+  if (stats.char && socOn() && net.ws && net.ws.readyState === 1 && net.authed) net.ws.send(JSON.stringify({ t: 'soc', op: 'char', char: stats.char || 'lumi' }));
 }
 let toastT = 0;
 function socToast(msg) {
@@ -300,6 +300,9 @@ async function socSyncBoot() {
       syncApply(merged); stats = loadStats(); stats.acct = acct; localStorage.setItem(STATS_KEY, JSON.stringify(stats));
       if (!r.data || !StatSync.same(merged, r.data)) await socAsk({ op: 'sp', data: merged }, 'sp');       // 서버에 없는 기록이 있으면 올림
     }
+    // 대표 캐릭터: 이 컴퓨터(브라우저)에 고른 게 없으면 서버에 저장된 이 계정의 캐릭터를 가져옴(새 환경에서 로그인해도 루미로 덮어쓰지 않게)
+    const l = await socAsk({ op: 'list' }, 'list'); stats = loadStats();
+    if (l.op !== 'err' && !stats.char && l.me && CHARS.some(c => c.id === l.me.char)) { stats.char = l.me.char; saveStats(); try { renderChars(); } catch (e) {} }
     syncLast = JSON.stringify(syncPick()); syncOk = true;
   } finally { syncBusy = false; }
 }
