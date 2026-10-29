@@ -9,7 +9,8 @@ if (-not (Test-Path node_modules\ws)) { npm ci --omit=dev --ignore-scripts }
 $data = Join-Path $PWD 'data'; New-Item -ItemType Directory -Force $data | Out-Null
 $log = Join-Path $data 'server.log'
 if ((Test-Path $log) -and ((Get-Item $log).Length -gt 5MB)) { Move-Item $log "$log.old" -Force }   # 로그가 너무 커지지 않게
-$env:REQUIRE_AUTH = '1'; $env:SERVE_WEB = '0'
+$env:REQUIRE_AUTH = '1'; $env:SERVE_WEB = '1'            # 웹(브라우저)에서도 같은 화면을 제공: puyo.zlero.xyz
+$env:ALLOWED_ORIGINS = 'puyo://app,https://puyo.zlero.xyz'   # 앱과 웹 화면만 웹소켓 접속 허용
 $env:HOST = '127.0.0.1'; $env:PORT = "$Port"
 $env:TRUST_PROXY = '1'                     # 앞에 프록시(터널/Caddy)가 한 단계 있음
 $env:AUTH_DIR = $data; $env:RANK_FILE = Join-Path $data 'ranks.json'

@@ -74,10 +74,10 @@ const handler = (req, res) => {
   if (SERVE_WEB && (url === '/' || url === '/index.html')) {
     fs.readFile(INDEX, (err, data) => {
       if (err) { res.writeHead(500); res.end('index.html 을 읽을 수 없습니다'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...(REQUIRE_AUTH && { 'Content-Security-Policy': `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; font-src 'self'; connect-src 'self' ${req.headers.host ? 'wss://' + req.headers.host : ''}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'` }) });
       res.end(data);
     });
-  } else if (SERVE_WEB && /^\/js\/[\w-]+\.js$/.test(url)) {      // 게임 스크립트(경로 탈출 불가: 영문·숫자·-·_ 파일 이름만)
+  } else if (SERVE_WEB && /^\/js\/[\w-]+\.js$/.test(url) && (REQUIRE_AUTH || url !== '/js/webbridge.js')) {   // webbridge.js는 로그인 서버에서만 내려줌(없으면 예전 웹 모드)      // 게임 스크립트(경로 탈출 불가: 영문·숫자·-·_ 파일 이름만)
     fs.readFile(path.join(__dirname, 'public', url), (err, data) => {
       if (err) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
@@ -106,7 +106,7 @@ const handler = (req, res) => {
     res.end(JSON.stringify(body));
   } else if (SERVE_WEB && url === '/info') {          // 게임 화면에 '다른 사람 접속 주소'를 보여주기 위함
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ port: PORT, lan: HOST === '127.0.0.1' || HOST === 'localhost' ? [] : lanAddresses().map(a => a.url) }));   // 이 컴퓨터에서만 열었으면(데스크톱 앱 기본) 다른 사람 접속 주소는 없음
+    res.end(JSON.stringify({ version: require('./package.json').version, port: PORT, lan: HOST === '127.0.0.1' || HOST === 'localhost' ? [] : lanAddresses().map(a => a.url) }));   // 이 컴퓨터에서만 열었으면(데스크톱 앱 기본) 다른 사람 접속 주소는 없음
   } else if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(REQUIRE_AUTH ? { ok: true } : { ok: true, rooms: rooms.size }));   // 로그인 서버는 방 수 같은 내부 정보를 밖에 알리지 않음

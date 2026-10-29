@@ -68,6 +68,12 @@ async function authedWs(port, session, name) {
     ok(l1.s === 200 && l1.j.name === '앨리스', '로그인 성공');
     const w = await login(P, 'alice01', 'wrong-password'), u = await login(P, 'nobody99', 'wrong-password');
     ok(w.s === 401 && u.s === 401 && w.j.msg === u.j.msg && w.j.err === u.j.err, '틀린 비밀번호와 없는 아이디의 응답이 같음(아이디 존재 여부를 알려 주지 않음)');
+    // ---- 웹: 세션은 HttpOnly 쿠키로만(본문에 없음), X-Puyo-Web 헤더가 있을 때만 쿠키를 인정 ----
+    const wl = await post(P, '/auth/login', { id: 'alice01', pw: 'Zx9!kqwe12' }, { 'X-Puyo-Web': '1' });
+    const ck = String(wl.h.get('set-cookie') || ''), tok = (/puyo_s=([^;]+)/.exec(ck) || [])[1];
+    ok(wl.s === 200 && !wl.j.session && tok && /HttpOnly/i.test(ck) && /SameSite=Strict/i.test(ck), '웹 로그인: 세션은 HttpOnly·SameSite=Strict 쿠키로만, 응답 본문에는 없음');
+    ok((await post(P, '/auth/ticket', {}, { 'X-Puyo-Web': '1', Cookie: 'puyo_s=' + tok })).s === 200, '웹: 쿠키+헤더로 접속표 발급');
+    ok((await post(P, '/auth/ticket', {}, { Cookie: 'puyo_s=' + tok })).s === 401, '웹: 헤더 없는 요청(다른 사이트의 요청)은 쿠키가 있어도 거부');
     for (let i = 0; i < 5; i++) await login(P, 'bobby02', 'nope-nope-1');
     const lk = await login(P, 'bobby02', 'Qm7#rtyu45');
     ok(lk.s === 429 && lk.j.err === 'locked' && lk.j.retry > 0, '연속 5번 틀리면 올바른 비밀번호도 잠깐 막음');

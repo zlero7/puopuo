@@ -36,7 +36,17 @@ function readJson(req, res) {
   });
 }
 const bearer = req => { const m = /^Bearer ([\w.\-]{10,512})$/.exec(req.headers.authorization || ''); return m ? m[1] : ''; };
-const authed = req => auth.fromSession(bearer(req));
+// 웹(브라우저): 세션을 스크립트가 못 읽는 HttpOnly 쿠키로만 주고받음. 쿠키는 X-Puyo-Web 헤더가 있는 요청에서만 인정 — 다른 사이트의 요청은 이 헤더를 못 붙이므로(CORS 사전 요청에서 막힘) CSRF 방지
+const isWeb = req => req.headers['x-puyo-web'] === '1';
+const cookieTok = req => isWeb(req) ? ((/(?:^|;\s*)puyo_s=([\w.\-]{10,512})/.exec(req.headers.cookie || '') || [])[1] || '') : '';
+const authed = req => auth.fromSession(bearer(req) || cookieTok(req));
+const setCookie = (req, res, v, maxAge) => res.setHeader('Set-Cookie', `puyo_s=${v}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`);
+// 앱은 응답에 세션을 실어 주고(본체가 보관), 웹은 쿠키로만 심고 응답 본문에는 세션을 넣지 않음
+function sess(req, res, a) {
+  const x = auth.sessionFor(a);
+  if (!isWeb(req)) return { session: x };
+  setCookie(req, res, x.token, Math.max(1, Math.floor((x.exp - Date.now()) / 1000))); return {};
+}
 const okAcct = (a, extra) => ({ ok: true, name: a.name, id: a.id, ...extra });
 
 // 처리했으면 true. ip는 서버가 정한 접속 주소(프록시 뒤면 믿을 수 있는 헤더에서)
@@ -50,31 +60,32 @@ async function handle(req, res, url, ip) {
   }
   if (url === '/auth/refresh') {                    // 세션 갱신(앱을 켤 때 한 번)
     const a = authed(req); if (!a) { fail(res, 401, 'auth'); return; }
-    reply(res, 200, okAcct(a, { session: auth.sessionFor(a) })); return;
+    reply(res, 200, okAcct(a, sess(req, res, a))); return;
   }
+  if (url === '/auth/logout') { setCookie(req, res, '', 0); reply(res, 200, { ok: true }); return; }      // 웹: 쿠키 지우기(다른 기기의 세션은 그대로)
   if (url === '/auth/logout-all') {                 // 모든 기기에서 로그아웃(세션 전부 무효)
     const a = authed(req); if (!a) { fail(res, 401, 'auth'); return; }
-    auth.revokeAll(a); reply(res, 200, { ok: true }); return;
+    auth.revokeAll(a); setCookie(req, res, '', 0); reply(res, 200, { ok: true }); return;
   }
   const b = await readJson(req, res); if (!b) return;
   if (url === '/auth/register') {
     const r = await auth.register({ id: b.id, name: b.name, pw: b.pw });
     if (!r.ok) { fail(res, r.err === 'id_taken' ? 409 : 400, r.err); return; }
     console.log(`[계정] 가입 ${r.acct.id} (${ip})`);
-    reply(res, 201, okAcct(r.acct, { session: auth.sessionFor(r.acct) })); return;
+    reply(res, 201, okAcct(r.acct, sess(req, res, r.acct))); return;
   }
   if (url === '/auth/login') {
     const r = await auth.login({ id: b.id, pw: b.pw });
     if (!r.ok) { if (r.err === 'locked') fail(res, 429, 'locked', { retry: r.retry }); else { console.log(`[계정] 로그인 실패 ${auth.normId(b.id).slice(0, 16)} (${ip})`); fail(res, 401, r.err); } return; }
     if (hooks.onLogin) hooks.onLogin(r.acct.uid);                 // 이미 접속 중인 연결(다른 컴퓨터)을 끊음
-    reply(res, 200, okAcct(r.acct, { session: auth.sessionFor(r.acct) })); return;
+    reply(res, 200, okAcct(r.acct, sess(req, res, r.acct))); return;
   }
   if (url === '/auth/password') {
     const a = authed(req); if (!a) { fail(res, 401, 'auth'); return; }
     const r = await auth.changePassword(a, b.old, b.new);
     if (!r.ok) { fail(res, r.err === 'locked' ? 429 : r.err === 'bad_login' ? 401 : 400, r.err, r.retry ? { retry: r.retry } : undefined); return; }
     console.log(`[계정] 비밀번호 변경 ${a.id} (${ip})`);
-    reply(res, 200, okAcct(r.acct, { session: auth.sessionFor(r.acct) })); return;
+    reply(res, 200, okAcct(r.acct, sess(req, res, r.acct))); return;
   }
   fail(res, 404, 'bad_req');
 }
